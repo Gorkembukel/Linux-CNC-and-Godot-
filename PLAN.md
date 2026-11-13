@@ -492,5 +492,39 @@ either).
   collision refactor regressed the LinuxCNC-lifecycle or preview tests (those
   need no live bridge session running to execute safely).
 
+## 3D-interactive console, readable captions, status LEDs (2026-11-14)
+
+The "True 3D-interactive console" item above is done: `ConsoleStand.cs` was
+rebuilt as a real multi-page CNC-style control (`b49a9d5`, `ab5f5a3`) -- every
+face button (page nav, ON/HOME/CYCLE/HOLD/STOP/T.CHG/jog/RUN, E-STOP) is a
+real `StaticBody3D` the player's crosshair raycast can hit and press
+(`TryPress`, called from `PlayerController`), driving the same `BridgeClient`
+calls the 2D panel uses. MDI typing/touch-off text entry deliberately stays
+2D-only (a world-space button can't host a text field).
+
+Found and fixed live: button captions were dark text on dark button material
+-- unreadable (`900edaa`). Fixed with a bright amber, black-outlined,
+billboarded `Label3D` (`AddButtonCaption`) so captions read against any
+background color from any approach angle.
+
+Added three status LEDs (POWER/CYCLE/ALARM) to the panel, visible without
+reading the screen, matching a real CNC pendant's convention. Built in one
+commit but initially left unwired (materials existed, nothing drove them);
+wired up this session: `SetLed` now flips each LED's emission energy from
+`BridgeClient.State`'s `MachineOn`/`InCycle`/`Estop` every frame, same
+pattern as the screen text, and forces all three dark when the bridge isn't
+connected.
+
+Re-ran the full test suite per the still-open item above: 21 C# (`dotnet test
+tests/Tests.csproj`) + 13 Python (`pytest tests/bridge/` inside WSL2,
+including the two LinuxCNC-lifecycle tests) -- **34/34 passing**, confirming
+nothing in the WorldScale/collision/player-controller work regressed the
+bridge or prediction/material logic.
+
+**Still open:**
+- Workpiece visual state not persisted across a Godot restart (Phase 2/3,
+  still true).
+- Chip ribbon/spiral geometry is still the simplified pooled-box approach.
+
 ---
 *Phase 0 environment approved implicitly by the user proceeding with the WSL fix; "do all phases, don't stop" given 2026-11-13.*
