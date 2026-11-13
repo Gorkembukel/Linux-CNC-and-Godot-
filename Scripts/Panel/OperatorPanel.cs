@@ -1,0 +1,244 @@
+using Godot;
+using CncTrainer.Bridge;
+
+namespace CncTrainer.Panel;
+
+/// <summary>
+/// Brief section 7/4: an ORIGINAL operator panel design that follows the
+/// general logic/layout of common CNC pendant controls (mode selector, MDI
+/// keypad, JOG with selectable increments, cycle start/feed hold, overrides,
+/// tool-change confirm, a touch-off workflow for tool offsets) without copying
+/// any real vendor's branding, logo, or exact layout. Named "Operator Panel",
+/// not "Fanuc-style" or any vendor name, anywhere a user would see it.
+///
+/// Built programmatically (not hand-authored as a .tscn) since a control
+/// layout this size is far more maintainable as code than as hand-edited
+/// anchor/offset numbers in a text scene file.
+/// </summary>
+public partial class OperatorPanel : Control
+{
+    private BridgeClient _bridge;
+
+    private Label _modeStatusLabel;
+    private Label _toolChangeLabel;
+    private LineEdit _mdiInput;
+    private HSlider _feedOverrideSlider;
+    private HSlider _spindleOverrideSlider;
+    private Label _overrideLabel;
+    private OptionButton _jogIncrementSelect;
+    private Button _continuousJogToggle;
+
+    private bool _continuousJogMode = true;
+    private static readonly float[] IncrementSteps = { 0.001f, 0.01f, 0.1f, 1f, 10f };
+    private const float JogSpeedMmPerSec = 20f;
+
+    public override void _Ready()
+    {
+        _bridge = GetNode<BridgeClient>("/root/BridgeClient");
+
+        AnchorLeft = 0;
+        AnchorTop = 1;
+        AnchorRight = 0;
+        AnchorBottom = 1;
+        OffsetLeft = 16;
+        OffsetTop = -420;
+        OffsetRight = 820;
+        OffsetBottom = -16;
+
+        var panelBg = new Godot.Panel { AnchorRight = 1, AnchorBottom = 1 };
+        AddChild(panelBg);
+
+        var root = new VBoxContainer { AnchorRight = 1, AnchorBottom = 1 };
+        root.AddThemeConstantOverride("separation", 6);
+        AddChild(root);
+
+        _modeStatusLabel = new Label { Text = "MODE: MANUAL" };
+        root.AddChild(_modeStatusLabel);
+
+        _toolChangeLabel = new Label { Text = "", Modulate = new Color(1f, 0.6f, 0.1f) };
+        root.AddChild(_toolChangeLabel);
+
+        root.AddChild(BuildModeRow());
+        root.AddChild(BuildJogRow());
+        root.AddChild(BuildMdiRow());
+        root.AddChild(BuildCycleRow());
+        root.AddChild(BuildOverridesRow());
+        root.AddChild(BuildToolRow());
+    }
+
+    public override void _Process(double delta)
+    {
+        var s = _bridge.State;
+        _modeStatusLabel.Text = $"MODE: {s.TaskMode}   INTERP: {s.InterpState}   ESTOP: {(s.Estop ? "YES" : "no")}   ON: {s.MachineOn}";
+        _toolChangeLabel.Text = s.InterpState == InterpState.Waiting
+            ? $"TOOL CHANGE PENDING (T{s.ToolNumber}) -- jog to clear, then press CONFIRM"
+            : "";
+    }
+
+    private Control BuildModeRow()
+    {
+        var row = new HBoxContainer();
+        row.AddChild(MakeButton("MANUAL", () => _bridge.SetMode(TaskMode.Manual)));
+        row.AddChild(MakeButton("MDI", () => _bridge.SetMode(TaskMode.Mdi)));
+        row.AddChild(MakeButton("AUTO", () => _bridge.SetMode(TaskMode.Auto)));
+        row.AddChild(MakeButton("HOME X", () => _bridge.HomeAxis(0)));
+        row.AddChild(MakeButton("HOME Z", () => _bridge.HomeAxis(1)));
+        row.AddChild(MakeButton("HOME ALL", () => _bridge.HomeAxis(0xFF)));
+        row.AddChild(MakeButton("MACHINE ON", () => { _bridge.ResetEstop(); _bridge.MachineOn(); }));
+        row.AddChild(MakeButton("E-STOP", () => _bridge.MachineOff()));
+        return row;
+    }
+
+    private Control BuildJogRow()
+    {
+        var row = new HBoxContainer();
+
+        _continuousJogToggle = MakeButton("JOG: CONTINUOUS", () =>
+        {
+            _continuousJogMode = !_continuousJogMode;
+            _continuousJogToggle.Text = _continuousJogMode ? "JOG: CONTINUOUS" : "JOG: INCREMENT";
+        });
+        row.AddChild(_continuousJogToggle);
+
+        _jogIncrementSelect = new OptionButton();
+        foreach (var step in IncrementSteps)
+            _jogIncrementSelect.AddItem($"{step} mm");
+        _jogIncrementSelect.Select(2); // 0.1mm default, a common manual-mode step
+        row.AddChild(_jogIncrementSelect);
+
+        row.AddChild(MakeJogButton("X-", axis: 0, direction: -1));
+        row.AddChild(MakeJogButton("X+", axis: 0, direction: +1));
+        row.AddChild(MakeJogButton("Z-", axis: 1, direction: -1));
+        row.AddChild(MakeJogButton("Z+", axis: 1, direction: +1));
+        return row;
+    }
+
+    private Button MakeJogButton(string text, byte axis, int direction)
+    {
+        var button = MakeButton(text, () => { });
+        button.ButtonDown += () =>
+        {
+            if (_continuousJogMode)
+            {
+                _bridge.JogStart(axis, direction * JogSpeedMmPerSec);
+            }
+            else
+            {
+                float step = IncrementSteps[_jogIncrementSelect.Selected];
+                _bridge.JogIncremental(axis, direction * JogSpeedMmPerSec, direction * step);
+            }
+        };
+        button.ButtonUp += () =>
+        {
+            if (_continuousJogMode)
+                _bridge.JogStop(axis);
+        };
+        return button;
+    }
+
+    private Control BuildMdiRow()
+    {
+        var row = new HBoxContainer();
+        _mdiInput = new LineEdit { PlaceholderText = "MDI: e.g. G0 X10 Z-5", CustomMinimumSize = new Vector2(300, 0) };
+        _mdiInput.TextSubmitted += _ => SendMdiFromInput();
+        row.AddChild(_mdiInput);
+        row.AddChild(MakeButton("EXECUTE", SendMdiFromInput));
+        return row;
+    }
+
+    private void SendMdiFromInput()
+    {
+        var text = _mdiInput.Text.Trim();
+        if (text.Length == 0)
+            return;
+        _bridge.SendMdi(text);
+        _mdiInput.Text = "";
+    }
+
+    private Control BuildCycleRow()
+    {
+        var row = new HBoxContainer();
+        row.AddChild(MakeButton("CYCLE START", () => _bridge.RunProgram()));
+        row.AddChild(MakeButton("FEED HOLD", () => _bridge.PauseProgram()));
+        row.AddChild(MakeButton("STOP", () => _bridge.StopProgram()));
+        row.AddChild(MakeButton("SINGLE BLOCK STEP", () => _bridge.StepProgram()));
+        row.AddChild(MakeButton("CONFIRM TOOL CHANGE", () => _bridge.ConfirmToolChange()));
+        return row;
+    }
+
+    private Control BuildOverridesRow()
+    {
+        var row = new VBoxContainer();
+
+        _overrideLabel = new Label { Text = "Feed 100%   Spindle 100%" };
+        row.AddChild(_overrideLabel);
+
+        var feedRow = new HBoxContainer();
+        feedRow.AddChild(new Label { Text = "Feed Ovr" });
+        _feedOverrideSlider = new HSlider { MinValue = 0, MaxValue = 150, Value = 100, Step = 5, CustomMinimumSize = new Vector2(240, 0) };
+        _feedOverrideSlider.ValueChanged += v =>
+        {
+            _bridge.SetFeedOverride((float)(v / 100.0));
+            UpdateOverrideLabel();
+        };
+        feedRow.AddChild(_feedOverrideSlider);
+        row.AddChild(feedRow);
+
+        var spindleRow = new HBoxContainer();
+        spindleRow.AddChild(new Label { Text = "Spindle Ovr" });
+        _spindleOverrideSlider = new HSlider { MinValue = 0, MaxValue = 120, Value = 100, Step = 5, CustomMinimumSize = new Vector2(240, 0) };
+        _spindleOverrideSlider.ValueChanged += v =>
+        {
+            _bridge.SetSpindleOverride((float)(v / 100.0));
+            UpdateOverrideLabel();
+        };
+        spindleRow.AddChild(_spindleOverrideSlider);
+        row.AddChild(spindleRow);
+
+        return row;
+    }
+
+    private void UpdateOverrideLabel()
+    {
+        _overrideLabel.Text = $"Feed {_feedOverrideSlider.Value:F0}%   Spindle {_spindleOverrideSlider.Value:F0}%";
+    }
+
+    private Control BuildToolRow()
+    {
+        // Simplified tool-offset "touch off" workflow: operator jogs the tool
+        // until it touches a reference surface of a KNOWN dimension, enters
+        // that known dimension, and this sends the G10 L1 offset-table-update
+        // MDI line LinuxCNC expects -- the same mechanism a real pendant's
+        // "touch off" soft-key drives, just without a graphical wizard.
+        var row = new HBoxContainer();
+        var knownDiameterInput = new LineEdit { PlaceholderText = "known diameter (mm)", CustomMinimumSize = new Vector2(160, 0) };
+        row.AddChild(knownDiameterInput);
+        row.AddChild(MakeButton("TOUCH OFF X (set tool X offset)", () =>
+        {
+            if (float.TryParse(knownDiameterInput.Text, out float knownDiameter))
+            {
+                float measuredRadius = _bridge.State.Position.X;
+                _bridge.SendMdi($"G10 L1 P{_bridge.State.ToolNumber} X{measuredRadius - knownDiameter / 2f:F4}");
+            }
+        }));
+
+        var knownZInput = new LineEdit { PlaceholderText = "known Z face offset (mm)", CustomMinimumSize = new Vector2(160, 0) };
+        row.AddChild(knownZInput);
+        row.AddChild(MakeButton("TOUCH OFF Z (set tool Z offset)", () =>
+        {
+            if (float.TryParse(knownZInput.Text, out float knownZ))
+            {
+                float measuredZ = _bridge.State.Position.Y;
+                _bridge.SendMdi($"G10 L1 P{_bridge.State.ToolNumber} Z{measuredZ - knownZ:F4}");
+            }
+        }));
+        return row;
+    }
+
+    private Button MakeButton(string text, System.Action onPressed)
+    {
+        var b = new Button { Text = text };
+        b.Pressed += onPressed;
+        return b;
+    }
+}

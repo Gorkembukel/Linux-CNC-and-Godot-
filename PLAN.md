@@ -186,4 +186,150 @@ LinuxCNC lifecycle, G-code preview).
 ASSETS.md, README.md. Continuing now.
 
 ---
+
+## HANDOFF / RESUME HERE (2026-11-13, session ending on usage limit)
+
+The user's session is about to hit a usage limit; a fresh agent will continue
+from here. Read this section first, then the Phase status sections above it
+(all still accurate) for the "why" behind each decision.
+
+### Exact repo state
+- Branch: **`phase0-godot-bridge-client`** (git-workflow-discipline: real work
+  happens on a feature branch, not `master` -- `master` only has the very first
+  scaffold commit; don't be confused that it looks "behind", that's intentional
+  and not yet merged, on purpose, per that skill).
+- Last commits on this branch, in order: initial scaffold -> Godot bridge
+  client (Phase 0) -> prediction/overlay/tests (Phase 1) -> material removal
+  (Phase 2) -> chip system (Phase 3).
+- **Uncommitted right now**, needs a commit as this session's very last action
+  (see below): `Scripts/Panel/OperatorPanel.cs` (new), `Scenes/Main.tscn`
+  (modified to add the panel node), `.godot/` cache changes (not tracked,
+  ignore). Build is clean (0 errors/warnings), smoke-tested headless with no
+  crash. **NOT YET live-tested against the real bridge** -- that's the first
+  thing to do on resume (see "Immediate next steps").
+
+### What's done and verified LIVE (not just compiled) -- Phases 0, 1, 2, 3
+Everything in the Phase 0/1/2/3 status notes above this section. Summary: the
+LinuxCNC sim lathe, Python bridge (state stream, command dispatch, G-code
+preview), and Godot C# client (connection, prediction/reconciliation, debug
+overlay, material removal, chip spawning) all work end-to-end, proven by
+actually running the demo program and watching real position data flow through
+every layer. 15 C# tests (`Tests/`, run with `dotnet test` from `Tests/`) + 10
+Python tests (`tests/bridge/`, run with `python3 -m pytest tests/bridge/ -v`
+**inside WSL2**, not Windows) all pass.
+
+### What's in progress -- Phase 4, operator panel
+`Scripts/Panel/OperatorPanel.cs` is written: mode selector, jog buttons
+(continuous + incremental with a step-size dropdown), MDI line input, cycle
+start/feed-hold/stop/single-block/tool-change-confirm, feed/spindle override
+sliders, and a touch-off workflow (two text fields + buttons that compute and
+send `G10 L1` tool-offset MDI lines from the confirmed position). Built
+programmatically in `_Ready()` rather than hand-authored in the `.tscn` (more
+maintainable for a control layout this size). Wired into `Scenes/Main.tscn` as
+`UI/OperatorPanel`. **Watch for**: the namespace `CncTrainer.Panel` collides
+with Godot's own `Panel` class -- already fixed once (use `Godot.Panel`
+explicitly) but double-check if adding more code in that file.
+
+### Immediate next steps (in order)
+1. **Live-test the operator panel** against the real bridge. Godot's
+   `--headless` mode can't simulate button clicks easily, so either: (a) run
+   Godot normally (not headless) if a display is available to the session, or
+   (b) write a small throwaway C# or `InputEventMouseButton`-driven script to
+   fire the panel's button `Pressed` signals directly and confirm the right
+   bridge command goes out (cheaper, no real window needed) -- see how prior
+   phases validated via `CNC_DEBUG_PRINT=1` + headless + a separate script
+   driving LinuxCNC directly as the "other side" of the conversation; the same
+   pattern works here by calling `OperatorPanel`'s build methods' button
+   actions directly in a quick test scene, or by checking the UDP commands
+   Godot sends with a raw socket listener (mirrors how `udp_listen.py` in the
+   scratchpad validated the state stream back in Phase 0).
+2. Bridge-side: `CommandServer.TOOL_CHANGE_CONFIRM` pulses
+   `iocontrol.0.tool-changed` via `halcmd setp` -- confirm this actually still
+   works when invoked over the real UDP command path (it was only tested via
+   direct `halcmd` calls from a scratch script before, not through
+   `OperatorPanel` -> `BridgeClient.ConfirmToolChange()` -> UDP ->
+   `CommandServer` end to end).
+3. Once the panel is verified, commit it (Phase 4 status note + commit,
+   matching the pattern of every phase above).
+4. **Phase 5**: job scheduler with priority classes/time-slicing/adaptive
+   budget, a profiling overlay (frame time, per-class time, queue
+   lengths/drops), a benchmark scene, `PERF.md` with real numbers from this
+   machine (Ryzen 5 2600, 6C/12T, 16GB -- see PLAN.md's environment table at
+   the top). GDExtension (C++) only if C# profiling actually shows it's
+   needed -- don't build it speculatively (recorded as an assumption early in
+   this file).
+5. Record/replay tool (`tools/` per the original repo-layout assumption,
+   not yet created) -- captures the bridge's UDP stream to a file and plays it
+   back with configurable jitter/packet-loss injection, so Godot-side dev
+   doesn't need LinuxCNC running. This directly reuses `bridge/protocol.py`'s
+   pack/unpack functions.
+6. `ASSETS.md` (placeholder-primitives only so far -- box meshes for
+   everything; list what's missing, per the brief's section 7 fallback plan)
+   and `README.md` (setup steps: `wsl --update`/reinstall already done by the
+   user; `apt install linuxcnc-uspace` already done; the Windows Firewall rule
+   already added by the user -- all one-time, already-completed steps on
+   *this* machine, but must be documented for anyone else setting the project
+   up fresh).
+
+### How to resume testing (commands that work on this exact machine)
+```
+# Clean LinuxCNC/IPC state (always do this before starting it fresh):
+wsl -u root -d Ubuntu -- bash -lc "pkill -9 -x linuxcncsvr; pkill -9 -x rtapi_app; pkill -9 -x milltask; sleep 1; bash /mnt/c/Users/gorke/Documents/linux/bridge/clear_stale_shm.sh"
+
+# Start the bridge (run in background, wait for "publishing state" in its output):
+wsl -d Ubuntu -- python3 -u /mnt/c/Users/gorke/Documents/linux/bridge/main.py --rate-hz 100
+
+# Build the Godot C# project:
+cd C:\Users\gorke\Documents\linux && dotnet build Linux.csproj
+
+# Run Godot headless (ALWAYS capture the PID and Stop-Process it explicitly
+# afterward with its own literal PID -- a pattern-based Stop-Process on
+# multiple matches gets blocked by the safety classifier, and --quit-after
+# does NOT reliably exit the process, both discovered the hard way this
+# session; leftover processes hold UDP port 9200 and silently break the next
+# test):
+$p = Start-Process -FilePath "E:\Godot_v4.7.2-stable_mono_win64\Godot_v4.7.2-stable_mono_win64_console.exe" -ArgumentList "--headless","--path","C:\Users\gorke\Documents\linux" -PassThru -RedirectStandardOutput "<some log path>" -NoNewWindow
+# ... wait, read the log, then:
+Stop-Process -Id $p.Id -Force
+
+# C# tests:
+cd C:\Users\gorke\Documents\linux\Tests && dotnet test
+
+# Python tests (inside WSL; note the actual on-disk folder is lowercase
+# "tests" even though Windows/dotnet happily display/accept "Tests" --
+# case-insensitive NTFS vs. case-sensitive WSL, discovered the hard way):
+wsl -d Ubuntu -- python3 -m pytest /mnt/c/Users/gorke/Documents/linux/tests/bridge/ -v
+```
+
+### Non-obvious things worth NOT re-discovering (full detail is in the Phase
+status sections above; this is just the index)
+1. WSL2 kernel + Ubuntu disk image were both broken on first use -- fixed, done.
+2. LinuxCNC's launcher pops a blocking GUI dialog unless `$DISPLAY` is stripped
+   from its subprocess environment -- already handled in `linuxcnc_process.py`.
+3. Stale SysV IPC (shm+semaphores) after a non-graceful shutdown randomly wedges
+   the next start for up to 90+ seconds -- already handled automatically
+   (`clear_stale_shm.sh`, called from `start()`).
+4. The *first* `linuxcnc.stat()` call made before the child's NML shared memory
+   exists permanently wedges for that process's whole life -- already handled
+   (`wait_for_nml_ready` waits for a log marker first).
+5. drvfs (`/mnt/c/...`) doesn't support hard links/reliable FIFOs -- already
+   handled (`deploy.py` copies config to a native WSL path before running).
+6. Windows Firewall blocks inbound UDP from `vEthernet (WSL)` by default -- the
+   user already added the fix rule (`New-NetFirewallRule ... -LocalPort
+   9200,9201`); anyone else setting this up fresh will hit this and needs the
+   same rule (must go in README.md).
+7. `gcode.parse()`'s standalone preview interpreter reports coordinates/feed
+   rates in inches whenever the program contains a `G21`, even on an all-mm
+   machine -- compensated with an explicit ×25.4 in `preview.py`, documented
+   there as an unexplained quirk, not a true fix.
+8. `sim_lathe.ini`'s `TOOL_CHANGE_POSITION` originally had Z=150, outside the
+   configured 50mm Z limit -- fixed to Z=40. Only an actual full-program run
+   (not MDI-testing individual moves) surfaces bugs like this; keep doing full
+   runs, not just unit moves, when validating later phases.
+9. Repeatedly killing Godot processes by *pattern* (`Where-Object` + pipe to
+   `Stop-Process`) gets blocked by the safety classifier as "destructive/
+   unwanted"; killing by a single literal PID works. `--quit-after` is not a
+   reliable way to make a headless Godot process actually exit on its own.
+
+---
 *Phase 0 environment approved implicitly by the user proceeding with the WSL fix; "do all phases, don't stop" given 2026-11-13.*
