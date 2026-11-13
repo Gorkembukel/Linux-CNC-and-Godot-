@@ -43,6 +43,12 @@ public class LatheRadiusProfile : IMaterialModel
 
     public int IndexAt(float z) => Mathf.Clamp(Mathf.RoundToInt((z - ZMin) / StepMm), 0, _radius.Length - 1);
 
+    // Below this, a bucket counts as "cut all the way through" for severance
+    // detection (Sweep's SeveredIndex / Sever below) -- matches the clamp
+    // floor parting/facing moves already drive radius to (see
+    // Sweep_HandlesFacingMoves_WithNoZTravel).
+    private const float SeverEpsilonMm = 0.05f;
+
     public SweepResult Sweep(Vector2 fromPos, Vector2 toPos, float toolNoseRadius, float feedPerRev, float spindleRpm)
     {
         float z0 = fromPos.Y, z1 = toPos.Y;
@@ -53,6 +59,7 @@ public class LatheRadiusProfile : IMaterialModel
 
         bool removedAny = false;
         float maxDepthRemoved = 0f;
+        int? severedIndex = null;
 
         for (int i = i0; i <= i1; i++)
         {
@@ -67,6 +74,12 @@ public class LatheRadiusProfile : IMaterialModel
             if (cutRadius < _radius[i])
             {
                 maxDepthRemoved = Mathf.Max(maxDepthRemoved, _radius[i] - cutRadius);
+                // _radius[i] can only cross from >epsilon to <=epsilon ONCE:
+                // cutRadius is clamped >=0, so once _radius[i] is already at
+                // or below the epsilon, "cutRadius < _radius[i]" can't make
+                // it cross again -- no extra per-bucket state needed.
+                if (_radius[i] > SeverEpsilonMm && cutRadius <= SeverEpsilonMm)
+                    severedIndex = severedIndex is int existing ? Mathf.Min(existing, i) : i;
                 _radius[i] = cutRadius;
                 removedAny = true;
             }
@@ -76,6 +89,38 @@ public class LatheRadiusProfile : IMaterialModel
             return SweepResult.None;
 
         float contactLength = Mathf.Abs(z1 - z0);
-        return new SweepResult(true, i0, i1, maxDepthRemoved, contactLength);
+        return new SweepResult(true, i0, i1, maxDepthRemoved, contactLength, severedIndex);
+    }
+
+    /// <summary>Call once a parting cut is detected (SweepResult.SeveredIndex)
+    /// to split the stock: everything beyond `index` (toward the free/tip
+    /// end) is now a physically separate piece. Zeroes those buckets in this
+    /// profile (the remaining, chuck-held stock no longer "has" them) and
+    /// returns their pre-sever radii so the caller can build the detached
+    /// piece's own geometry. Buckets at/before `index` are untouched, so a
+    /// later part-off further down the remaining stock works unmodified.</summary>
+    public float[] Sever(int index)
+    {
+        // Stop at the array's end OR at a bucket a PRIOR Sever already
+        // zeroed, whichever comes first -- found live: without this, a
+        // second part-off on the same remaining stock kept re-including the
+        // first extraction's already-empty tail buckets as if they were
+        // still live material (a degenerate zero-radius ghost on the new
+        // piece's far end, growing with every subsequent part-off).
+        int end = index + 1;
+        while (end < _radius.Length && _radius[end] > 0f)
+            end++;
+
+        int count = end - index - 1;
+        if (count <= 0)
+            return System.Array.Empty<float>();
+
+        var removed = new float[count];
+        for (int i = index + 1; i < end; i++)
+        {
+            removed[i - index - 1] = _radius[i];
+            _radius[i] = 0f;
+        }
+        return removed;
     }
 }

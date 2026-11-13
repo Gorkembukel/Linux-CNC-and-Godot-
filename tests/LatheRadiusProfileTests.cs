@@ -83,4 +83,68 @@ public class LatheRadiusProfileTests
         // Untouched beyond the turned length.
         Assert.Equal(26f, profile.RadiusAt(profile.IndexAt(-64f)), precision: 3);
     }
+
+    [Fact]
+    public void Sweep_ReportsSeveredIndex_WhenAPartingCutReachesCenterline()
+    {
+        var profile = new LatheRadiusProfile(stockRadiusMm: 25f, zMin: -70f, zMax: 5f, stepMm: 0.5f);
+
+        var result = profile.Sweep(new Vector2(25f, -55f), new Vector2(-0.5f, -55f), 0f, 0.1f, 600f);
+
+        Assert.True(result.MaterialRemoved);
+        Assert.Equal(profile.IndexAt(-55f), result.SeveredIndex);
+    }
+
+    [Fact]
+    public void Sweep_DoesNotReportSeveredIndex_WhenCutDoesNotReachCenterline()
+    {
+        var profile = new LatheRadiusProfile(stockRadiusMm: 25f, zMin: -70f, zMax: 5f, stepMm: 0.5f);
+
+        var result = profile.Sweep(new Vector2(20f, -60f), new Vector2(20f, -30f), 0.8f, 0.15f, 800f);
+
+        Assert.True(result.MaterialRemoved);
+        Assert.Null(result.SeveredIndex);
+    }
+
+    [Fact]
+    public void Sever_ZeroesBeyondTheGivenIndex_AndReturnsThePreSeverRadii()
+    {
+        var profile = new LatheRadiusProfile(stockRadiusMm: 25f, zMin: -10f, zMax: 10f, stepMm: 1f);
+        // Cut a step from Z0 to Z10 down to radius 15 so the severed piece
+        // has a non-uniform shape worth asserting on.
+        profile.Sweep(new Vector2(15f, 0f), new Vector2(15f, 10f), 0f, 0f, 0f);
+        int severIndex = profile.IndexAt(-1f); // one bucket before the cut range, still at full radius
+
+        var removed = profile.Sever(severIndex);
+
+        // Returned radii run from just past severIndex to the end.
+        Assert.Equal(profile.BucketCount - severIndex - 1, removed.Length);
+        Assert.Equal(15f, removed[0], precision: 3); // bucket right after the sever point
+        Assert.Equal(15f, removed[^1], precision: 3); // bucket at ZMax
+
+        // Beyond the sever point, the live profile is now zeroed.
+        Assert.Equal(0f, profile.RadiusAt(severIndex + 1), precision: 3);
+        Assert.Equal(0f, profile.RadiusAt(profile.BucketCount - 1), precision: 3);
+        // At and before the sever point, untouched.
+        Assert.Equal(25f, profile.RadiusAt(severIndex), precision: 3);
+        Assert.Equal(25f, profile.RadiusAt(profile.IndexAt(-10f)), precision: 3);
+    }
+
+    [Fact]
+    public void Sever_ASecondTime_StopsAtThePriorSeverBoundary_NotTheArrayEnd()
+    {
+        // Two part-offs on the same bar: the second severed piece must only
+        // contain the bucket range actually still live between the two cut
+        // points, not re-include the first piece's already-zeroed tail.
+        var profile = new LatheRadiusProfile(stockRadiusMm: 25f, zMin: -30f, zMax: 10f, stepMm: 1f);
+
+        int firstSeverIndex = profile.IndexAt(0f);
+        profile.Sever(firstSeverIndex); // detaches Z1..Z10
+
+        int secondSeverIndex = profile.IndexAt(-10f);
+        var secondRemoved = profile.Sever(secondSeverIndex); // should only cover Z-9..Z0
+
+        Assert.Equal(firstSeverIndex - secondSeverIndex, secondRemoved.Length);
+        Assert.All(secondRemoved, r => Assert.Equal(25f, r, precision: 3));
+    }
 }

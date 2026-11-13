@@ -19,6 +19,7 @@ public partial class Main : Node3D
     private WorkpieceVisual _workpiece;
     private MachineBody _machineBody;
     private ChipSpawner _chips;
+    private Node3D _partsContainer;
     private LatheRadiusProfile _material;
     private Vector2? _lastConfirmedPos;
     private ChipFormation? _activeChipFormation;
@@ -37,6 +38,7 @@ public partial class Main : Node3D
         _workpiece = GetNode<WorkpieceVisual>("Workpiece");
         _machineBody = GetNode<MachineBody>("MachineBody");
         _chips = GetNode<ChipSpawner>("ChipSpawner");
+        _partsContainer = GetNode<Node3D>("Parts");
 
         _material = _workpiece.Profile; // built in WorkpieceVisual's own _Ready(), which runs before this (children before parent)
 
@@ -74,9 +76,40 @@ public partial class Main : Node3D
                 _activeChipFormation = ChipClassifier.Classify(
                     MaterialPreset.Get(StockMaterial), result.DepthOfCutMm, feedPerRev, surfaceSpeedMmPerSec);
                 _timeSinceLastCut = 0.0;
+
+                if (result.SeveredIndex is int severedIndex)
+                    ExtractFinishedPart(severedIndex);
             }
         }
         _lastConfirmedPos = pos;
+    }
+
+    /// <summary>A parting cut just severed the stock at `severedIndex` --
+    /// build the detached piece (the finished part) into a real, weighed,
+    /// collidable RigidBody3D the player can pick up (PlayerController's
+    /// "pickupable" group), and remove that range from the still-attached
+    /// stock's own profile so WorkpieceVisual stops drawing it there.</summary>
+    private void ExtractFinishedPart(int severedIndex)
+    {
+        var removedRadiiMm = _material.Sever(severedIndex);
+        _workpiece.MarkDirty(severedIndex, _material.BucketCount - 1);
+
+        float startZmm = _material.ZAt(severedIndex + 1);
+        var built = WorkpiecePartBuilder.Build(removedRadiiMm, _material.StepMm, startZmm, MaterialPreset.Get(StockMaterial).DensityKgPerM3);
+        if (built is not WorkpiecePartBuilder.BuiltPart part)
+            return; // degenerate (parted off right at the tip) -- nothing to spawn
+
+        var body = new RigidBody3D { Mass = Mathf.Max(0.01f, part.MassKg) };
+        _partsContainer.AddChild(body);
+        body.AddChild(new MeshInstance3D { Mesh = part.Mesh, MaterialOverride = _workpiece.StockVisualMaterial });
+        body.AddChild(new CollisionShape3D { Shape = part.Collision });
+        // Workpiece/Main share an identity transform at the world origin, so
+        // the centroid's machine-mm Z converts straight into world space.
+        body.Position = new Vector3(part.CentroidZmm * WorldScale.MmToM, 0f, 0f);
+        body.AddToGroup("pickupable");
+
+        if (OS.HasEnvironment("CNC_DEBUG_PRINT"))
+            GD.Print($"[Main] extracted finished part: mass={part.MassKg:F3}kg centroidZ={part.CentroidZmm:F1}mm buckets={removedRadiiMm.Length}");
     }
 
     private void OnConnectionChanged(bool connected)

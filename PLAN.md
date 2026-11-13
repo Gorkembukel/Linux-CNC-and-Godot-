@@ -526,5 +526,79 @@ bridge or prediction/material logic.
   still true).
 - Chip ribbon/spiral geometry is still the simplified pooled-box approach.
 
+## Chuck/cut realism fix + finished parts become real pickupable objects (2026-11-14)
+
+User-reported realism problems, fixed before moving on to mill support and a
+training/scenario mode (the next two agreed priorities; part transfer via a
+robot arm is explicitly deferred further still -- not started):
+
+**Chuck/cut orientation bug.** The lathe looked like it tore material
+directly off the chuck. Root cause, found by reading the demo program and
+the machine geometry together: `MachineBody.cs`'s chuck/headstock sat at
+`StockZMax` (+5mm) -- the SAME end where `demo_facing_turning.ngc`'s own
+motion (face at Z0 -> turn OD to Z-60 -> part at Z-55) actually cuts. That
+program's own header comment ("Z0 = chuck face") had it backwards: Z0 is the
+stock's free/exposed tip (faced first), more-negative Z is toward the chuck.
+Fixed by moving the chuck/headstock to the `StockZMin` end instead -- purely
+decorative geometry (the chuck has no collision), no G-code or LinuxCNC
+coordinate changes. Fixed the program's misleading comment too (motion
+itself was already correct).
+
+**Finished parts now become real objects.** A parting cut used to just leave
+a permanent zero-radius "ghost" in the one continuous stock mesh. Now:
+`LatheRadiusProfile.Sweep` detects a bucket crossing from material to ~0
+radius (a parting cut) and reports it; `LatheRadiusProfile.Sever` splits the
+stock there, returning the detached piece's pre-cut radii; the new
+`WorkpiecePartBuilder` (pure-math volume/centroid separated from
+engine-dependent mesh/collision building, same split as
+`LatheRadiusProfile`/`WorkpieceVisual`) turns that into a real mesh, a
+convex-hull collision shape, and a mass computed from the material's real
+density (added `MaterialPreset.DensityKgPerM3`: steel 7850, aluminum 2700,
+brass 8500 kg/m3); `Main.ExtractFinishedPart` spawns it as a `RigidBody3D`
+tagged `"pickupable"`. `PlayerController` gained an `F` key (reusing the
+same crosshair-raycast pattern as the console buttons) to pick up/carry/drop
+it, with the interact-prompt label repurposed to show which applies.
+
+**Two real bugs found live, not just by inspection** (ran the actual demo
+program and separate MDI-driven parting cuts against the live bridge, with
+Godot running headless and `CNC_DEBUG_PRINT=1`, watching for errors across
+several successive part-offs):
+1. Jolt failed to build a convex collision shape for a thin part
+   ("initial triangle area too small") -- the facing-the-tip operation at
+   the very start of every real turning program is, in this 1D
+   radius-profile model, structurally identical to a parting cut (both are
+   "a bucket's radius reached ~0"), so it was spawning a thin 5mm-long disc
+   every run, thinner than Jolt's default 0.04m convex margin. Fixed by
+   setting an explicit small `Margin` (0.001m) on the generated
+   `ConvexPolygonShape3D`. (Also added a `MinPartLengthMm` floor in
+   `WorkpiecePartBuilder.Build` as a separate, smaller safety net for
+   genuinely-degenerate slivers; the 5mm facing stub itself is now handled
+   correctly rather than suppressed -- it's a real, if small, piece of
+   material a facing cut removes.)
+2. `LatheRadiusProfile.Sever` always zeroed from the cut point to the
+   array's true end, even when an earlier `Sever` had already zeroed part of
+   that range -- so a second part-off on the same remaining stock kept
+   re-including the first extraction's already-empty tail as if it were
+   still live material (a growing zero-radius "ghost" on the new piece, got
+   worse with every subsequent part-off). Fixed by stopping at the first
+   already-zero bucket, confirmed with a repeated-severance test and by
+   re-running the live MDI reproduction (bucket counts matched expectations
+   exactly after the fix, were inflated before it).
+
+**Stated simplifications, not solved, same spirit as this project's existing
+ones:** the collision shape is a convex hull of the revolved profile (fine
+for ordinary stepped/tapered turning, would smooth over a re-entrant groove
+if one's ever cut); a held part doesn't do obstruction/collision sweeping
+against walls while carried (glued-to-camera carry, like most games); robot/
+automation part transfer between machines is not started at all yet.
+
+**Not yet verified live by a human** (this agent has no windowed Godot
+session available, only headless): the actual visual result of the chuck
+now sitting at the correct end, and the F-key pick-up/carry/drop feel in
+practice. Everything up to spawning the real object was verified live
+against the real bridge (position data, mass/collision build, no errors
+across three successive part-offs); the remaining two are app-level/visual
+and need the user's own run via `start.ps1`.
+
 ---
 *Phase 0 environment approved implicitly by the user proceeding with the WSL fix; "do all phases, don't stop" given 2026-11-13.*

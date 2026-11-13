@@ -25,8 +25,15 @@ namespace CncTrainer;
 [Tool]
 public partial class MachineBody : Node3D
 {
-    [Export] public float ChuckEndWorldX = 0.005f; // = StockZMax(5mm) * WorldScale.MmToM
-    [Export] public float BedFarEndWorldX = -0.4f;
+    // ChuckEndWorldX = StockZMin(-85mm) * WorldScale.MmToM. The chuck grips
+    // the end the demo program treats as deepest/raw stock; its own motion
+    // (face at Z0 -> turn OD to Z-60 -> part at Z-55) proves Z0 is the free,
+    // exposed tip, not the chuck face, despite that program's own comment
+    // claiming the opposite -- found live (reported: cutting looked like it
+    // tore material straight off the chuck, because this used to sit at
+    // StockZMax, right where facing/turning/parting actually happen).
+    [Export] public float ChuckEndWorldX = -0.085f;
+    [Export] public float BedFarEndWorldX = -0.45f;
     [Export] public float BedNearEndWorldX = 0.15f;
 
     private MeshInstance3D _carriage;
@@ -66,8 +73,10 @@ public partial class MachineBody : Node3D
             center: new Vector3((BedFarEndWorldX + BedNearEndWorldX) / 2f, (bedTopY + WorldScale.FloorY) / 2f, 0f),
             material: machineGreen, name: "BedCabinet");
 
-        // Headstock: chunky box at the chuck end, spanning above and below centerline.
-        float headstockCenterX = ChuckEndWorldX + 0.15f;
+        // Headstock: chunky box at the chuck end, spanning above and below
+        // centerline. Offset AWAY from the stock (more negative, past the
+        // chuck) -- mirrors the pre-fix layout, just on the other end.
+        float headstockCenterX = ChuckEndWorldX - 0.15f;
         AddStaticBox(
             size: new Vector3(0.25f, 0.2f, 0.3f),
             center: new Vector3(headstockCenterX, bedTopY + 0.1f, 0f),
@@ -87,7 +96,9 @@ public partial class MachineBody : Node3D
             Mesh = new CylinderMesh { TopRadius = 0.05f, BottomRadius = 0.05f, Height = chuckOverlapIntoStock + 0.005f },
             MaterialOverride = chuckMetal,
             Name = "Chuck",
-            Position = new Vector3(ChuckEndWorldX - chuckOverlapIntoStock / 2f + 0.0025f, 0f, 0f),
+            // Overlaps toward INCREASING Z from StockZMin (mirror of the old
+            // StockZMax-anchored math, which overlapped toward decreasing Z).
+            Position = new Vector3(ChuckEndWorldX + chuckOverlapIntoStock / 2f - 0.0025f, 0f, 0f),
             // CylinderMesh's axis is Y by default; rotate so it points along world X (the spindle axis).
             RotationDegrees = new Vector3(0f, 0f, 90f),
         };

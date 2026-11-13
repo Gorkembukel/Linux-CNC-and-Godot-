@@ -123,52 +123,20 @@ public partial class WorkpieceVisual : Node3D
             // to meters here at the mesh-vertex boundary (see WorldScale.cs).
             float x0 = Profile.ZAt(i) * WorldScale.MmToM, x1 = Profile.ZAt(i + 1) * WorldScale.MmToM;
             float r0 = Profile.RadiusAt(i) * WorldScale.MmToM, r1 = Profile.RadiusAt(i + 1) * WorldScale.MmToM;
-
-            for (int a = 0; a < AngularSegments; a++)
-            {
-                float t0 = a * Mathf.Tau / AngularSegments;
-                float t1 = (a + 1) * Mathf.Tau / AngularSegments;
-                Vector3 p00 = new(x0, r0 * Mathf.Cos(t0), r0 * Mathf.Sin(t0));
-                Vector3 p01 = new(x0, r0 * Mathf.Cos(t1), r0 * Mathf.Sin(t1));
-                Vector3 p10 = new(x1, r1 * Mathf.Cos(t0), r1 * Mathf.Sin(t0));
-                Vector3 p11 = new(x1, r1 * Mathf.Cos(t1), r1 * Mathf.Sin(t1));
-
-                AddTriangle(st, p00, p10, p11);
-                AddTriangle(st, p00, p11, p01);
-            }
+            RevolutionMesh.AddRingSegment(st, x0, r0, x1, r1, AngularSegments);
         }
 
         if (startBucket == 0)
-            AddCap(st, startBucket, outwardNormalIsNegativeX: true);
+            RevolutionMesh.AddCap(st, Profile.ZAt(startBucket) * WorldScale.MmToM, Profile.RadiusAt(startBucket) * WorldScale.MmToM, AngularSegments, outwardNormalIsNegativeX: true);
         if (endBucket == Profile.BucketCount - 1)
-            AddCap(st, endBucket, outwardNormalIsNegativeX: false);
+            RevolutionMesh.AddCap(st, Profile.ZAt(endBucket) * WorldScale.MmToM, Profile.RadiusAt(endBucket) * WorldScale.MmToM, AngularSegments, outwardNormalIsNegativeX: false);
 
         st.GenerateNormals();
         _chunkMeshes[chunkIndex].Mesh = st.Commit();
     }
 
-    private void AddTriangle(SurfaceTool st, Vector3 a, Vector3 b, Vector3 c)
-    {
-        st.AddVertex(a);
-        st.AddVertex(b);
-        st.AddVertex(c);
-    }
-
-    private void AddCap(SurfaceTool st, int bucketIndex, bool outwardNormalIsNegativeX)
-    {
-        float x = Profile.ZAt(bucketIndex) * WorldScale.MmToM;
-        float r = Profile.RadiusAt(bucketIndex) * WorldScale.MmToM;
-        var center = new Vector3(x, 0, 0);
-        for (int a = 0; a < AngularSegments; a++)
-        {
-            float t0 = a * Mathf.Tau / AngularSegments;
-            float t1 = (a + 1) * Mathf.Tau / AngularSegments;
-            Vector3 p0 = new(x, r * Mathf.Cos(t0), r * Mathf.Sin(t0));
-            Vector3 p1 = new(x, r * Mathf.Cos(t1), r * Mathf.Sin(t1));
-            if (outwardNormalIsNegativeX)
-                AddTriangle(st, center, p1, p0);
-            else
-                AddTriangle(st, center, p0, p1);
-        }
-    }
+    /// <summary>So a detached finished part (see WorkpiecePartBuilder) can
+    /// visually match the stock it was just cut from instead of needing a
+    /// second, independent material resource.</summary>
+    public StandardMaterial3D StockVisualMaterial => _material;
 }

@@ -13,13 +13,20 @@ public readonly struct SweepResult
     public readonly float DepthOfCutMm;
     public readonly float ContactLengthMm;
 
-    public SweepResult(bool removed, int minIdx, int maxIdx, float depth, float contactLength)
+    /// <summary>Set when this sweep drove a bucket's radius from positive down
+    /// to ~0 for the first time -- i.e. the stock was just cut all the way
+    /// through at that Z (a parting cut). The lowest such index, if more than
+    /// one bucket crossed to zero in this one sweep (a wide tool/step).</summary>
+    public readonly int? SeveredIndex;
+
+    public SweepResult(bool removed, int minIdx, int maxIdx, float depth, float contactLength, int? severedIndex = null)
     {
         MaterialRemoved = removed;
         MinDirtyIndex = minIdx;
         MaxDirtyIndex = maxIdx;
         DepthOfCutMm = depth;
         ContactLengthMm = contactLength;
+        SeveredIndex = severedIndex;
     }
 
     public static readonly SweepResult None = new(false, 0, 0, 0, 0);

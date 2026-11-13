@@ -27,6 +27,7 @@ public partial class PlayerController : CharacterBody3D
     [Export] public float Gravity = 9.8f;
     [Export] public float MouseSensitivity = 0.0025f;
     [Export] public float InteractRange = 1.2f;
+    [Export] public float PickupRange = 2.0f; // longer reach than InteractRange -- grabbing, not pressing a button at arm's length
 
     private const float CapsuleRadius = 0.3f;
     private const float CapsuleHeight = 1.8f;
@@ -45,6 +46,9 @@ public partial class PlayerController : CharacterBody3D
     private bool _atConsole;
     private Node3D _bodyVisual;
 
+    private Node3D _carryPoint;
+    private RigidBody3D _heldPart;
+
     public override void _Ready()
     {
         var collision = new CollisionShape3D
@@ -61,6 +65,11 @@ public partial class PlayerController : CharacterBody3D
 
         _fpCamera = new Camera3D { Current = true, Name = "FirstPersonCamera" };
         _head.AddChild(_fpCamera);
+
+        // Where a picked-up part is held -- child of _head so it moves and
+        // tilts naturally with where the player looks, same as the cameras.
+        _carryPoint = new Node3D { Position = new Vector3(0f, -0.1f, -0.6f), Name = "CarryPoint" };
+        _head.AddChild(_carryPoint);
 
         // Sibling of _head (both direct children of the body), NOT nested
         // under it: parenting the arm under the already-pitched _head and
@@ -127,6 +136,9 @@ public partial class PlayerController : CharacterBody3D
                 case Key.E when _atConsole:
                     ToggleConsoleUse();
                     break;
+                case Key.F when Input.MouseMode == Input.MouseModeEnum.Captured:
+                    TogglePickup();
+                    break;
             }
         }
         else if (@event is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left } mb)
@@ -164,6 +176,36 @@ public partial class PlayerController : CharacterBody3D
         var result = GetWorld3D().DirectSpaceState.IntersectRay(query);
         if (result.Count > 0 && result["collider"].As<Node3D>() is Node3D hit)
             _consoleStand.TryPress(hit);
+    }
+
+    /// <summary>Same crosshair-raycast pattern as TryPressConsoleButton, but
+    /// not gated to console proximity and against anything in the
+    /// "pickupable" group (see Main.ExtractFinishedPart) instead of the
+    /// console's buttons.</summary>
+    private void TogglePickup()
+    {
+        if (_heldPart != null)
+        {
+            _heldPart.Freeze = false;
+            _heldPart = null;
+            return;
+        }
+
+        var camera = GetViewport().GetCamera3D();
+        if (camera == null)
+            return;
+        var from = camera.GlobalPosition;
+        var to = from - camera.GlobalTransform.Basis.Z * PickupRange;
+        var query = PhysicsRayQueryParameters3D.Create(from, to);
+        query.Exclude = new Godot.Collections.Array<Rid> { GetRid() };
+        var result = GetWorld3D().DirectSpaceState.IntersectRay(query);
+        if (result.Count > 0 && result["collider"].As<Node3D>() is RigidBody3D body && body.IsInGroup("pickupable"))
+        {
+            _heldPart = body;
+            _heldPart.Freeze = true; // kinematic while held -- carried by direct transform, not physics forces
+            _heldPart.LinearVelocity = Vector3.Zero;
+            _heldPart.AngularVelocity = Vector3.Zero;
+        }
     }
 
     private void ToggleView()
@@ -227,6 +269,8 @@ public partial class PlayerController : CharacterBody3D
         MoveAndSlide();
 
         UpdateConsoleProximity();
+        UpdateCarriedPart();
+        UpdatePickupPrompt();
     }
 
     private void UpdateConsoleProximity()
@@ -237,9 +281,53 @@ public partial class PlayerController : CharacterBody3D
         if (inRange != _atConsole)
         {
             _atConsole = inRange;
-            _interactPrompt.Visible = inRange;
             if (!inRange && _operatorPanel != null)
                 Input.MouseMode = Input.MouseModeEnum.Captured; // walked away: give look control back
         }
+    }
+
+    private void UpdateCarriedPart()
+    {
+        if (_heldPart != null)
+            _heldPart.GlobalTransform = _carryPoint.GlobalTransform;
+    }
+
+    /// <summary>Console prompt takes priority (it's the proven, primary
+    /// interaction); otherwise show pickup/drop based on a crosshair raycast
+    /// against "pickupable" bodies, same cost class as the console-proximity
+    /// check above (one ray per physics frame).</summary>
+    private void UpdatePickupPrompt()
+    {
+        if (_atConsole)
+        {
+            _interactPrompt.Text = "[E] 2D panel   [Click] press a button";
+            _interactPrompt.Visible = true;
+            return;
+        }
+
+        if (_heldPart != null)
+        {
+            _interactPrompt.Text = "[F] Drop part";
+            _interactPrompt.Visible = true;
+            return;
+        }
+
+        var camera = GetViewport().GetCamera3D();
+        if (camera != null)
+        {
+            var from = camera.GlobalPosition;
+            var to = from - camera.GlobalTransform.Basis.Z * PickupRange;
+            var query = PhysicsRayQueryParameters3D.Create(from, to);
+            query.Exclude = new Godot.Collections.Array<Rid> { GetRid() };
+            var result = GetWorld3D().DirectSpaceState.IntersectRay(query);
+            if (result.Count > 0 && result["collider"].As<Node3D>() is RigidBody3D body && body.IsInGroup("pickupable"))
+            {
+                _interactPrompt.Text = "[F] Pick up part";
+                _interactPrompt.Visible = true;
+                return;
+            }
+        }
+
+        _interactPrompt.Visible = false;
     }
 }
