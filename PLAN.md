@@ -108,4 +108,32 @@ Each phase ends with: a runnable demo (documented steps, since I may not be able
 - Unit tests for the protocol, preview, and prediction (protocol round-trip was sanity-checked ad hoc in-session, not yet a committed pytest suite).
 
 ---
-*Phase 0 environment approved implicitly by the user proceeding with the WSL fix; "do all phases, don't stop" given 2026-11-13. Continuing into Phase 1/Godot side next.*
+
+## Phase 0 complete (2026-11-13) — full pipeline verified end-to-end
+
+Added the Godot C# side: `Scripts/Bridge/BridgeProtocol.cs` (byte-exact mirror of
+`bridge/protocol.py`), `BridgeClient.cs` (autoload singleton: binds the state UDP
+socket, sends commands to the bridge via WSL2's Windows->Linux localhost
+forwarding, tracks connection health with a timeout, never blocks), `MachineState.cs`
+(confirmed-state holder), and a minimal `Scenes/Main.tscn` demo (a cube at the
+reported X/Z position + an on-screen status label).
+
+**Verified for real, not just by inspection:** started the bridge in WSL2, ran Godot
+headless (`--headless`) against the actual built `Linux.dll`, and watched its debug
+output track the live machine: connected immediately, polled at the full 100 Hz,
+and after jogging the real LinuxCNC instance to X=35/Z=-70 from a third, independent
+script, Godot's next read showed exactly `pos=(35.000,-70.000)` within one state
+packet. This is Phase 0's literal success criterion from the brief ("move a cube in
+Godot" from a bridged axis position) with both axes, not just one.
+
+One more environment fix needed, beyond the two from Phase 0/1 above: Godot's C# build needs a hand-written `Linux.csproj`
+(`Sdk="Godot.NET.Sdk/4.7.2"`, `net8.0`) since the engine doesn't generate one in
+`--headless` mode — only discovered by trying. `dotnet build` then needs NuGet
+access (confirmed working on this machine) to restore the Godot SDK packages.
+
+**Status:** Phase 0 is done. Moving into Phase 1's remaining piece (prediction/
+reconciliation + debug overlay) and Phase 2 (material removal) next, continuing
+per the user's "do all phases, don't stop" instruction (2026-11-13).
+
+---
+*Phase 0 environment approved implicitly by the user proceeding with the WSL fix; "do all phases, don't stop" given 2026-11-13.*
