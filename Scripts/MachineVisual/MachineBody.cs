@@ -73,15 +73,21 @@ public partial class MachineBody : Node3D
             center: new Vector3(headstockCenterX, bedTopY + 0.1f, 0f),
             material: machineGreen, name: "Headstock");
 
-        // Chuck: short cylinder right at the stock's chuck-end face, bigger
-        // radius than the stock so the jaws read as "holding" it. Decorative
-        // only (no collision -- small, central, not in a walking path).
+        // Chuck: cylinder at the stock's chuck-end face, bigger radius than
+        // the stock so the jaws read as "holding" it. Deliberately overlaps
+        // ~25mm INTO the stock's own Z range (not just butted flush against
+        // it) -- real jaws grip a length of the bar, hiding it entirely; with
+        // a flush, zero-overlap join, a facing cut right at that single
+        // shared point visibly thinned the stock to nothing exactly at the
+        // chuck, looking like the bar had snapped off there (reported live).
+        // Decorative only (no collision -- small, central, not in a walking path).
+        const float chuckOverlapIntoStock = 0.03f;
         var chuck = new MeshInstance3D
         {
-            Mesh = new CylinderMesh { TopRadius = 0.05f, BottomRadius = 0.05f, Height = 0.02f },
+            Mesh = new CylinderMesh { TopRadius = 0.05f, BottomRadius = 0.05f, Height = chuckOverlapIntoStock + 0.005f },
             MaterialOverride = chuckMetal,
             Name = "Chuck",
-            Position = new Vector3(ChuckEndWorldX - 0.01f, 0f, 0f),
+            Position = new Vector3(ChuckEndWorldX - chuckOverlapIntoStock / 2f + 0.0025f, 0f, 0f),
             // CylinderMesh's axis is Y by default; rotate so it points along world X (the spindle axis).
             RotationDegrees = new Vector3(0f, 0f, 90f),
         };
