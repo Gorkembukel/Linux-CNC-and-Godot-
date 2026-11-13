@@ -33,7 +33,7 @@ public partial class ConsoleStand : Node3D
     [Export] public float PanelTiltDegrees = -25f;
 
     private const int ScreenPixelWidth = 420;
-    private const int ScreenPixelHeight = 300;
+    private const int ScreenPixelHeight = 252;
 
     private static readonly string[] PageNames = { "POSITION", "PROGRAM", "TOOL / OFFSET", "STATUS / ALARM" };
 
@@ -42,6 +42,8 @@ public partial class ConsoleStand : Node3D
     private Label _bodyLabel;
     private int _page;
     private readonly System.Collections.Generic.Dictionary<ulong, System.Action> _buttonActions = new();
+
+    private StandardMaterial3D _ledPowerMat, _ledCycleMat, _ledAlarmMat;
 
     public override void _Ready()
     {
@@ -94,8 +96,39 @@ public partial class ConsoleStand : Node3D
         panelBody.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = panelSize } });
 
         BuildScreen(panel);
+        BuildStatusLeds(panel);
         BuildPageButtons(panel, darkTrim);
         BuildControlButtons(panel, darkTrim, redEstop);
+    }
+
+    /// <summary>Real CNC panels put status LEDs where you can see them without
+    /// reading the screen -- power/running/alarm at a glance. Dim when off,
+    /// lit (emissive) when the corresponding state is true; updated in
+    /// _Process alongside the screen text.</summary>
+    private void BuildStatusLeds(Node3D panel)
+    {
+        (string label, Color color, System.Action<StandardMaterial3D> store)[] leds =
+        {
+            ("POWER", new Color(0.2f, 1f, 0.3f), m => _ledPowerMat = m),
+            ("CYCLE", new Color(1f, 0.75f, 0.1f), m => _ledCycleMat = m),
+            ("ALARM", new Color(1f, 0.15f, 0.1f), m => _ledAlarmMat = m),
+        };
+
+        for (int i = 0; i < leds.Length; i++)
+        {
+            var mat = new StandardMaterial3D
+            {
+                AlbedoColor = leds[i].color * 0.25f, // dim = off
+                EmissionEnabled = true,
+                Emission = leds[i].color,
+                EmissionEnergyMultiplier = 0.1f,
+            };
+            leds[i].store(mat);
+
+            var pos = new Vector3(-0.16f + i * 0.08f, 0.205f, 0.045f);
+            panel.AddChild(new MeshInstance3D { Mesh = new SphereMesh { Radius = 0.01f }, MaterialOverride = mat, Position = pos });
+            AddButtonCaption(panel, leds[i].label, pos + new Vector3(0f, 0.016f, -0.005f));
+        }
     }
 
     private void BuildScreen(Node3D panel)
@@ -140,7 +173,7 @@ public partial class ConsoleStand : Node3D
         };
         panel.AddChild(new MeshInstance3D
         {
-            Mesh = new QuadMesh { Size = new Vector2(0.4f, 0.27f) },
+            Mesh = new QuadMesh { Size = new Vector2(0.4f, 0.24f) },
             MaterialOverride = screenMat,
             Position = new Vector3(0f, 0.07f, 0.041f),
             Name = "Screen",
@@ -279,10 +312,17 @@ public partial class ConsoleStand : Node3D
         if (!_bridge.IsBridgeConnected)
         {
             _bodyLabel.Text = "NO SIGNAL";
+            SetLed(_ledPowerMat, false);
+            SetLed(_ledCycleMat, false);
+            SetLed(_ledAlarmMat, false);
             return;
         }
 
         var s = _bridge.State;
+        SetLed(_ledPowerMat, s.MachineOn);
+        SetLed(_ledCycleMat, s.InCycle);
+        SetLed(_ledAlarmMat, s.Estop);
+
         _bodyLabel.Text = _page switch
         {
             0 => // POSITION -- the actual machine coordinates LinuxCNC reports, plus motion state
@@ -310,6 +350,9 @@ public partial class ConsoleStand : Node3D
                 $"link: seq={s.LastSeq} age={_bridge.LastPacketAgeSeconds * 1000:F0}ms",
         };
     }
+
+    private static void SetLed(StandardMaterial3D mat, bool on) =>
+        mat.EmissionEnergyMultiplier = on ? 2.5f : 0.1f;
 
     private static StandardMaterial3D Mat(Color color, float metallic, float rough) => new()
     {
