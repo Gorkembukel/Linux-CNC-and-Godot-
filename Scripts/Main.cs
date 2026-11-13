@@ -40,6 +40,71 @@ public partial class Main : Node3D
 
         _bridge.Connect(BridgeClient.SignalName.ConnectionChanged, Callable.From<bool>(OnConnectionChanged));
         _bridge.Connect(BridgeClient.SignalName.StateUpdated, Callable.From(OnConfirmedStateUpdated));
+
+        if (OS.HasEnvironment("CNC_COMMAND_SELFTEST"))
+            _selfTestActive = true;
+    }
+
+    // TEMPORARY, to verify the Godot->bridge COMMAND path actually works end to
+    // end (every prior phase only verified the bridge->Godot STATE path; the
+    // panel's buttons call these exact same BridgeClient methods, so this is a
+    // direct test of "do the buttons work" without needing simulated clicks).
+    // Remove once the operator panel has been manually clicked through once.
+    private bool _selfTestActive;
+    private double _selfTestTimer;
+    private int _selfTestStep;
+
+    private void RunCommandSelfTest(double delta)
+    {
+        _selfTestTimer += delta;
+        var s = _bridge.State;
+        switch (_selfTestStep)
+        {
+            case 0:
+                if (_bridge.IsBridgeConnected)
+                {
+                    GD.Print("[SelfTest] connected. Sending MachineOn...");
+                    _bridge.ResetEstop();
+                    _bridge.MachineOn();
+                    _selfTestStep = 1;
+                    _selfTestTimer = 0;
+                }
+                break;
+            case 1:
+                if (_selfTestTimer > 1.0)
+                {
+                    GD.Print($"[SelfTest] machine_on={s.MachineOn} estop={s.Estop}. Sending HomeAxis(all)...");
+                    _bridge.HomeAxis(0xFF);
+                    _selfTestStep = 2;
+                    _selfTestTimer = 0;
+                }
+                break;
+            case 2:
+                if (s.HomedX && s.HomedZ)
+                {
+                    GD.Print("[SelfTest] homed=true. Sending MDI 'G21 G8 G90' then 'G0 X17.25 Z-23.5'...");
+                    _bridge.SendMdi("G21 G8 G90");
+                    _bridge.SendMdi("G0 X17.25 Z-23.5");
+                    _selfTestStep = 3;
+                    _selfTestTimer = 0;
+                }
+                else if (_selfTestTimer > 25.0)
+                {
+                    GD.Print("[SelfTest] FAIL: homing did not complete in 25s");
+                    _selfTestStep = 99;
+                }
+                break;
+            case 3:
+                if (_selfTestTimer > 3.0)
+                {
+                    bool ok = Mathf.Abs(s.Position.X - 17.25f) < 0.01f && Mathf.Abs(s.Position.Y - (-23.5f)) < 0.01f;
+                    GD.Print(ok
+                        ? $"[SelfTest] PASS: position is exactly ({s.Position.X:F3},{s.Position.Y:F3}) as commanded via MDI through the bridge."
+                        : $"[SelfTest] FAIL: expected (17.250,-23.500), got ({s.Position.X:F3},{s.Position.Y:F3})");
+                    _selfTestStep = 99;
+                }
+                break;
+        }
     }
 
     private void OnConfirmedStateUpdated()
@@ -98,6 +163,9 @@ public partial class Main : Node3D
         _chips.Tick(delta, _activeChipFormation, contactPointWorld);
 
         UpdateStatusLabel(_bridge.IsBridgeConnected);
+
+        if (_selfTestActive)
+            RunCommandSelfTest(delta);
 
         if (OS.HasEnvironment("CNC_DEBUG_PRINT"))
         {

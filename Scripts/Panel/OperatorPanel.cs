@@ -61,6 +61,7 @@ public partial class OperatorPanel : Control
         root.AddChild(BuildModeRow());
         root.AddChild(BuildJogRow());
         root.AddChild(BuildMdiRow());
+        root.AddChild(BuildProgramRow());
         root.AddChild(BuildCycleRow());
         root.AddChild(BuildOverridesRow());
         root.AddChild(BuildToolRow());
@@ -153,6 +154,19 @@ public partial class OperatorPanel : Control
             return;
         _bridge.SendMdi(text);
         _mdiInput.Text = "";
+    }
+
+    private Control BuildProgramRow()
+    {
+        var row = new HBoxContainer();
+        var pathInput = new LineEdit
+        {
+            Text = "nc_files/demo_facing_turning.ngc", // relative to the bridge's config dir (its cwd)
+            CustomMinimumSize = new Vector2(320, 0),
+        };
+        row.AddChild(pathInput);
+        row.AddChild(MakeButton("LOAD PROGRAM", () => _bridge.OpenProgram(pathInput.Text.Trim())));
+        return row;
     }
 
     private Control BuildCycleRow()
