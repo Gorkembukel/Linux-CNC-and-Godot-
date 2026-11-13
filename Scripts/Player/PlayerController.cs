@@ -43,6 +43,7 @@ public partial class PlayerController : CharacterBody3D
     private Label _interactPrompt;
     private Control _operatorPanel;
     private bool _atConsole;
+    private Node3D _bodyVisual;
 
     public override void _Ready()
     {
@@ -52,6 +53,8 @@ public partial class PlayerController : CharacterBody3D
             Position = new Vector3(0f, CapsuleHeight / 2f, 0f), // body origin = feet, shape centered above it
         };
         AddChild(collision);
+
+        BuildBodyVisual();
 
         _head = new Node3D { Position = new Vector3(0f, EyeHeight, 0f), Name = "Head" };
         AddChild(_head);
@@ -123,6 +126,32 @@ public partial class PlayerController : CharacterBody3D
         _firstPerson = !_firstPerson;
         _fpCamera.Current = _firstPerson;
         _tpCamera.Current = !_firstPerson;
+        _bodyVisual.Visible = !_firstPerson; // hide your own body in FP so it doesn't clip the camera
+    }
+
+    /// <summary>Simple primitive placeholder (capsule torso + sphere head) --
+    /// no suitable CC0/CC-BY rigged humanoid was sourced (same situation as
+    /// the machine body; see ASSETS.md). Only shown in third-person; a real
+    /// FP view wouldn't want to see its own floating head anyway.</summary>
+    private void BuildBodyVisual()
+    {
+        _bodyVisual = new Node3D { Name = "BodyVisual", Visible = false };
+        AddChild(_bodyVisual);
+
+        var skin = new StandardMaterial3D { AlbedoColor = new Color(0.65f, 0.55f, 0.45f), Roughness = 0.8f };
+
+        _bodyVisual.AddChild(new MeshInstance3D
+        {
+            Mesh = new CapsuleMesh { Radius = CapsuleRadius, Height = CapsuleHeight - 0.2f },
+            MaterialOverride = skin,
+            Position = new Vector3(0f, CapsuleHeight / 2f - 0.1f, 0f),
+        });
+        _bodyVisual.AddChild(new MeshInstance3D
+        {
+            Mesh = new SphereMesh { Radius = 0.12f },
+            MaterialOverride = skin,
+            Position = new Vector3(0f, CapsuleHeight - 0.12f, 0f),
+        });
     }
 
     private void ToggleConsoleUse()
