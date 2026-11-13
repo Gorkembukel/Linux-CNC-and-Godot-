@@ -35,6 +35,36 @@ script/scene node) once a suitably licensed model is found:
 | Operator panel physical housing | None — `OperatorPanel.cs` is a 2D on-screen UI overlay, not a 3D pendant model | Out of scope unless the project moves to simulating a 3D panel the user walks up to, rather than a 2D HUD |
 | Floor / shop environment | None (empty background) | Would need a simple floor plane + ambient lighting at minimum for a "standing in the shop" feel |
 
+## Search already done (2026-11-13) — don't repeat this
+
+Looked for CC0/CC-BY lathe body, 3-jaw chuck, and tool-holder models across
+Sketchfab, CGTrader, RenderHub, itch.io, Kenney.nl, OpenGameArt, and
+Thingiverse-adjacent sources. Conclusion: **nothing suitable found**, for two
+compounding reasons:
+1. **Licensing**: every lathe/chuck-specific model found with a realistic,
+   CAD-accurate shape is commercial/"Royalty Free" (CGTrader, RenderHub,
+   $30-45 range), not CC0/CC-BY. The one CC-BY lead (a Thingiverse 3-jaw
+   chuck) is 3D-printing-oriented.
+2. **Format**: that Thingiverse-style model is STL-only. Godot 4 has no
+   built-in STL importer, and this environment has no Blender/conversion
+   tool to turn STL into OBJ/glTF -- so even a correctly-licensed STL model
+   isn't directly usable without additional tooling not currently available.
+
+**One genuinely usable find**: Kenney's ["Factory Kit"](https://kenney.nl/assets/factory-kit)
+(confirmed CC0, by Kenney) — generic warehouse/conveyor/industrial props, NOT
+a lathe or chuck specifically. Could dress the "floor / shop environment" row
+above if that's ever prioritized, but doesn't address the lathe-specific rows.
+Not downloaded/imported (user hasn't asked for shop-environment dressing
+specifically; flagging it here as the one real option found, not acting on
+it unprompted).
+
+**If revisiting this later**: the realistic paths forward are (a) pay for one
+of the commercial CGTrader/RenderHub machine-tool packs and track its license
+terms here instead of assuming CC0, (b) model a simple original primitive-based
+lathe body by hand (matches the brief's own placeholder fallback, just more
+polished primitives), or (c) get a Blender/meshlab-equivalent conversion step
+added to this environment so STL-format CC-BY finds become usable.
+
 ## Licensing policy for future additions
 
 - Only CC0, CC-BY (with attribution recorded here), or equivalently
