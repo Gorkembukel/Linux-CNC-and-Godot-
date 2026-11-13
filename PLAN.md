@@ -592,13 +592,10 @@ if one's ever cut); a held part doesn't do obstruction/collision sweeping
 against walls while carried (glued-to-camera carry, like most games); robot/
 automation part transfer between machines is not started at all yet.
 
-**Not yet verified live by a human** (this agent has no windowed Godot
-session available, only headless): the actual visual result of the chuck
-now sitting at the correct end, and the F-key pick-up/carry/drop feel in
-practice. Everything up to spawning the real object was verified live
-against the real bridge (position data, mass/collision build, no errors
-across three successive part-offs); the remaining two are app-level/visual
-and need the user's own run via `start.ps1`.
+**User-confirmed live (2026-11-14)**: ran it themselves via `start.ps1` and
+confirmed it looks right -- the chuck's new position and the finished-part
+pickup/carry both hold up in practice, not just in the headless/MDI smoke
+test above.
 
 ---
 *Phase 0 environment approved implicitly by the user proceeding with the WSL fix; "do all phases, don't stop" given 2026-11-13.*
