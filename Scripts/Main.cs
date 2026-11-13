@@ -22,6 +22,7 @@ public partial class Main : Node3D
     private MeshInstance3D _toolCube;
     private Label _statusLabel;
     private WorkpieceVisual _workpiece;
+    private MachineBody _machineBody;
     private ChipSpawner _chips;
     private LatheRadiusProfile _material;
     private Vector2? _lastConfirmedPos;
@@ -39,6 +40,7 @@ public partial class Main : Node3D
         _toolCube = GetNode<MeshInstance3D>("ToolCube");
         _statusLabel = GetNode<Label>("UI/StatusLabel");
         _workpiece = GetNode<WorkpieceVisual>("Workpiece");
+        _machineBody = GetNode<MachineBody>("MachineBody");
         _chips = GetNode<ChipSpawner>("ChipSpawner");
 
         _material = new LatheRadiusProfile(StockRadiusMm, StockZMin, StockZMax);
@@ -99,6 +101,7 @@ public partial class Main : Node3D
         // (confirmed-only) instead, never _bridge.Prediction.
         var pos = _bridge.Prediction.VisualPosition; // X = radius (mm), Z = along spindle (mm)
         _toolCube.Position = new Vector3(pos.Y, pos.X, 0f);
+        _machineBody.UpdateCarriage(pos.Y);
 
         _timeSinceLastCut += delta;
         if (_timeSinceLastCut > 0.2) // tool left the material: stop spawning shortly after

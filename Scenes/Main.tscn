@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://Scripts/Main.cs" id="1"]
 [ext_resource type="Script" path="res://Scripts/CameraController.cs" id="6"]
@@ -6,6 +6,8 @@
 [ext_resource type="Script" path="res://Scripts/Material/WorkpieceVisual.cs" id="3"]
 [ext_resource type="Script" path="res://Scripts/Chips/ChipSpawner.cs" id="4"]
 [ext_resource type="Script" path="res://Scripts/Panel/OperatorPanel.cs" id="5"]
+[ext_resource type="Script" path="res://Scripts/MachineVisual/MachineBody.cs" id="7"]
+[ext_resource type="Script" path="res://Scripts/MachineVisual/ConsoleStand.cs" id="8"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_1"]
 size = Vector3(10, 10, 10)
@@ -31,6 +33,12 @@ surface_material_override/0 = SubResource("Mat_1")
 
 [node name="Workpiece" type="Node3D" parent="."]
 script = ExtResource("3")
+
+[node name="MachineBody" type="Node3D" parent="."]
+script = ExtResource("7")
+
+[node name="ConsoleStand" type="Node3D" parent="."]
+script = ExtResource("8")
 
 [node name="ChipSpawner" type="Node3D" parent="."]
 script = ExtResource("4")

@@ -391,5 +391,46 @@ confirmed "BRIDGE CONNECTED" on screen. **Every deliverable from the brief's
 section 9 is now done and the single-command startup path is proven, not
 just written.**
 
+## Full test suite confirmed clean in one run (2026-11-13)
+
+With no bridge/Godot session active, ran everything back to back: 21 C#
+(`dotnet test`) + 13 Python (`pytest tests/bridge/`, including the
+LinuxCNC-lifecycle tests that need their own instance and would conflict with
+a live session) -- **34/34 passing**, and confirmed no LinuxCNC processes were
+left running afterward.
+
+## Primitive machine body + physical console added (2026-11-13)
+
+After an extensive search found no suitable CC0/CC-BY lathe/chuck/tool-holder
+model (see ASSETS.md for the full search record -- everything findable is
+either commercial-licensed or STL-only with no conversion tool available
+here), built a primitive-based lathe body per the brief's own explicit
+fallback and a user request for more visual realism:
+
+- `Scripts/MachineVisual/MachineBody.cs`: bed, headstock, chuck (sized larger
+  than the stock radius, positioned at the chuck-end Z), and a carriage that
+  tracks the tool's Z position every frame -- all procedurally generated
+  primitives, following this project's existing pattern (WorkpieceVisual,
+  ChipSpawner) rather than hand-tuned `.tscn` transforms.
+- `Scripts/MachineVisual/ConsoleStand.cs`: a free-standing physical console
+  (post + tilted panel + decorative buttons) with a monitor screen rendered
+  via a `SubViewport` showing live position/feed/spindle/tool/mode data.
+  **Scope note, stated plainly in the file's own doc comment**: this screen
+  is read-only/visual -- the proven, user-confirmed-working 2D `OperatorPanel`
+  overlay remains the actual way to send commands. Making the 3D console
+  independently clickable (3D raycasting onto UI, or duplicating
+  OperatorPanel's logic into the SubViewport) was deliberately left out to
+  avoid risking the working control path for a visual-only improvement.
+
+Found and fixed one bug while building this: both new scripts, declared in
+`namespace CncTrainer` (not a nested namespace), got `CS0118: 'Material' is a
+namespace but is used as a type` -- the same class of collision as the earlier
+`Panel`/`Godot.Panel` issue, caused by `CncTrainer.Material` (the Phase 2
+namespace) shadowing `Godot.Material` for unqualified `Material` references
+in any file sharing the parent `CncTrainer` namespace. Fixed by qualifying as
+`Godot.Material` explicitly, same pattern as before -- worth remembering if
+adding more top-level (non-nested) scripts: check for this before assuming a
+build error is something else.
+
 ---
 *Phase 0 environment approved implicitly by the user proceeding with the WSL fix; "do all phases, don't stop" given 2026-11-13.*
