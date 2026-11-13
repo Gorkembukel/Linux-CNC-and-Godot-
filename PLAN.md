@@ -432,5 +432,34 @@ in any file sharing the parent `CncTrainer` namespace. Fixed by qualifying as
 adding more top-level (non-nested) scripts: check for this before assuming a
 build error is something else.
 
+## Chuck join fix, FP/TP player controller, and UI shrink (2026-11-13)
+
+- Fixed a visual bug reported live: the chuck was butted exactly flush
+  against the stock's starting Z, so a facing cut right at that point thinned
+  the stock to near-zero radius exactly at the chuck face, looking like the
+  bar had snapped off. Extended the chuck to overlap ~30mm into the stock's
+  own range so that region is always hidden behind opaque chuck geometry.
+- Added `Scripts/Player/PlayerController.cs`: a CharacterBody3D with capsule
+  collision walking against the floor/machine/console collision from the
+  meter-scale refactor, WASD + mouse-look, V toggles first-/third-person
+  (SpringArm3D), E near the console toggles mouse capture to use the 2D
+  OperatorPanel. The pre-existing orbit CameraController is no longer the
+  default (`current=false`) but stays in the scene as a dev tool.
+- **Mouse-look bug, found live**: WASD worked, looking did not. Root cause:
+  `_UnhandledInput` -- with the operator panel's Controls covering part of the
+  screen, GUI mouse-motion handling ate the look input before it reached an
+  Unhandled callback. Fixed by switching to `_Input`. Also added a
+  click-to-recapture safety net for a focus-timing edge case.
+- **UI covered most of the screen, found live**: set an explicit 1920x1080
+  viewport in `project.godot` (there was none before -- whatever the default
+  was, it wasn't 1080p), gave `OperatorPanel` a shared small `Theme`
+  (12px default font, shrinks every child control uniformly), reduced its
+  bounds 804x404 -> 550x250, split its overcrowded 8-button mode row into two
+  rows, and shortened several of the longest button labels. `StatusLabel` and
+  `DebugOverlay` shrunk to match.
+- **Known gap, not yet addressed**: the player has no visible mesh at all --
+  third-person mode (V) currently shows nothing where the character's body
+  should be. Next up.
+
 ---
 *Phase 0 environment approved implicitly by the user proceeding with the WSL fix; "do all phases, don't stop" given 2026-11-13.*
