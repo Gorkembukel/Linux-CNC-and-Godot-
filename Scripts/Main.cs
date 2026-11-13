@@ -1,6 +1,7 @@
 using Godot;
 using CncTrainer.Bridge;
 using CncTrainer.Material;
+using CncTrainer.Chips;
 
 namespace CncTrainer;
 
@@ -14,13 +15,17 @@ public partial class Main : Node3D
     [Export] public float StockRadiusMm = 25.0f;
     [Export] public float StockZMin = -85.0f;
     [Export] public float StockZMax = 5.0f;
+    [Export] public MaterialKind StockMaterial = MaterialKind.Steel;
 
     private BridgeClient _bridge;
     private MeshInstance3D _toolCube;
     private Label _statusLabel;
     private WorkpieceVisual _workpiece;
+    private ChipSpawner _chips;
     private LatheRadiusProfile _material;
     private Vector2? _lastConfirmedPos;
+    private ChipFormation? _activeChipFormation;
+    private double _timeSinceLastCut = 999.0;
 
     public override void _Ready()
     {
@@ -28,6 +33,7 @@ public partial class Main : Node3D
         _toolCube = GetNode<MeshInstance3D>("ToolCube");
         _statusLabel = GetNode<Label>("UI/StatusLabel");
         _workpiece = GetNode<WorkpieceVisual>("Workpiece");
+        _chips = GetNode<ChipSpawner>("ChipSpawner");
 
         _material = new LatheRadiusProfile(StockRadiusMm, StockZMin, StockZMax);
         _workpiece.Initialize(_material);
@@ -50,7 +56,18 @@ public partial class Main : Node3D
             float feedPerRev = s.SpindleRpm > 1.0 ? (float)(s.FeedRate / s.SpindleRpm) : 0f;
             var result = _material.Sweep(prev, pos, s.ToolNoseRadius, feedPerRev, (float)s.SpindleRpm);
             if (result.MaterialRemoved)
+            {
                 _workpiece.MarkDirty(result.MinDirtyIndex, result.MaxDirtyIndex);
+
+                // Surface speed at the current radius -- LinuxCNC gives us no
+                // chip data at all (brief section 5's note), so this and
+                // feedPerRev are the only two cutting parameters derived from
+                // what the bridge actually reports (position, spindle rpm, feed).
+                float surfaceSpeedMmPerSec = 2f * Mathf.Pi * Mathf.Abs(pos.X) * (float)s.SpindleRpm / 60f;
+                _activeChipFormation = ChipClassifier.Classify(
+                    MaterialPreset.Get(StockMaterial), result.DepthOfCutMm, feedPerRev, surfaceSpeedMmPerSec);
+                _timeSinceLastCut = 0.0;
+            }
         }
         _lastConfirmedPos = pos;
     }
@@ -73,6 +90,13 @@ public partial class Main : Node3D
         _toolCube.Position = new Vector3(pos.Y, pos.X, 0f);
 
         _workpiece.RebuildDirtyChunks();
+
+        _timeSinceLastCut += delta;
+        if (_timeSinceLastCut > 0.2) // tool left the material: stop spawning shortly after
+            _activeChipFormation = null;
+        var contactPointWorld = new Vector3(pos.Y, pos.X, 0f);
+        _chips.Tick(delta, _activeChipFormation, contactPointWorld);
+
         UpdateStatusLabel(_bridge.IsBridgeConnected);
 
         if (OS.HasEnvironment("CNC_DEBUG_PRINT"))

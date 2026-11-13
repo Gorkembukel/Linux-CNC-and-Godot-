@@ -1,8 +1,9 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://Scripts/Main.cs" id="1"]
 [ext_resource type="Script" path="res://Scripts/DebugOverlay.cs" id="2"]
 [ext_resource type="Script" path="res://Scripts/Material/WorkpieceVisual.cs" id="3"]
+[ext_resource type="Script" path="res://Scripts/Chips/ChipSpawner.cs" id="4"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_1"]
 size = Vector3(10, 10, 10)
@@ -27,6 +28,9 @@ surface_material_override/0 = SubResource("Mat_1")
 
 [node name="Workpiece" type="Node3D" parent="."]
 script = ExtResource("3")
+
+[node name="ChipSpawner" type="Node3D" parent="."]
+script = ExtResource("4")
 
 [node name="UI" type="CanvasLayer" parent="."]
 
