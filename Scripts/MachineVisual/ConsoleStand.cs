@@ -5,9 +5,10 @@ namespace CncTrainer;
 
 /// <summary>
 /// A free-standing physical operator console: a post, a tilted panel face
-/// with decorative buttons, and a monitor screen that shows live machine data
-/// via a SubViewport-rendered texture. User request: "the panel and monitor
-/// where these controls would really be done."
+/// with real clickable buttons, and a multi-page monitor showing live
+/// LinuxCNC data via a SubViewport-rendered texture. User request: "a real
+/// CNC machine look, with the monitor showing LinuxCNC's own data across
+/// multiple pages, like a real control."
 ///
 /// [Tool]: the post/panel/button geometry builds in the editor too (see
 /// MachineBody.cs's doc comment for why). The BridgeClient-dependent screen
@@ -15,16 +16,14 @@ namespace CncTrainer;
 /// Engine.IsEditorHint().
 ///
 /// World units are meters (see WorldScale.cs). Post/panel get collision
-/// (StaticBody3D) since a future human character (planned: FP/TP controller)
-/// needs to not walk through the console.
+/// (StaticBody3D) since a human character needs to not walk through the
+/// console.
 ///
-/// The 12 face buttons are REAL and clickable (see TryPress, called by
-/// PlayerController's crosshair raycast): they cover the core workflow
-/// (machine on/estop/home/cycle-start/feed-hold/stop/tool-change-confirm/jog)
-/// directly in 3D. MDI typing and the touch-off text fields still only exist
-/// on the 2D OperatorPanel (proximity + E) -- a world-space button can't
-/// usefully host a text field, so that boundary is deliberate, not an
-/// oversight.
+/// All face buttons (including PAGE </>) are real and clickable (see
+/// TryPress, called by PlayerController's crosshair raycast). MDI typing and
+/// the touch-off text fields still only exist on the 2D OperatorPanel
+/// (proximity + E) -- a world-space button can't usefully host a text field,
+/// so that boundary is deliberate.
 /// </summary>
 [Tool]
 public partial class ConsoleStand : Node3D
@@ -33,8 +32,15 @@ public partial class ConsoleStand : Node3D
     [Export] public float PostHeight = 0.95f;
     [Export] public float PanelTiltDegrees = -25f;
 
+    private const int ScreenPixelWidth = 420;
+    private const int ScreenPixelHeight = 300;
+
+    private static readonly string[] PageNames = { "POSITION", "PROGRAM", "TOOL / OFFSET", "STATUS / ALARM" };
+
     private BridgeClient _bridge;
-    private Label _screenLabel;
+    private Label _titleLabel;
+    private Label _bodyLabel;
+    private int _page;
     private readonly System.Collections.Generic.Dictionary<ulong, System.Action> _buttonActions = new();
 
     public override void _Ready()
@@ -57,8 +63,9 @@ public partial class ConsoleStand : Node3D
         }
         _buttonActions.Clear();
 
-        var consoleBody = Mat(new Color(0.78f, 0.78f, 0.75f), metallic: 0.1f, rough: 0.7f); // off-white pendant plastic
+        var consoleBody = Mat(new Color(0.85f, 0.84f, 0.78f), metallic: 0.1f, rough: 0.7f); // off-white/cream pendant plastic
         var darkTrim = Mat(new Color(0.12f, 0.12f, 0.13f), metallic: 0.2f, rough: 0.6f);
+        var redEstop = Mat(new Color(0.75f, 0.05f, 0.03f), metallic: 0.3f, rough: 0.4f);
 
         // Post: stands the console up from the floor to shoulder height. Has
         // collision (a human shouldn't walk through it).
@@ -74,7 +81,7 @@ public partial class ConsoleStand : Node3D
         // physics gotcha with transformed collision shapes).
         var panel = new Node3D
         {
-            Position = new Vector3(0f, PostHeight + 0.15f, 0f),
+            Position = new Vector3(0f, PostHeight + 0.2f, 0f),
             RotationDegrees = new Vector3(PanelTiltDegrees, 0f, 0f),
             Name = "Panel",
         };
@@ -82,34 +89,49 @@ public partial class ConsoleStand : Node3D
 
         var panelBody = new StaticBody3D { Name = "PanelBody" };
         panel.AddChild(panelBody);
-        var panelSize = new Vector3(0.4f, 0.3f, 0.08f);
+        var panelSize = new Vector3(0.52f, 0.46f, 0.08f);
         panelBody.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = panelSize }, MaterialOverride = consoleBody });
         panelBody.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = panelSize } });
 
         BuildScreen(panel);
-        BuildButtons(panel, darkTrim);
+        BuildPageButtons(panel, darkTrim);
+        BuildControlButtons(panel, darkTrim, redEstop);
     }
 
     private void BuildScreen(Node3D panel)
     {
         var viewport = new SubViewport
         {
-            Size = new Vector2I(320, 200),
+            Size = new Vector2I(ScreenPixelWidth, ScreenPixelHeight),
             RenderTargetUpdateMode = SubViewport.UpdateMode.Always,
             TransparentBg = false,
         };
         AddChild(viewport); // the viewport itself doesn't need the panel's tilt
 
-        var bg = new ColorRect { Color = new Color(0.02f, 0.05f, 0.03f), Size = new Vector2(320, 200) };
+        var bg = new ColorRect { Color = new Color(0.02f, 0.05f, 0.03f), Size = new Vector2(ScreenPixelWidth, ScreenPixelHeight) };
         viewport.AddChild(bg);
-        _screenLabel = new Label
+
+        var screenGreen = new Color(0.3f, 1f, 0.4f); // monochrome-CRT green, a deliberate retro-pendant look
+        _titleLabel = new Label
         {
-            Position = new Vector2(8, 8),
-            Modulate = new Color(0.3f, 1f, 0.4f), // monochrome-CRT green, a deliberate retro-pendant look
+            Position = new Vector2(6, 4),
+            Size = new Vector2(ScreenPixelWidth - 12, 24),
+            Modulate = screenGreen,
+            Text = "POSITION               1/4",
         };
-        _screenLabel.AddThemeFontSizeOverride("font_size", 16);
-        _screenLabel.Text = Engine.IsEditorHint() ? "(live data at runtime)" : "NO SIGNAL";
-        viewport.AddChild(_screenLabel);
+        _titleLabel.AddThemeFontSizeOverride("font_size", 16);
+        viewport.AddChild(_titleLabel);
+
+        viewport.AddChild(new ColorRect { Color = screenGreen, Position = new Vector2(6, 28), Size = new Vector2(ScreenPixelWidth - 12, 1) });
+
+        _bodyLabel = new Label
+        {
+            Position = new Vector2(6, 36),
+            Modulate = screenGreen,
+            Text = Engine.IsEditorHint() ? "(live data at runtime)" : "NO SIGNAL",
+        };
+        _bodyLabel.AddThemeFontSizeOverride("font_size", 15);
+        viewport.AddChild(_bodyLabel);
 
         var screenMat = new StandardMaterial3D
         {
@@ -118,21 +140,31 @@ public partial class ConsoleStand : Node3D
         };
         panel.AddChild(new MeshInstance3D
         {
-            Mesh = new QuadMesh { Size = new Vector2(0.32f, 0.2f) },
+            Mesh = new QuadMesh { Size = new Vector2(0.4f, 0.27f) },
             MaterialOverride = screenMat,
-            Position = new Vector3(0f, 0.015f, 0.041f),
+            Position = new Vector3(0f, 0.07f, 0.041f),
             Name = "Screen",
         });
     }
 
-    private void BuildButtons(Node3D panel, Godot.Material buttonMaterial)
+    /// <summary>Small dedicated PAGE &lt;/&gt; keys right under the screen --
+    /// real CNC pendants separate page navigation from the main keypad the
+    /// same way.</summary>
+    private void BuildPageButtons(Node3D panel, Godot.Material buttonMaterial)
+    {
+        AddRectButton(panel, "PAGE <", buttonMaterial, new Vector3(-0.1f, -0.1f, 0.045f),
+            () => _page = (_page - 1 + PageNames.Length) % PageNames.Length);
+        AddRectButton(panel, "PAGE >", buttonMaterial, new Vector3(0.1f, -0.1f, 0.045f),
+            () => _page = (_page + 1) % PageNames.Length);
+    }
+
+    private void BuildControlButtons(Node3D panel, Godot.Material buttonMaterial, Godot.Material estopMaterial)
     {
         // Real, clickable buttons (see TryPress) covering the core workflow.
         // MDI/touch-off need text entry, which stays on the 2D panel only.
         (string label, System.Action action)[] buttons =
         {
             ("ON", () => { _bridge.ResetEstop(); _bridge.MachineOn(); }),
-            ("ESTOP", () => _bridge.MachineOff()),
             ("HOME", () => _bridge.HomeAxis(0xFF)),
             ("CYCLE", () => _bridge.RunProgram()),
             ("HOLD", () => _bridge.PauseProgram()),
@@ -151,38 +183,71 @@ public partial class ConsoleStand : Node3D
 
         for (int i = 0; i < buttons.Length; i++)
         {
-            int row = i / 6, col = i % 6;
-            var pos = new Vector3(-0.09f + col * 0.035f, -0.095f - row * 0.04f, 0.045f);
-
-            var body = new StaticBody3D { InputRayPickable = true };
-            panel.AddChild(body);
-            body.AddChild(new MeshInstance3D
-            {
-                Mesh = new CylinderMesh { TopRadius = 0.015f, BottomRadius = 0.015f, Height = 0.015f },
-                MaterialOverride = buttonMaterial,
-                RotationDegrees = new Vector3(90f, 0f, 0f),
-                Position = pos,
-            });
-            body.AddChild(new CollisionShape3D
-            {
-                Shape = new CylinderShape3D { Radius = 0.016f, Height = 0.02f },
-                RotationDegrees = new Vector3(90f, 0f, 0f),
-                Position = pos,
-            });
-            body.AddChild(new Label3D
-            {
-                Text = buttons[i].label,
-                Position = pos + new Vector3(0f, 0.014f, 0.01f),
-                FontSize = 10,
-                PixelSize = 0.001f,
-                Modulate = new Color(0.1f, 0.1f, 0.1f),
-                NoDepthTest = true,
-            });
-
-            if (Engine.IsEditorHint())
-                continue; // action closures capture _bridge, which is null in the editor
-            _buttonActions[body.GetInstanceId()] = buttons[i].action;
+            int row = i / 4, col = i % 4;
+            var pos = new Vector3(-0.15f + col * 0.1f, -0.14f - row * 0.04f, 0.045f);
+            AddRoundButton(panel, buttons[i].label, buttonMaterial, pos, 0.016f, buttons[i].action);
         }
+
+        // E-STOP: real-world convention is a big red mushroom button, visually
+        // distinct from everything else and placed prominently -- adds realism
+        // and matches the "look like a real machine" brief goal.
+        AddRoundButton(panel, "E-STOP", estopMaterial, new Vector3(0.21f, -0.02f, 0.045f), 0.03f,
+            () => _bridge.MachineOff());
+    }
+
+    private void AddRoundButton(Node3D panel, string label, Godot.Material material, Vector3 pos, float radius, System.Action action)
+    {
+        var body = new StaticBody3D { InputRayPickable = true };
+        panel.AddChild(body);
+        body.AddChild(new MeshInstance3D
+        {
+            Mesh = new CylinderMesh { TopRadius = radius, BottomRadius = radius, Height = 0.015f },
+            MaterialOverride = material,
+            RotationDegrees = new Vector3(90f, 0f, 0f),
+            Position = pos,
+        });
+        body.AddChild(new CollisionShape3D
+        {
+            Shape = new CylinderShape3D { Radius = radius + 0.001f, Height = 0.02f },
+            RotationDegrees = new Vector3(90f, 0f, 0f),
+            Position = pos,
+        });
+        body.AddChild(new Label3D
+        {
+            Text = label,
+            Position = pos + new Vector3(0f, radius + 0.004f, 0.01f),
+            FontSize = 10,
+            PixelSize = 0.001f,
+            Modulate = new Color(0.1f, 0.1f, 0.1f),
+            NoDepthTest = true,
+        });
+        RegisterButton(body, action);
+    }
+
+    private void AddRectButton(Node3D panel, string label, Godot.Material material, Vector3 pos, System.Action action)
+    {
+        var size = new Vector3(0.05f, 0.02f, 0.015f);
+        var body = new StaticBody3D { InputRayPickable = true };
+        panel.AddChild(body);
+        body.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = size }, MaterialOverride = material, Position = pos });
+        body.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = size }, Position = pos });
+        body.AddChild(new Label3D
+        {
+            Text = label,
+            Position = pos + new Vector3(0f, 0.015f, 0.009f),
+            FontSize = 9,
+            PixelSize = 0.001f,
+            Modulate = new Color(0.9f, 0.9f, 0.9f),
+            NoDepthTest = true,
+        });
+        RegisterButton(body, action);
+    }
+
+    private void RegisterButton(StaticBody3D body, System.Action action)
+    {
+        if (Engine.IsEditorHint())
+            return; // action closures capture _bridge, which is null in the editor
+        _buttonActions[body.GetInstanceId()] = action;
     }
 
     /// <summary>Called by PlayerController when its crosshair raycast hits a
@@ -200,14 +265,44 @@ public partial class ConsoleStand : Node3D
 
     public override void _Process(double delta)
     {
-        if (_screenLabel == null || _bridge == null)
+        if (_bodyLabel == null || _bridge == null)
             return;
+
+        _titleLabel.Text = $"{PageNames[_page],-22}{_page + 1}/{PageNames.Length}";
+
+        if (!_bridge.IsBridgeConnected)
+        {
+            _bodyLabel.Text = "NO SIGNAL";
+            return;
+        }
+
         var s = _bridge.State;
-        _screenLabel.Text = _bridge.IsBridgeConnected
-            ? $"X {s.Position.X,8:F3}\nZ {s.Position.Y,8:F3}\n" +
-              $"FEED {s.FeedRate,6:F1}\nSPDL {s.SpindleRpm,6:F0}\n" +
-              $"TOOL T{s.ToolNumber}\n{s.TaskMode}  {(s.Estop ? "ESTOP" : s.MachineOn ? "ON" : "OFF")}"
-            : "NO SIGNAL";
+        _bodyLabel.Text = _page switch
+        {
+            0 => // POSITION -- the actual machine coordinates LinuxCNC reports, plus motion state
+                $"X  {s.Position.X,10:F4}\n" +
+                $"Z  {s.Position.Y,10:F4}\n\n" +
+                $"FEED   {s.FeedRate,8:F1} ({s.FeedOverride * 100:F0}%)\n" +
+                $"SPDL   {s.SpindleRpm,8:F0} ({s.SpindleOverride * 100:F0}%)\n" +
+                $"{(s.InCycle ? "IN CYCLE" : "IDLE")}",
+            1 => // PROGRAM -- what's loaded/running, matching a real control's program page
+                $"MODE   {s.TaskMode}\n" +
+                $"INTERP {s.InterpState}\n" +
+                $"LINE   {s.MotionLine}\n\n" +
+                (s.InterpState == InterpState.Waiting
+                    ? "TOOL CHANGE PENDING\nPress T.CHG to confirm"
+                    : s.InCycle ? "PROGRAM RUNNING" : "PROGRAM IDLE"),
+            2 => // TOOL / OFFSET -- active tool + its nose radius, as reported by LinuxCNC's tool table
+                $"ACTIVE TOOL   T{s.ToolNumber}\n" +
+                $"NOSE RADIUS   {s.ToolNoseRadius:F3} mm\n\n" +
+                $"Use the 2D panel's TOUCH OFF\nworkflow to set tool offsets.",
+            _ => // STATUS / ALARM
+                $"ESTOP      {(s.Estop ? "*** ACTIVE ***" : "clear")}\n" +
+                $"MACHINE    {(s.MachineOn ? "ON" : "OFF")}\n" +
+                $"HOMED X/Z  {(s.HomedX ? "Y" : "n")} / {(s.HomedZ ? "Y" : "n")}\n" +
+                $"SPINDLE    {(s.SpindleEnabled ? "ON" : "off")}\n\n" +
+                $"link: seq={s.LastSeq} age={_bridge.LastPacketAgeSeconds * 1000:F0}ms",
+        };
     }
 
     private static StandardMaterial3D Mat(Color color, float metallic, float rough) => new()
