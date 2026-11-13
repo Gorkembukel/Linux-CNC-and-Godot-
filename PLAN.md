@@ -461,5 +461,36 @@ build error is something else.
   third-person mode (V) currently shows nothing where the character's body
   should be. Next up.
 
+## Player loop functionally complete (2026-11-13)
+
+Added the placeholder body visual (capsule torso + sphere head, shown only in
+third-person -- same "no suitable CC0/CC-BY humanoid found" situation as the
+machine body). Found and fixed a second camera bug live: third-person pitch
+was inverted (FP felt right, TP felt backwards) because the SpringArm3D was
+nested as a child of the already-pitched `_head` node with an extra 180deg
+rotation on top, composing badly. Fixed by making the arm a sibling of `_head`
+and applying pitch to both independently as flat Euler assignments.
+
+**The core human-interaction loop the user asked for is now functionally in
+place**: walk (WASD) and collide with the floor/machine/console, look around
+(mouse, fixed from an earlier GUI-input-stealing bug), switch first-/third-
+person (V), approach the console and get a prompt, press E to use the real
+2D operator panel. Not yet re-confirmed live after the pitch fix specifically
+(asked the user; no response yet on that one point, but no new complaint
+either).
+
+**Still open, not yet asked to prioritize:**
+- True 3D-interactive console (clicking the physical model's buttons) vs.
+  today's proximity+E shortcut to the existing 2D panel -- deliberately
+  scoped out so far (see ConsoleStand.cs's doc comment).
+- Workpiece visual state not persisted across a Godot restart (noted since
+  Phase 2/3, still true).
+- Chip ribbon/spiral geometry is still the simplified pooled-box approach
+  (ChipSpawner.cs's own doc comment).
+- Haven't re-run the full test suite (C#+Python) since before this player-
+  controller work started, specifically to confirm nothing in the WorldScale/
+  collision refactor regressed the LinuxCNC-lifecycle or preview tests (those
+  need no live bridge session running to execute safely).
+
 ---
 *Phase 0 environment approved implicitly by the user proceeding with the WSL fix; "do all phases, don't stop" given 2026-11-13.*
