@@ -21,6 +21,7 @@ public partial class ChipSpawner : Node3D
     [Export] public float FloorWorldY = -60f;
     [Export] public float Gravity = 400f; // mm/s^2 (scene uses mm as world units)
     [Export] public float MaxLifetimeSeconds = 6f;
+    [Export] public float VisualSizeMultiplier = 6f;
 
     private struct ChipInstance
     {
@@ -123,7 +124,14 @@ public partial class ChipSpawner : Node3D
             ChipType.Segmented => 2.0f,
             _ => 1.0f,
         };
-        c.Node.Scale = new Vector3(f.SizeMm * 0.4f, f.SizeMm * 0.2f, f.SizeMm * 0.4f * elongation);
+        // VisualSizeMultiplier: real chip sizes (sub-mm to a few mm) are only a
+        // handful of pixels at a camera distance that can see the whole ~300mm
+        // part -- found live, the user correctly couldn't see any. This is a
+        // deliberate visibility exaggeration for a training tool, not a claim
+        // of physical accuracy (same spirit as the brief's "visual plausibility
+        // is enough").
+        float s = f.SizeMm * VisualSizeMultiplier;
+        c.Node.Scale = new Vector3(s * 0.4f, s * 0.2f, s * 0.4f * elongation);
         c.AngularSpeed = f.Type == ChipType.Continuous
             ? Mathf.DegToRad(180f + (float)_rng.NextDouble() * 360f)
             : Mathf.DegToRad((float)(_rng.NextDouble() - 0.5) * 180f);
