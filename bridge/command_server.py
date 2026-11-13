@@ -1,0 +1,123 @@
+"""Receives COMMAND packets over UDP and applies them via linuxcnc.command().
+
+Dedupes by client_seq: a command whose client_seq is <= the highest one already
+applied for that command_kind is dropped (a stale UDP retransmit must never be
+re-applied -- e.g. a doubled "cycle start" would restart the program)."""
+from __future__ import annotations
+
+import socket
+import subprocess
+import threading
+
+import linuxcnc
+
+from protocol import Command, CommandKind, pack_ack, unpack_header, PacketType
+
+_JOG_CONTINUOUS = linuxcnc.JOG_CONTINUOUS
+_JOG_INCREMENT = linuxcnc.JOG_INCREMENT
+_JOG_STOP = linuxcnc.JOG_STOP
+
+
+class CommandServer:
+    def __init__(self, stat, cmd, sock: socket.socket):
+        self.stat = stat
+        self.cmd = cmd
+        self.sock = sock
+        self._highest_client_seq: dict[int, int] = {}
+        self._ack_seq = 0
+        self._lock = threading.Lock()
+
+    def _ack(self, addr, client_seq: int, ok: bool, text: str = "") -> None:
+        pkt = pack_ack(self._ack_seq, client_seq, ok, text)
+        self._ack_seq += 1
+        self.sock.sendto(pkt, addr)
+
+    def handle_packet(self, data: bytes, addr) -> None:
+        packet_type, seq, t_mono_ns, hlen = unpack_header(data)
+        if packet_type != PacketType.COMMAND:
+            return
+        command = Command.unpack(data[hlen:])
+        with self._lock:
+            highest = self._highest_client_seq.get(command.command_kind, -1)
+            if command.client_seq <= highest:
+                return  # stale retransmit, already applied
+            self._highest_client_seq[command.command_kind] = command.client_seq
+        try:
+            self._apply(command)
+            self._ack(addr, command.client_seq, True)
+        except Exception as e:  # noqa: BLE001 - report to client instead of crashing the loop
+            self._ack(addr, command.client_seq, False, str(e))
+
+    def _apply(self, command: Command) -> None:
+        import struct
+        kind = command.command_kind
+        args = command.args
+
+        if kind == CommandKind.JOG_START:
+            axis, vel = struct.unpack("<Bf", args)
+            self.cmd.jog(_JOG_CONTINUOUS, True, axis, vel)
+        elif kind == CommandKind.JOG_STOP:
+            (axis,) = struct.unpack("<B", args)
+            self.cmd.jog(_JOG_STOP, True, axis)
+        elif kind == CommandKind.JOG_INCREMENTAL:
+            axis, vel, inc = struct.unpack("<Bff", args)
+            self.cmd.jog(_JOG_INCREMENT, True, axis, vel, inc)
+        elif kind == CommandKind.SET_MODE:
+            (mode,) = struct.unpack("<B", args)
+            self.cmd.mode({0: linuxcnc.MODE_MANUAL, 1: linuxcnc.MODE_AUTO, 2: linuxcnc.MODE_MDI}[mode])
+        elif kind == CommandKind.MDI:
+            self.cmd.mode(linuxcnc.MODE_MDI)
+            self.cmd.mdi(args.decode("utf-8"))
+        elif kind == CommandKind.PROGRAM_OPEN:
+            self.cmd.mode(linuxcnc.MODE_AUTO)
+            self.cmd.program_open(args.decode("utf-8"))
+        elif kind == CommandKind.PROGRAM_RUN:
+            (start_line,) = struct.unpack("<i", args)
+            self.cmd.mode(linuxcnc.MODE_AUTO)
+            self.cmd.auto(linuxcnc.AUTO_RUN, start_line)
+        elif kind == CommandKind.PROGRAM_PAUSE:
+            self.cmd.auto(linuxcnc.AUTO_PAUSE)
+        elif kind == CommandKind.PROGRAM_STOP:
+            self.cmd.abort()
+        elif kind == CommandKind.PROGRAM_STEP:
+            self.cmd.auto(linuxcnc.AUTO_STEP)
+        elif kind == CommandKind.SET_FEED_OVERRIDE:
+            (value,) = struct.unpack("<f", args)
+            self.cmd.feedrate(value)
+        elif kind == CommandKind.SET_SPINDLE_OVERRIDE:
+            (value,) = struct.unpack("<f", args)
+            self.cmd.spindleoverride(value)
+        elif kind == CommandKind.SPINDLE_ON:
+            (rpm,) = struct.unpack("<f", args)
+            direction = linuxcnc.SPINDLE_FORWARD if rpm >= 0 else linuxcnc.SPINDLE_REVERSE
+            self.cmd.spindle(direction, abs(rpm))
+        elif kind == CommandKind.SPINDLE_OFF:
+            self.cmd.spindle(linuxcnc.SPINDLE_OFF)
+        elif kind == CommandKind.TOOL_CHANGE_CONFIRM:
+            # iocontrol.0.tool-changed is left unwired by -no_use_hal_manualtoolchange
+            # (see sim_lathe.ini) so our own panel (Phase 4) is responsible for pulsing
+            # it, the same role LinuxCNC's own Tk tool-change dialog would otherwise
+            # play. A real panel also watches iocontrol.0.tool-change to know when to
+            # ask the operator in the first place -- not implemented yet here.
+            subprocess.run(["halcmd", "setp", "iocontrol.0.tool-changed", "1"], check=True)
+            subprocess.run(["halcmd", "setp", "iocontrol.0.tool-changed", "0"], check=True)
+        elif kind == CommandKind.HOME_AXIS:
+            (axis,) = struct.unpack("<B", args)
+            self.cmd.home(-1 if axis == 0xFF else axis)
+        elif kind == CommandKind.ESTOP_RESET:
+            self.cmd.state(linuxcnc.STATE_ESTOP_RESET)
+        elif kind == CommandKind.MACHINE_ON:
+            self.cmd.state(linuxcnc.STATE_ON)
+        elif kind == CommandKind.MACHINE_OFF:
+            self.cmd.state(linuxcnc.STATE_OFF)
+        else:
+            raise ValueError(f"unknown command_kind {kind}")
+
+    def run_forever(self, should_stop) -> None:
+        self.sock.settimeout(0.5)
+        while not should_stop():
+            try:
+                data, addr = self.sock.recvfrom(2048)
+            except socket.timeout:
+                continue
+            self.handle_packet(data, addr)

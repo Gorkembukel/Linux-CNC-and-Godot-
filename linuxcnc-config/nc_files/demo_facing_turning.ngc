@@ -1,0 +1,67 @@
+%
+( DEMO PROGRAM - 2-AXIS LATHE TRAINING )
+( Stock: 50mm diameter round bar, 80mm sticking out of the chuck )
+( Z0 = chuck face, Z-80 = free end. X is RADIUS from centerline - G8, LinuxCNC default. )
+( T1 = roughing turn tool, T2 = finishing turn tool, T3 = 3mm parting tool. See sim_lathe.tbl )
+
+G21         ( metric )
+G8          ( radius mode for X: X value = actual distance from centerline )
+G18         ( XZ plane )
+G90         ( absolute distances )
+
+T1 M6       ( load roughing tool - manual tool change, confirm in the operator panel )
+G43 H1
+S800 M3     ( spindle on, 800 rpm )
+G54
+
+( --- face the end --- )
+G0 X26.0 Z2.0
+G1 Z0.0 F150
+G1 X-0.5 F80
+G0 Z2.0
+
+( --- rough turn OD from 25mm down to 20mm radius over 60mm length --- )
+G0 X25.0 Z2.0
+G1 Z-60.0 F150
+G0 X26.0
+G0 Z2.0
+G0 X23.0
+G1 Z-60.0 F150
+G0 X26.0
+G0 Z2.0
+G0 X21.0
+G1 Z-60.0 F150
+G0 X26.0
+G0 Z2.0
+G0 X20.2
+G1 Z-60.0 F150
+G0 X26.0
+G0 Z5.0
+
+( --- tool change: finishing tool --- )
+M5
+T2 M6
+G43 H2
+S1200 M3
+
+( --- finish pass to final 20mm radius --- )
+G0 X20.5 Z2.0
+G1 Z-60.0 F80
+G0 X26.0
+G0 Z5.0
+
+( --- tool change: parting tool --- )
+M5
+T3 M6
+G43 H3
+S600 M3
+
+( --- part off at Z-55 --- )
+G0 X26.0 Z-55.0
+G1 X-0.5 F40
+G0 X26.0
+
+M5          ( spindle off )
+G0 X30.0 Z5.0
+M2          ( program end )
+%

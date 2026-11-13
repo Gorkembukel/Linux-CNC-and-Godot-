@@ -1,0 +1,22 @@
+# Godot 4+ specific ignores
+.godot/
+/android/
+
+# LinuxCNC runtime-generated files (created wherever a process's cwd happens to
+# be when something touches RS274NGC_STARTUP params; the canonical ones live
+# under linuxcnc-config/ and are also ignored below)
+*.var
+*.var.bak
+linuxcnc_bridge.log
+*_cmds.hal
+linuxcnc-config/lc.pid
+linuxcnc-config/lc_stdin.fifo
+
+# Python
+__pycache__/
+*.pyc
+
+# C#/.NET build output
+bin/
+obj/
+.vs/
