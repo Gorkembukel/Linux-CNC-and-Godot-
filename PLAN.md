@@ -380,5 +380,16 @@ not the panel logic) but is harmless and left in place, gated off by default.
 mode/jog/MDI/program-load/cycle-control/overrides/tool-change/touch-off per
 the brief. Revisit if gaps turn up during further use.
 
+## `start.ps1` confirmed working end to end (2026-11-13)
+
+User-run, not simulated: with the previous session's bridge/Godot fully
+closed, ran `start.ps1` and watched it clean stale state, start the bridge in
+its own window, detect readiness (fast this time -- LinuxCNC's cold-start
+time is genuinely variable run to run, as documented in Phase 0's notes, not
+always the ~90s worst case), launch Godot automatically, and the user
+confirmed "BRIDGE CONNECTED" on screen. **Every deliverable from the brief's
+section 9 is now done and the single-command startup path is proven, not
+just written.**
+
 ---
 *Phase 0 environment approved implicitly by the user proceeding with the WSL fix; "do all phases, don't stop" given 2026-11-13.*
