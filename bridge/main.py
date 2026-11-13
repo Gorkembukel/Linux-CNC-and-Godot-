@@ -18,7 +18,7 @@ import linuxcnc
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from deploy import sync_linuxcnc_config  # noqa: E402
 from linuxcnc_process import LinuxCNCProcess  # noqa: E402
-from net import discover_windows_host_ip  # noqa: E402
+from net import discover_windows_host_ip, discover_own_ip  # noqa: E402
 from state_publisher import StatePublisher  # noqa: E402
 from command_server import CommandServer  # noqa: E402
 
@@ -42,6 +42,12 @@ def main() -> int:
 
     dest_ip = discover_windows_host_ip()
     print(f"[bridge] Windows host (state stream destination): {dest_ip}")
+
+    own_ip = discover_own_ip()
+    endpoint_file = REPO_ROOT / "bridge" / ".bridge_endpoint"
+    endpoint_file.write_text(own_ip)
+    print(f"[bridge] own address (command destination for Godot): {own_ip} "
+          f"(written to {endpoint_file} -- 127.0.0.1 does NOT work here, see net.py)")
 
     stop_event = threading.Event()
 

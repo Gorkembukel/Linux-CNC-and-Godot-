@@ -9,6 +9,7 @@
 *.var.bak
 linuxcnc_bridge.log
 *_cmds.hal
+bridge/.bridge_endpoint
 linuxcnc-config/lc.pid
 linuxcnc-config/lc_stdin.fifo
 

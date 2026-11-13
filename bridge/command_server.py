@@ -120,4 +120,12 @@ class CommandServer:
                 data, addr = self.sock.recvfrom(2048)
             except socket.timeout:
                 continue
-            self.handle_packet(data, addr)
+            try:
+                self.handle_packet(data, addr)
+            except Exception as e:  # noqa: BLE001 - a malformed/garbage packet must
+                # never kill this loop: found live, the hard way -- one bad
+                # packet (e.g. a stray non-protocol UDP send) used to silently
+                # end the whole command-listening thread, after which every
+                # real command (including every operator panel button) went
+                # nowhere with no error visible anywhere.
+                print(f"[command_server] dropping malformed packet from {addr}: {e!r}")

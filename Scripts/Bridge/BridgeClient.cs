@@ -69,6 +69,31 @@ public partial class BridgeClient : Node
         if (err != Error.Ok)
             GD.PrintErr($"[BridgeClient] failed to bind state port {StatePort}: {err}");
 
+        // WSL2's documented "localhost forwarding" (Windows -> 127.0.0.1 reaches
+        // a socket bound inside the VM) does NOT work for UDP on this machine --
+        // confirmed live with a raw socket test: packets to 127.0.0.1:9201 were
+        // never delivered, while the VM's real eth0 address worked immediately.
+        // So the bridge writes its own address to this file on every start (see
+        // bridge/main.py / bridge/net.py's discover_own_ip), and this is read
+        // here instead of trusting the CommandHost default. If the file is
+        // missing or unreadable, falls back to the [Export] CommandHost as
+        // configured (useful for a non-WSL/Linux-native dev setup where
+        // 127.0.0.1 might actually be correct).
+        string endpointPath = ProjectSettings.GlobalizePath("res://bridge/.bridge_endpoint");
+        if (System.IO.File.Exists(endpointPath))
+        {
+            string ip = System.IO.File.ReadAllText(endpointPath).Trim();
+            if (ip.Length > 0)
+            {
+                GD.Print($"[BridgeClient] using bridge-reported command host: {ip} (from {endpointPath})");
+                CommandHost = ip;
+            }
+        }
+        else
+        {
+            GD.Print($"[BridgeClient] no endpoint file at {endpointPath}, using configured CommandHost={CommandHost}");
+        }
+
         _commandSocket = new PacketPeerUdp();
         _commandSocket.ConnectToHost(CommandHost, CommandPort);
 
