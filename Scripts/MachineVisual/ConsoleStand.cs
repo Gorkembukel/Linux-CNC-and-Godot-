@@ -212,15 +212,7 @@ public partial class ConsoleStand : Node3D
             RotationDegrees = new Vector3(90f, 0f, 0f),
             Position = pos,
         });
-        body.AddChild(new Label3D
-        {
-            Text = label,
-            Position = pos + new Vector3(0f, radius + 0.004f, 0.01f),
-            FontSize = 10,
-            PixelSize = 0.001f,
-            Modulate = new Color(0.1f, 0.1f, 0.1f),
-            NoDepthTest = true,
-        });
+        AddButtonCaption(body, label, pos + new Vector3(0f, radius + 0.006f, 0.01f));
         RegisterButton(body, action);
     }
 
@@ -231,16 +223,30 @@ public partial class ConsoleStand : Node3D
         panel.AddChild(body);
         body.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = size }, MaterialOverride = material, Position = pos });
         body.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = size }, Position = pos });
-        body.AddChild(new Label3D
+        AddButtonCaption(body, label, pos + new Vector3(0f, 0.017f, 0.009f));
+        RegisterButton(body, action);
+    }
+
+    /// <summary>Bright, outlined, billboarded caption -- the first version used
+    /// small, dark, flat-facing text that was unreadable against the equally
+    /// dark button material (reported live: "can't read the button names").
+    /// Outline gives contrast against ANY background color, not just one
+    /// that happens to be picked correctly, and Billboard keeps it legible
+    /// from any approach angle instead of only straight-on.</summary>
+    private void AddButtonCaption(Node3D parent, string text, Vector3 position)
+    {
+        parent.AddChild(new Label3D
         {
-            Text = label,
-            Position = pos + new Vector3(0f, 0.015f, 0.009f),
-            FontSize = 9,
-            PixelSize = 0.001f,
-            Modulate = new Color(0.9f, 0.9f, 0.9f),
+            Text = text,
+            Position = position,
+            FontSize = 24,
+            PixelSize = 0.0012f,
+            Modulate = new Color(1f, 0.95f, 0.5f), // warm "backlit" amber, reads as illuminated
+            OutlineSize = 10,
+            OutlineModulate = new Color(0f, 0f, 0f),
+            Billboard = BaseMaterial3D.BillboardModeEnum.Enabled,
             NoDepthTest = true,
         });
-        RegisterButton(body, action);
     }
 
     private void RegisterButton(StaticBody3D body, System.Action action)
