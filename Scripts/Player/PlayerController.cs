@@ -62,9 +62,15 @@ public partial class PlayerController : CharacterBody3D
         _fpCamera = new Camera3D { Current = true, Name = "FirstPersonCamera" };
         _head.AddChild(_fpCamera);
 
-        _tpArm = new SpringArm3D { SpringLength = 3.0f, Name = "ThirdPersonArm" };
-        _tpArm.RotateY(Mathf.Pi); // look from behind the character, not through it
-        _head.AddChild(_tpArm);
+        // Sibling of _head (both direct children of the body), NOT nested
+        // under it: parenting the arm under the already-pitched _head and
+        // then adding a 180 deg child rotation on top composed badly and
+        // inverted the effective pitch axis for the TP camera only (found
+        // live -- FP pitch felt right, TP pitch felt backwards). Pitch is
+        // applied to both independently, as flat Euler assignments, in
+        // _Input below.
+        _tpArm = new SpringArm3D { SpringLength = 3.0f, Name = "ThirdPersonArm", Position = new Vector3(0f, EyeHeight, 0f) };
+        AddChild(_tpArm);
         _tpCamera = new Camera3D { Current = false, Name = "ThirdPersonCamera" };
         _tpArm.AddChild(_tpCamera);
 
@@ -92,6 +98,12 @@ public partial class PlayerController : CharacterBody3D
             RotateY(-mm.Relative.X * MouseSensitivity);
             _pitch = Mathf.Clamp(_pitch - mm.Relative.Y * MouseSensitivity, -1.3f, 1.3f);
             _head.Rotation = new Vector3(_pitch, 0f, 0f);
+            // Flat assignment (not a child rotation nested under _head): pitch
+            // and the "face backward to look at the character" 180 both land
+            // in one Euler value, computed the same consistent way Godot
+            // always resolves Rotation, instead of composing two separate
+            // parent/child transforms that inverted pitch (see _Ready's note).
+            _tpArm.Rotation = new Vector3(_pitch, Mathf.Pi, 0f);
         }
         else if (@event is InputEventKey keyEvent && keyEvent.Pressed)
         {
