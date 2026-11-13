@@ -9,10 +9,10 @@ namespace CncTrainer;
 /// </summary>
 public partial class CameraController : Camera3D
 {
-    [Export] public Vector3 Pivot = new(-40f, 15f, 0f);
-    [Export] public float InitialDistance = 320f;
-    [Export] public float MinDistance = 30f;
-    [Export] public float MaxDistance = 1200f;
+    [Export] public Vector3 Pivot = new(-0.1f, 0f, 0f); // meters -- roughly the headstock/chuck area
+    [Export] public float InitialDistance = 1.5f;
+    [Export] public float MinDistance = 0.2f;
+    [Export] public float MaxDistance = 8f;
     [Export] public float OrbitSpeed = 0.01f;
     [Export] public float ZoomSpeed = 0.1f;
 

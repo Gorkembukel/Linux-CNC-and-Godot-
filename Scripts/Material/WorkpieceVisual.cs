@@ -9,22 +9,49 @@ namespace CncTrainer;
 /// regenerates the chunk(s) it touched (brief section 5: "Regenerate only the
 /// mesh for the changed range (chunked structure)"). World-axis convention
 /// matches Main.cs: world X = machine Z (spindle axis), the cross-section
-/// circle (radius = stock radius) lives in the world Y/Z plane.
+/// circle (radius = stock radius) lives in the world Y/Z plane. World units
+/// are meters (see WorldScale.cs); Profile itself stays in mm (its own native
+/// unit, and what the material-removal tests are written against).
+///
+/// [Tool]: builds the default (uncut) stock shape in the editor too, not just
+/// at play time -- same reasoning as MachineBody.cs. The stock-size fields
+/// live here (not on Main) specifically so the editor can show a correctly-
+/// sized default stock without needing the running game.
+///
+/// No collision: unlike MachineBody/ConsoleStand, this one deliberately has
+/// none. Its shape changes as material is cut, which would mean regenerating
+/// a collision shape on every cut -- real cost for a part of the scene a
+/// walking character isn't expected to reach anyway (it's inside the
+/// headstock/chuck envelope). Revisit if that assumption changes.
 /// </summary>
+[Tool]
 public partial class WorkpieceVisual : Node3D
 {
+    // Demo stock: 50mm diameter (25mm radius) bar, matches linuxcnc-config's
+    // demo_facing_turning.ngc comment ("Stock: 50mm diameter round bar").
+    [Export] public float StockRadiusMm = 25.0f;
+    [Export] public float StockZMin = -85.0f;
+    [Export] public float StockZMax = 5.0f;
     [Export] public int AngularSegments = 24;
     [Export] public int BucketsPerChunk = 40;
     [Export] public int MaxChunkRebuildsPerCall = 4;
 
-    private LatheRadiusProfile _profile;
+    /// <summary>The live radius profile -- Main.cs sweeps cuts into this same
+    /// instance; this class only ever reads it to build the mesh.</summary>
+    public LatheRadiusProfile Profile { get; private set; }
+
     private MeshInstance3D[] _chunkMeshes;
     private bool[] _chunkDirty;
     private StandardMaterial3D _material;
 
-    public void Initialize(LatheRadiusProfile profile)
+    public override void _Ready()
     {
-        _profile = profile;
+        RebuildFromScratch();
+    }
+
+    private void RebuildFromScratch()
+    {
+        Profile = new LatheRadiusProfile(StockRadiusMm, StockZMin, StockZMax);
         _material ??= new StandardMaterial3D
         {
             AlbedoColor = new Color(0.72f, 0.73f, 0.76f),
@@ -32,11 +59,14 @@ public partial class WorkpieceVisual : Node3D
             Roughness = 0.35f,
         };
 
-        int chunkCount = Mathf.Max(1, Mathf.CeilToInt((float)(profile.BucketCount - 1) / BucketsPerChunk));
+        int chunkCount = Mathf.Max(1, Mathf.CeilToInt((float)(Profile.BucketCount - 1) / BucketsPerChunk));
         _chunkMeshes = new MeshInstance3D[chunkCount];
         _chunkDirty = new bool[chunkCount];
         foreach (var child in GetChildren())
+        {
+            RemoveChild(child);
             child.QueueFree();
+        }
 
         for (int c = 0; c < chunkCount; c++)
         {
@@ -77,7 +107,7 @@ public partial class WorkpieceVisual : Node3D
     private void RebuildChunk(int chunkIndex)
     {
         int startBucket = chunkIndex * BucketsPerChunk;
-        int endBucket = Mathf.Min(_profile.BucketCount - 1, startBucket + BucketsPerChunk);
+        int endBucket = Mathf.Min(Profile.BucketCount - 1, startBucket + BucketsPerChunk);
         if (endBucket <= startBucket)
         {
             _chunkMeshes[chunkIndex].Mesh = null;
@@ -89,8 +119,10 @@ public partial class WorkpieceVisual : Node3D
 
         for (int i = startBucket; i < endBucket; i++)
         {
-            float x0 = _profile.ZAt(i), x1 = _profile.ZAt(i + 1); // world X = machine Z
-            float r0 = _profile.RadiusAt(i), r1 = _profile.RadiusAt(i + 1);
+            // Profile data is in mm (LatheRadiusProfile's own unit); convert
+            // to meters here at the mesh-vertex boundary (see WorldScale.cs).
+            float x0 = Profile.ZAt(i) * WorldScale.MmToM, x1 = Profile.ZAt(i + 1) * WorldScale.MmToM;
+            float r0 = Profile.RadiusAt(i) * WorldScale.MmToM, r1 = Profile.RadiusAt(i + 1) * WorldScale.MmToM;
 
             for (int a = 0; a < AngularSegments; a++)
             {
@@ -108,7 +140,7 @@ public partial class WorkpieceVisual : Node3D
 
         if (startBucket == 0)
             AddCap(st, startBucket, outwardNormalIsNegativeX: true);
-        if (endBucket == _profile.BucketCount - 1)
+        if (endBucket == Profile.BucketCount - 1)
             AddCap(st, endBucket, outwardNormalIsNegativeX: false);
 
         st.GenerateNormals();
@@ -124,8 +156,8 @@ public partial class WorkpieceVisual : Node3D
 
     private void AddCap(SurfaceTool st, int bucketIndex, bool outwardNormalIsNegativeX)
     {
-        float x = _profile.ZAt(bucketIndex);
-        float r = _profile.RadiusAt(bucketIndex);
+        float x = Profile.ZAt(bucketIndex) * WorldScale.MmToM;
+        float r = Profile.RadiusAt(bucketIndex) * WorldScale.MmToM;
         var center = new Vector3(x, 0, 0);
         for (int a = 0; a < AngularSegments; a++)
         {

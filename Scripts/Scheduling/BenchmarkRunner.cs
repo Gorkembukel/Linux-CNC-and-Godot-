@@ -61,7 +61,7 @@ public class BenchmarkRunner
             _workpiece.MarkDirty(result.MinDirtyIndex, result.MaxDirtyIndex);
 
         // Many chips: force a sustained heavy formation every frame.
-        var contactPoint = new Vector3(_sweepZ, radius, 0f);
+        var contactPoint = new Vector3(_sweepZ, radius, 0f) * WorldScale.MmToM;
         _chips.Tick(delta, _heavyFormation, contactPoint);
 
         if (_frameCount >= TotalFrames)

@@ -11,11 +11,6 @@ namespace CncTrainer;
 /// basic connection/debug info. See PLAN.md Phase 0/1/2.</summary>
 public partial class Main : Node3D
 {
-    // Demo stock: 50mm diameter (25mm radius) bar, matches linuxcnc-config's
-    // demo_facing_turning.ngc comment ("Stock: 50mm diameter round bar").
-    [Export] public float StockRadiusMm = 25.0f;
-    [Export] public float StockZMin = -85.0f;
-    [Export] public float StockZMax = 5.0f;
     [Export] public MaterialKind StockMaterial = MaterialKind.Steel;
 
     private BridgeClient _bridge;
@@ -43,8 +38,7 @@ public partial class Main : Node3D
         _machineBody = GetNode<MachineBody>("MachineBody");
         _chips = GetNode<ChipSpawner>("ChipSpawner");
 
-        _material = new LatheRadiusProfile(StockRadiusMm, StockZMin, StockZMax);
-        _workpiece.Initialize(_material);
+        _material = _workpiece.Profile; // built in WorkpieceVisual's own _Ready(), which runs before this (children before parent)
 
         _bridge.Connect(BridgeClient.SignalName.ConnectionChanged, Callable.From<bool>(OnConnectionChanged));
         _bridge.Connect(BridgeClient.SignalName.StateUpdated, Callable.From(OnConfirmedStateUpdated));
@@ -100,13 +94,17 @@ public partial class Main : Node3D
         // must never roll back (material removal, Phase 2) reads _bridge.State
         // (confirmed-only) instead, never _bridge.Prediction.
         var pos = _bridge.Prediction.VisualPosition; // X = radius (mm), Z = along spindle (mm)
-        _toolCube.Position = new Vector3(pos.Y, pos.X, 0f);
-        _machineBody.UpdateCarriage(pos.Y);
+        // World units are meters (WorldScale.MmToM) throughout the scene; the
+        // underlying machine data stays in mm (LinuxCNC's own units) all the
+        // way up to this boundary.
+        var toolWorldPos = new Vector3(pos.Y, pos.X, 0f) * WorldScale.MmToM;
+        _toolCube.Position = toolWorldPos;
+        _machineBody.UpdateCarriage(toolWorldPos.X);
 
         _timeSinceLastCut += delta;
         if (_timeSinceLastCut > 0.2) // tool left the material: stop spawning shortly after
             _activeChipFormation = null;
-        var contactPointWorld = new Vector3(pos.Y, pos.X, 0f);
+        var contactPointWorld = toolWorldPos;
 
         // Brief section 4's priority classes: mesh regen is "High" (visibly
         // wrong workpiece geometry is jarring), chip simulation is "Normal"

@@ -1,5 +1,6 @@
 using System;
 using Godot;
+using CncTrainer;
 
 namespace CncTrainer.Chips;
 
@@ -17,9 +18,13 @@ namespace CncTrainer.Chips;
 /// </summary>
 public partial class ChipSpawner : Node3D
 {
+    // World units are meters (WorldScale.MmToM) throughout the scene.
     [Export] public int MaxActiveChips = 250;
-    [Export] public float FloorWorldY = -60f;
-    [Export] public float Gravity = 400f; // mm/s^2 (scene uses mm as world units)
+    // Not the true floor (WorldScale.FloorY, ~1.1m down) -- a nominal "lands
+    // on/near the machine bed" catch height, since no chip tray/splash guard
+    // is modelled; a real 1.1m freefall would look wrong for small swarf.
+    [Export] public float FloorWorldY = -0.15f;
+    [Export] public float Gravity = 9.8f; // real gravity, m/s^2, now that units are real-world meters
     [Export] public float MaxLifetimeSeconds = 6f;
     [Export] public float VisualSizeMultiplier = 6f;
 
@@ -105,7 +110,7 @@ public partial class ChipSpawner : Node3D
         // from the spindle centerline), with a little random spread and a
         // consistent upward bias so chips are visible arcing away from the cut.
         float angle = (float)(_rng.NextDouble() * Math.Tau);
-        float speed = 150f + (float)_rng.NextDouble() * 250f;
+        float speed = 0.15f + (float)_rng.NextDouble() * 0.25f; // m/s
         var dir = new Vector3(
             (float)(_rng.NextDouble() - 0.5) * 0.6f,
             Mathf.Abs(Mathf.Sin(angle)) * 0.7f + 0.3f,
@@ -125,12 +130,12 @@ public partial class ChipSpawner : Node3D
             _ => 1.0f,
         };
         // VisualSizeMultiplier: real chip sizes (sub-mm to a few mm) are only a
-        // handful of pixels at a camera distance that can see the whole ~300mm
-        // part -- found live, the user correctly couldn't see any. This is a
+        // handful of pixels at a camera distance that can see the whole scene
+        // -- found live, the user correctly couldn't see any. This is a
         // deliberate visibility exaggeration for a training tool, not a claim
         // of physical accuracy (same spirit as the brief's "visual plausibility
         // is enough").
-        float s = f.SizeMm * VisualSizeMultiplier;
+        float s = f.SizeMm * WorldScale.MmToM * VisualSizeMultiplier;
         c.Node.Scale = new Vector3(s * 0.4f, s * 0.2f, s * 0.4f * elongation);
         c.AngularSpeed = f.Type == ChipType.Continuous
             ? Mathf.DegToRad(180f + (float)_rng.NextDouble() * 360f)
