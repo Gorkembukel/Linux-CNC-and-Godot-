@@ -78,7 +78,11 @@ public partial class PlayerController : CharacterBody3D
         Input.MouseMode = Input.MouseModeEnum.Captured;
     }
 
-    public override void _UnhandledInput(InputEvent @event)
+    // _Input (not _UnhandledInput): with the operator panel's Controls covering
+    // a chunk of the screen, GUI mouse-motion handling could otherwise eat the
+    // look input before it reached an Unhandled handler -- found live (mouse
+    // look did nothing, WASD worked fine, which is exactly that symptom).
+    public override void _Input(InputEvent @event)
     {
         if (@event is InputEventMouseMotion mm && Input.MouseMode == Input.MouseModeEnum.Captured)
         {
@@ -102,6 +106,15 @@ public partial class PlayerController : CharacterBody3D
                     ToggleConsoleUse();
                     break;
             }
+        }
+        else if (@event is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left }
+                 && Input.MouseMode == Input.MouseModeEnum.Visible && !_atConsole)
+        {
+            // Safety net for a focus-timing edge case: clicking back into the
+            // game window re-captures the mouse for looking around, in case
+            // capture didn't take right at startup (before the window had OS
+            // focus) and nothing else released it on purpose.
+            Input.MouseMode = Input.MouseModeEnum.Captured;
         }
     }
 
