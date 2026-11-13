@@ -331,5 +331,54 @@ status sections above; this is just the index)
    unwanted"; killing by a single literal PID works. `--quit-after` is not a
    reliable way to make a headless Godot process actually exit on its own.
 
+10. WSL2's documented UDP "localhost forwarding" (Windows -> 127.0.0.1 reaches
+    a socket bound in the VM) does NOT work on this machine -- confirmed with a
+    raw socket test. Fixed: the bridge writes its own eth0 address to
+    `bridge/.bridge_endpoint` on every start; `BridgeClient.cs` reads it
+    instead of assuming `127.0.0.1`. This is why the Godot->bridge COMMAND path
+    (unlike the bridge->Godot STATE path) stayed broken through all of Phases
+    0-3 despite everything else working -- nothing in those phases ever
+    actually sent a command from Godot to the bridge over the network; they
+    all drove LinuxCNC directly via a second script standing in for Godot.
+    **Lesson for future phases: a path being architecturally symmetric to one
+    that's proven working is not proof it works -- test each direction live.**
+11. `CommandServer.run_forever` had no exception handling around
+    `handle_packet` itself (only around applying an already-parsed command) --
+    one malformed/non-protocol UDP packet permanently killed the whole
+    command-listening thread with no visible error anywhere. Fixed: caught and
+    logged per-packet now.
+12. Real chip sizes (sub-mm to a few mm) are only a handful of pixels at a
+    camera distance that can see the whole ~300mm part -- invisible in
+    practice. Fixed with an explicit `VisualSizeMultiplier` (6x) in
+    `ChipSpawner`, documented as a visibility exaggeration, not physical
+    accuracy.
+13. The material/chip state (`LatheRadiusProfile`, chip pool) lives only in
+    Godot's memory, with no persistence -- closing/reopening Godot resets the
+    visual workpiece to full uncut stock even though the real LinuxCNC
+    machine's position/program state is untouched and continues normally. Not
+    a bug exactly (Godot *should* reconnect cleanly, and does), but a real,
+    currently-unaddressed gap: there's no "resync the visual cut history from
+    the real machine" mechanism. Worth a line in a future phase or in
+    known-limitations documentation (README.md/ASSETS.md), not silently
+    ignored.
+
+## Phase 4 (operator panel) -- confirmed working live, end to end (2026-11-13)
+
+User-driven, not just agent-driven: the user opened the Godot app themselves,
+clicked through MACHINE ON -> HOME ALL -> LOAD PROGRAM -> CYCLE START ->
+CONFIRM TOOL CHANGE on the actual on-screen panel, ran the real demo program
+on the real LinuxCNC instance, and confirmed seeing chips fall during cutting
+once the two fixes above (command routing, chip visual size) landed. Also
+added `Scripts/CameraController.cs` (right-drag orbit, scroll zoom) after the
+user reported being stuck at a single fixed angle.
+
+The `CNC_COMMAND_SELFTEST` hook added earlier in `Main.cs` to debug the command
+path is no longer needed for that purpose (the real bug was the network path,
+not the panel logic) but is harmless and left in place, gated off by default.
+
+**Still not done in Phase 4**: nothing else identified yet; the panel covers
+mode/jog/MDI/program-load/cycle-control/overrides/tool-change/touch-off per
+the brief. Revisit if gaps turn up during further use.
+
 ---
 *Phase 0 environment approved implicitly by the user proceeding with the WSL fix; "do all phases, don't stop" given 2026-11-13.*
