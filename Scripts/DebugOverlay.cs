@@ -26,13 +26,14 @@ public partial class DebugOverlay : Control
         _bridge = GetNode<BridgeClient>("/root/BridgeClient");
         _main = GetNode<Main>("/root/Main");
 
-        _label = new Label { Position = new Vector2(8, 8) };
+        _label = new Label { Position = new Vector2(6, 6) };
+        _label.AddThemeFontSizeOverride("font_size", 11);
         AddChild(_label);
 
         _graph = new Control
         {
-            Position = new Vector2(8, 170),
-            Size = new Vector2(320, 80),
+            Position = new Vector2(6, 150),
+            Size = new Vector2(230, 60),
         };
         _graph.Draw += DrawGraph;
         AddChild(_graph);

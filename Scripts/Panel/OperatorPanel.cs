@@ -36,20 +36,25 @@ public partial class OperatorPanel : Control
     {
         _bridge = GetNode<BridgeClient>("/root/BridgeClient");
 
+        // Smaller than the first pass: user feedback was "UI covers everywhere"
+        // at 1080p -- a shared small Theme shrinks every child control's
+        // default font uniformly instead of hand-tuning each one.
+        Theme = new Theme { DefaultFontSize = 12 };
+
         AnchorLeft = 0;
         AnchorTop = 1;
         AnchorRight = 0;
         AnchorBottom = 1;
-        OffsetLeft = 16;
-        OffsetTop = -420;
-        OffsetRight = 820;
-        OffsetBottom = -16;
+        OffsetLeft = 10;
+        OffsetTop = -260;
+        OffsetRight = 560;
+        OffsetBottom = -10;
 
         var panelBg = new Godot.Panel { AnchorRight = 1, AnchorBottom = 1 };
         AddChild(panelBg);
 
         var root = new VBoxContainer { AnchorRight = 1, AnchorBottom = 1 };
-        root.AddThemeConstantOverride("separation", 6);
+        root.AddThemeConstantOverride("separation", 2);
         AddChild(root);
 
         _modeStatusLabel = new Label { Text = "MODE: MANUAL" };
@@ -78,26 +83,34 @@ public partial class OperatorPanel : Control
 
     private Control BuildModeRow()
     {
-        var row = new HBoxContainer();
-        row.AddChild(MakeButton("MANUAL", () => _bridge.SetMode(TaskMode.Manual)));
-        row.AddChild(MakeButton("MDI", () => _bridge.SetMode(TaskMode.Mdi)));
-        row.AddChild(MakeButton("AUTO", () => _bridge.SetMode(TaskMode.Auto)));
-        row.AddChild(MakeButton("HOME X", () => _bridge.HomeAxis(0)));
-        row.AddChild(MakeButton("HOME Z", () => _bridge.HomeAxis(1)));
-        row.AddChild(MakeButton("HOME ALL", () => _bridge.HomeAxis(0xFF)));
-        row.AddChild(MakeButton("MACHINE ON", () => { _bridge.ResetEstop(); _bridge.MachineOn(); }));
-        row.AddChild(MakeButton("E-STOP", () => _bridge.MachineOff()));
-        return row;
+        var col = new VBoxContainer();
+        col.AddThemeConstantOverride("separation", 2);
+
+        var modeRow = new HBoxContainer();
+        modeRow.AddChild(MakeButton("MANUAL", () => _bridge.SetMode(TaskMode.Manual)));
+        modeRow.AddChild(MakeButton("MDI", () => _bridge.SetMode(TaskMode.Mdi)));
+        modeRow.AddChild(MakeButton("AUTO", () => _bridge.SetMode(TaskMode.Auto)));
+        modeRow.AddChild(MakeButton("ON", () => { _bridge.ResetEstop(); _bridge.MachineOn(); }));
+        modeRow.AddChild(MakeButton("E-STOP", () => _bridge.MachineOff()));
+        col.AddChild(modeRow);
+
+        var homeRow = new HBoxContainer();
+        homeRow.AddChild(MakeButton("HOME X", () => _bridge.HomeAxis(0)));
+        homeRow.AddChild(MakeButton("HOME Z", () => _bridge.HomeAxis(1)));
+        homeRow.AddChild(MakeButton("HOME ALL", () => _bridge.HomeAxis(0xFF)));
+        col.AddChild(homeRow);
+
+        return col;
     }
 
     private Control BuildJogRow()
     {
         var row = new HBoxContainer();
 
-        _continuousJogToggle = MakeButton("JOG: CONTINUOUS", () =>
+        _continuousJogToggle = MakeButton("JOG:CONT", () =>
         {
             _continuousJogMode = !_continuousJogMode;
-            _continuousJogToggle.Text = _continuousJogMode ? "JOG: CONTINUOUS" : "JOG: INCREMENT";
+            _continuousJogToggle.Text = _continuousJogMode ? "JOG:CONT" : "JOG:INC";
         });
         row.AddChild(_continuousJogToggle);
 
@@ -140,7 +153,7 @@ public partial class OperatorPanel : Control
     private Control BuildMdiRow()
     {
         var row = new HBoxContainer();
-        _mdiInput = new LineEdit { PlaceholderText = "MDI: e.g. G0 X10 Z-5", CustomMinimumSize = new Vector2(300, 0) };
+        _mdiInput = new LineEdit { PlaceholderText = "MDI: e.g. G0 X10 Z-5", CustomMinimumSize = new Vector2(150, 0) };
         _mdiInput.TextSubmitted += _ => SendMdiFromInput();
         row.AddChild(_mdiInput);
         row.AddChild(MakeButton("EXECUTE", SendMdiFromInput));
@@ -162,7 +175,7 @@ public partial class OperatorPanel : Control
         var pathInput = new LineEdit
         {
             Text = "nc_files/demo_facing_turning.ngc", // relative to the bridge's config dir (its cwd)
-            CustomMinimumSize = new Vector2(320, 0),
+            CustomMinimumSize = new Vector2(150, 0),
         };
         row.AddChild(pathInput);
         row.AddChild(MakeButton("LOAD PROGRAM", () => _bridge.OpenProgram(pathInput.Text.Trim())));
@@ -175,8 +188,8 @@ public partial class OperatorPanel : Control
         row.AddChild(MakeButton("CYCLE START", () => _bridge.RunProgram()));
         row.AddChild(MakeButton("FEED HOLD", () => _bridge.PauseProgram()));
         row.AddChild(MakeButton("STOP", () => _bridge.StopProgram()));
-        row.AddChild(MakeButton("SINGLE BLOCK STEP", () => _bridge.StepProgram()));
-        row.AddChild(MakeButton("CONFIRM TOOL CHANGE", () => _bridge.ConfirmToolChange()));
+        row.AddChild(MakeButton("STEP", () => _bridge.StepProgram()));
+        row.AddChild(MakeButton("CONFIRM TC", () => _bridge.ConfirmToolChange()));
         return row;
     }
 
@@ -189,7 +202,7 @@ public partial class OperatorPanel : Control
 
         var feedRow = new HBoxContainer();
         feedRow.AddChild(new Label { Text = "Feed Ovr" });
-        _feedOverrideSlider = new HSlider { MinValue = 0, MaxValue = 150, Value = 100, Step = 5, CustomMinimumSize = new Vector2(240, 0) };
+        _feedOverrideSlider = new HSlider { MinValue = 0, MaxValue = 150, Value = 100, Step = 5, CustomMinimumSize = new Vector2(130, 0) };
         _feedOverrideSlider.ValueChanged += v =>
         {
             _bridge.SetFeedOverride((float)(v / 100.0));
@@ -200,7 +213,7 @@ public partial class OperatorPanel : Control
 
         var spindleRow = new HBoxContainer();
         spindleRow.AddChild(new Label { Text = "Spindle Ovr" });
-        _spindleOverrideSlider = new HSlider { MinValue = 0, MaxValue = 120, Value = 100, Step = 5, CustomMinimumSize = new Vector2(240, 0) };
+        _spindleOverrideSlider = new HSlider { MinValue = 0, MaxValue = 120, Value = 100, Step = 5, CustomMinimumSize = new Vector2(130, 0) };
         _spindleOverrideSlider.ValueChanged += v =>
         {
             _bridge.SetSpindleOverride((float)(v / 100.0));
@@ -225,9 +238,9 @@ public partial class OperatorPanel : Control
         // MDI line LinuxCNC expects -- the same mechanism a real pendant's
         // "touch off" soft-key drives, just without a graphical wizard.
         var row = new HBoxContainer();
-        var knownDiameterInput = new LineEdit { PlaceholderText = "known diameter (mm)", CustomMinimumSize = new Vector2(160, 0) };
+        var knownDiameterInput = new LineEdit { PlaceholderText = "known diameter (mm)", CustomMinimumSize = new Vector2(100, 0) };
         row.AddChild(knownDiameterInput);
-        row.AddChild(MakeButton("TOUCH OFF X (set tool X offset)", () =>
+        row.AddChild(MakeButton("TOUCH OFF X", () =>
         {
             if (float.TryParse(knownDiameterInput.Text, out float knownDiameter))
             {
@@ -236,9 +249,9 @@ public partial class OperatorPanel : Control
             }
         }));
 
-        var knownZInput = new LineEdit { PlaceholderText = "known Z face offset (mm)", CustomMinimumSize = new Vector2(160, 0) };
+        var knownZInput = new LineEdit { PlaceholderText = "known Z face offset (mm)", CustomMinimumSize = new Vector2(100, 0) };
         row.AddChild(knownZInput);
-        row.AddChild(MakeButton("TOUCH OFF Z (set tool Z offset)", () =>
+        row.AddChild(MakeButton("TOUCH OFF Z", () =>
         {
             if (float.TryParse(knownZInput.Text, out float knownZ))
             {
