@@ -6,4 +6,10 @@
     <Nullable>disable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
   </PropertyGroup>
+  <ItemGroup>
+    <!-- Godot.NET.Sdk globs all *.cs recursively by default, which would also
+         pull in Tests/*.cs (an independent xunit project one level down) and
+         fail to compile it here for lack of the xunit package reference. -->
+    <Compile Remove="Tests/**/*.cs" />
+  </ItemGroup>
 </Project>

@@ -17,16 +17,7 @@ public partial class Main : Node3D
         _toolCube = GetNode<MeshInstance3D>("ToolCube");
         _statusLabel = GetNode<Label>("UI/StatusLabel");
 
-        _bridge.Connect(BridgeClient.SignalName.StateUpdated, Callable.From(OnStateUpdated));
         _bridge.Connect(BridgeClient.SignalName.ConnectionChanged, Callable.From<bool>(OnConnectionChanged));
-    }
-
-    private void OnStateUpdated()
-    {
-        var pos = _bridge.State.Position; // X = radius (mm), Z = along spindle (mm)
-        // World mapping: machine Z -> world X (spindle axis runs left/right),
-        // machine X (radius) -> world Y (up), world Z fixed at 0.
-        _toolCube.Position = new Vector3(pos.Y, pos.X, 0f);
     }
 
     private void OnConnectionChanged(bool connected)
@@ -38,6 +29,14 @@ public partial class Main : Node3D
 
     public override void _Process(double delta)
     {
+        // Cosmetic only: the tool's drawn position uses the PREDICTED/smoothed
+        // visual position, never the raw confirmed one directly -- this is the
+        // layer that's allowed to be "wrong" for a frame or two. Anything that
+        // must never roll back (material removal, Phase 2) reads _bridge.State
+        // (confirmed-only) instead, never _bridge.Prediction.
+        var pos = _bridge.Prediction.VisualPosition; // X = radius (mm), Z = along spindle (mm)
+        _toolCube.Position = new Vector3(pos.Y, pos.X, 0f);
+
         UpdateStatusLabel(_bridge.IsBridgeConnected);
 
         if (OS.HasEnvironment("CNC_DEBUG_PRINT"))

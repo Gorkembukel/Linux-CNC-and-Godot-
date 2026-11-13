@@ -1,0 +1,97 @@
+using System.Linq;
+using Godot;
+using CncTrainer.Bridge;
+
+namespace CncTrainer;
+
+/// <summary>
+/// Phase 1 debug overlay: predicted vs. confirmed position, an error-magnitude
+/// graph, and stream jitter / command RTT. Self-contained -- add as a Control
+/// node anywhere in a scene; it finds the BridgeClient autoload itself.
+/// </summary>
+public partial class DebugOverlay : Control
+{
+    [Export] public bool Enabled = true;
+
+    private BridgeClient _bridge;
+    private Label _label;
+    private Control _graph;
+
+    public override void _Ready()
+    {
+        _bridge = GetNode<BridgeClient>("/root/BridgeClient");
+
+        _label = new Label { Position = new Vector2(8, 8) };
+        AddChild(_label);
+
+        _graph = new Control
+        {
+            Position = new Vector2(8, 170),
+            Size = new Vector2(320, 80),
+        };
+        _graph.Draw += DrawGraph;
+        AddChild(_graph);
+
+        Visible = Enabled;
+    }
+
+    public override void _Input(InputEvent @event)
+    {
+        if (@event is InputEventKey { Pressed: true, Keycode: Key.F3 })
+        {
+            Enabled = !Enabled;
+            Visible = Enabled;
+        }
+    }
+
+    public override void _Process(double delta)
+    {
+        if (!Enabled)
+            return;
+
+        var p = _bridge.Prediction;
+        _label.Text =
+            $"[F3] DEBUG OVERLAY\n" +
+            $"confirmed  X={_bridge.State.Position.X,8:F3}  Z={_bridge.State.Position.Y,8:F3} mm\n" +
+            $"predicted  X={p.LastPredictedPosition.X,8:F3}  Z={p.LastPredictedPosition.Y,8:F3} mm\n" +
+            $"visual     X={p.VisualPosition.X,8:F3}  Z={p.VisualPosition.Y,8:F3} mm\n" +
+            $"error      {p.LastErrorMagnitudeMm,8:F3} mm  {(p.LastCorrectionWasSnap ? "(SNAP)" : "(smoothed)")}\n" +
+            $"state stream jitter   {_bridge.StateStreamJitterMs,6:F2} ms\n" +
+            $"last command RTT      {(double.IsNaN(_bridge.LastCommandRttMs) ? "n/a" : $"{_bridge.LastCommandRttMs:F1} ms")}\n" +
+            $"packet age            {_bridge.LastPacketAgeSeconds * 1000:F0} ms\n" +
+            $"connected: {_bridge.IsBridgeConnected}";
+        _graph.QueueRedraw();
+    }
+
+    private void DrawGraph()
+    {
+        var history = _bridge.Prediction.ErrorHistory;
+        if (history.Count < 2)
+            return;
+
+        var size = _graph.Size;
+        _graph.DrawRect(new Rect2(Vector2.Zero, size), new Color(0, 0, 0, 0.5f));
+
+        double max = history.Max();
+        if (max < 0.001) max = 0.001;
+
+        var points = history.ToArray();
+        float stepX = size.X / (PredictionModelCapacity - 1);
+        int offset = PredictionModelCapacity - points.Length;
+
+        for (int i = 1; i < points.Length; i++)
+        {
+            float x0 = (offset + i - 1) * stepX;
+            float x1 = (offset + i) * stepX;
+            float y0 = size.Y - (float)(points[i - 1] / max) * size.Y;
+            float y1 = size.Y - (float)(points[i] / max) * size.Y;
+            _graph.DrawLine(new Vector2(x0, y0), new Vector2(x1, y1), new Color(0.2f, 1f, 0.3f), 1.5f);
+        }
+
+        float snapY = size.Y - (float)(_bridge.Prediction.SnapThresholdMm / max) * size.Y;
+        if (snapY >= 0 && snapY <= size.Y)
+            _graph.DrawLine(new Vector2(0, snapY), new Vector2(size.X, snapY), new Color(1f, 0.3f, 0.2f, 0.6f), 1f);
+    }
+
+    private const int PredictionModelCapacity = Sim.PredictionModel.ErrorHistoryCapacity;
+}

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using Godot;
+using CncTrainer.Sim;
 
 namespace CncTrainer.Bridge;
 
@@ -22,9 +23,24 @@ public partial class BridgeClient : Node
     [Export] public double ConnectionTimeoutSeconds = 1.0;
 
     public MachineState State { get; private set; } = new();
+    public PredictionModel Prediction { get; private set; } = new();
     public bool IsBridgeConnected { get; private set; }
     public double LastPacketAgeSeconds { get; private set; }
-    public double LastLatencyEstimateMs { get; private set; }
+
+    /// <summary>Last command round-trip time (send -> its ack), in ms. This is a
+    /// real, locally-measured latency figure; a true one-way bridge->Godot
+    /// latency is NOT computable from packet timestamps alone because the
+    /// bridge's monotonic clock (Linux/WSL2) and Godot's (Windows) are two
+    /// different machines' clocks with no NTP-style sync assumed -- comparing
+    /// them directly would silently produce a meaningless number. RTT/2 is
+    /// offered as a rough one-way estimate only.</summary>
+    public double LastCommandRttMs { get; private set; } = double.NaN;
+
+    /// <summary>Jitter in the STATE stream's inter-arrival times: the standard
+    /// deviation of (actual gap - expected gap) over the recent window, in ms.
+    /// This only needs Godot's own clock, so it's always meaningful (unlike
+    /// cross-machine latency).</summary>
+    public double StateStreamJitterMs { get; private set; }
 
     [Signal] public delegate void StateUpdatedEventHandler();
     [Signal] public delegate void ConnectionChangedEventHandler(bool connected);
@@ -39,6 +55,12 @@ public partial class BridgeClient : Node
 
     private int _previewTotal = -1;
     private readonly SortedDictionary<int, PreviewSegment[]> _previewChunks = new();
+
+    private readonly Dictionary<ulong, ulong> _pendingCommandSendMsec = new();
+    private ulong _lastStatePacketMsec;
+    private double _expectedStateIntervalMsec = -1;
+    private readonly Queue<double> _recentIntervalDeviations = new();
+    private const int JitterWindow = 60;
 
     public override void _Ready()
     {
@@ -65,6 +87,8 @@ public partial class BridgeClient : Node
             IsBridgeConnected = connectedNow;
             EmitSignal(SignalName.ConnectionChanged, IsBridgeConnected);
         }
+
+        Prediction.Update(Time.GetTicksUsec() / 1_000_000.0, delta);
     }
 
     private void DrainStatePackets()
@@ -96,6 +120,8 @@ public partial class BridgeClient : Node
             case PacketType.State:
                 var sample = StateSample.Read(r);
                 State.ApplyState(header, sample);
+                Prediction.OnConfirmedSample(State.Position, State.Velocity, Time.GetTicksUsec() / 1_000_000.0);
+                TrackStateJitter();
                 EmitSignal(SignalName.StateUpdated);
                 break;
             case PacketType.Event:
@@ -108,8 +134,14 @@ public partial class BridgeClient : Node
                 HandlePreviewChunk(r);
                 break;
             case PacketType.Ack:
-                _ackSeqSeen = r.ReadUInt64();
-                r.ReadByte(); // ok flag -- surfaced later if we add an ack-tracking UI
+                ulong ackedClientSeq = r.ReadUInt64();
+                r.ReadByte(); // ok flag -- not yet surfaced in UI
+                _ackSeqSeen = ackedClientSeq;
+                if (_pendingCommandSendMsec.TryGetValue(ackedClientSeq, out ulong sentAt))
+                {
+                    LastCommandRttMs = Time.GetTicksMsec() - sentAt;
+                    _pendingCommandSendMsec.Remove(ackedClientSeq);
+                }
                 break;
             default:
                 break;
@@ -162,6 +194,39 @@ public partial class BridgeClient : Node
         _clientSeq++;
         byte[] packet = CommandPacket.Build(kind, _clientSeq, _clientSeq, args);
         _commandSocket.PutPacket(packet);
+        _pendingCommandSendMsec[_clientSeq] = Time.GetTicksMsec();
+        if (_pendingCommandSendMsec.Count > 64) // drop anything that never got an ack
+        {
+            foreach (var staleKey in new List<ulong>(_pendingCommandSendMsec.Keys))
+                if (staleKey < _clientSeq - 32)
+                    _pendingCommandSendMsec.Remove(staleKey);
+        }
+    }
+
+    private void TrackStateJitter()
+    {
+        ulong now = Time.GetTicksMsec();
+        if (_lastStatePacketMsec != 0)
+        {
+            double interval = now - _lastStatePacketMsec;
+            if (_expectedStateIntervalMsec < 0)
+                _expectedStateIntervalMsec = interval; // first observed interval seeds the estimate
+            else
+                _expectedStateIntervalMsec = _expectedStateIntervalMsec * 0.98 + interval * 0.02; // slow EMA
+
+            _recentIntervalDeviations.Enqueue(interval - _expectedStateIntervalMsec);
+            while (_recentIntervalDeviations.Count > JitterWindow)
+                _recentIntervalDeviations.Dequeue();
+
+            double mean = 0;
+            foreach (var d in _recentIntervalDeviations) mean += d;
+            mean /= _recentIntervalDeviations.Count;
+            double variance = 0;
+            foreach (var d in _recentIntervalDeviations) variance += (d - mean) * (d - mean);
+            variance /= _recentIntervalDeviations.Count;
+            StateStreamJitterMs = Math.Sqrt(variance);
+        }
+        _lastStatePacketMsec = now;
     }
 
     // -- public command API, one method per CommandKind --
