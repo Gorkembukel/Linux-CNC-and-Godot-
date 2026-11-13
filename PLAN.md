@@ -136,4 +136,54 @@ reconciliation + debug overlay) and Phase 2 (material removal) next, continuing
 per the user's "do all phases, don't stop" instruction (2026-11-13).
 
 ---
+
+## Phase 1 complete, Phase 2 (material removal) working end-to-end (2026-11-13)
+
+**Phase 1:** `Scripts/Sim/PredictionModel.cs` (dead-reckon from the last confirmed
+position+velocity, exponential smoothing for small errors, instant snap past a
+configurable threshold) and `Scripts/DebugOverlay.cs` (F3: predicted vs.
+confirmed position, an error-magnitude graph, state-stream jitter, command
+round-trip latency). One honestly-scoped simplification: prediction dead-reckons
+by velocity only, it does not thread along the specific preview-segment geometry
+through corners/arcs -- noted as a deliberate simplification, not an oversight.
+Also noted: true one-way bridge->Godot latency isn't computable without
+cross-machine clock sync (WSL2 Linux clock vs. Windows clock); the overlay shows
+command round-trip time (fully measurable on one clock) instead of a fabricated
+one-way number.
+
+**Phase 2:** `Scripts/Material/IMaterialModel.cs` + `LatheRadiusProfile.cs` (a
+fixed-step radius array along Z; sweeps the tool between two CONFIRMED samples
+only, nose-radius-offset, `min()`'d into the array, chunked dirty-tracking) and
+`WorkpieceVisual.cs` (revolves the radius profile into a chunked mesh, rebuilding
+only dirty chunks, capped per frame). Main.cs wires BridgeClient's confirmed
+`StateUpdated` signal straight to the material sweep -- deliberately NOT gated on
+program-running state, since a real lathe cuts whatever the tool touches
+regardless of mode (jogging into the spinning stock is a real operator mistake,
+and part of the point of a training sim).
+
+**Found and fixed along the way:** `sim_lathe.ini`'s `TOOL_CHANGE_POSITION` had
+Z=150, outside our own Z axis's configured 50mm max limit -- every M6 tool
+change failed with "would exceed Z's positive limit" until this was caught by
+actually running the full demo program through a tool change, not just
+MDI-testing individual moves. Fixed to Z=40.
+
+**Verified live, not just unit-tested:** ran the full demo program against the
+live bridge (confirming/pulsing `iocontrol.0.tool-change`/`tool-changed` by hand
+to stand in for Phase 4's not-yet-built panel), and watched Godot's debug output
+live: the stock radius at Z=-30 read 25.000mm until the tool (radius 20.2mm +
+0.8mm nose) passed that point, then read exactly 21.000mm from that frame on --
+material removal driven by real LinuxCNC motion, through the real bridge, with
+zero special-casing for the test.
+
+**Test suite now 20 total, all passing:** 10 C# (xUnit: prediction model
+behavior incl. a noisy-known-path convergence test, cross-language protocol
+fixture, LatheRadiusProfile incl. a full 5-pass "known program -> expected final
+profile" test matching the brief's own phrasing) + 10 pytest (protocol,
+LinuxCNC lifecycle, G-code preview).
+
+**What's still missing:** Phase 3 (chips), Phase 4 (operator panel), Phase 5
+(job scheduler/adaptive budget/GDExtension/PERF.md), record/replay tooling,
+ASSETS.md, README.md. Continuing now.
+
+---
 *Phase 0 environment approved implicitly by the user proceeding with the WSL fix; "do all phases, don't stop" given 2026-11-13.*

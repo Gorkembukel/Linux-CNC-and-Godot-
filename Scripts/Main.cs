@@ -1,23 +1,58 @@
 using Godot;
 using CncTrainer.Bridge;
+using CncTrainer.Material;
 
 namespace CncTrainer;
 
-/// <summary>Phase 0 demo: moves a cube to the bridge's reported tool position and
-/// shows basic connection/debug info. See PLAN.md Phase 0/1.</summary>
+/// <summary>Moves a cube to the bridge's reported tool position, sweeps the
+/// workpiece material model between confirmed samples (Phase 2), and shows
+/// basic connection/debug info. See PLAN.md Phase 0/1/2.</summary>
 public partial class Main : Node3D
 {
+    // Demo stock: 50mm diameter (25mm radius) bar, matches linuxcnc-config's
+    // demo_facing_turning.ngc comment ("Stock: 50mm diameter round bar").
+    [Export] public float StockRadiusMm = 25.0f;
+    [Export] public float StockZMin = -85.0f;
+    [Export] public float StockZMax = 5.0f;
+
     private BridgeClient _bridge;
     private MeshInstance3D _toolCube;
     private Label _statusLabel;
+    private WorkpieceVisual _workpiece;
+    private LatheRadiusProfile _material;
+    private Vector2? _lastConfirmedPos;
 
     public override void _Ready()
     {
         _bridge = GetNode<BridgeClient>("/root/BridgeClient");
         _toolCube = GetNode<MeshInstance3D>("ToolCube");
         _statusLabel = GetNode<Label>("UI/StatusLabel");
+        _workpiece = GetNode<WorkpieceVisual>("Workpiece");
+
+        _material = new LatheRadiusProfile(StockRadiusMm, StockZMin, StockZMax);
+        _workpiece.Initialize(_material);
 
         _bridge.Connect(BridgeClient.SignalName.ConnectionChanged, Callable.From<bool>(OnConnectionChanged));
+        _bridge.Connect(BridgeClient.SignalName.StateUpdated, Callable.From(OnConfirmedStateUpdated));
+    }
+
+    private void OnConfirmedStateUpdated()
+    {
+        var s = _bridge.State;
+        var pos = s.Position; // CONFIRMED only -- material removal must never use predicted data
+
+        if (_lastConfirmedPos is Vector2 prev)
+        {
+            // Deliberately not gated on s.InCycle: a real lathe cuts whatever
+            // the tool touches regardless of mode (jogging into the spinning
+            // stock removes material too -- that's a real mistake an operator
+            // can make, and part of the point of a training sim).
+            float feedPerRev = s.SpindleRpm > 1.0 ? (float)(s.FeedRate / s.SpindleRpm) : 0f;
+            var result = _material.Sweep(prev, pos, s.ToolNoseRadius, feedPerRev, (float)s.SpindleRpm);
+            if (result.MaterialRemoved)
+                _workpiece.MarkDirty(result.MinDirtyIndex, result.MaxDirtyIndex);
+        }
+        _lastConfirmedPos = pos;
     }
 
     private void OnConnectionChanged(bool connected)
@@ -37,6 +72,7 @@ public partial class Main : Node3D
         var pos = _bridge.Prediction.VisualPosition; // X = radius (mm), Z = along spindle (mm)
         _toolCube.Position = new Vector3(pos.Y, pos.X, 0f);
 
+        _workpiece.RebuildDirtyChunks();
         UpdateStatusLabel(_bridge.IsBridgeConnected);
 
         if (OS.HasEnvironment("CNC_DEBUG_PRINT"))
