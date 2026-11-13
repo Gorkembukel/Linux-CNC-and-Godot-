@@ -39,7 +39,7 @@ public partial class PlayerController : CharacterBody3D
     private bool _firstPerson = true;
     private float _pitch;
 
-    private Node3D _consoleStand;
+    private ConsoleStand _consoleStand;
     private Label _interactPrompt;
     private Control _operatorPanel;
     private bool _atConsole;
@@ -74,14 +74,21 @@ public partial class PlayerController : CharacterBody3D
         _tpCamera = new Camera3D { Current = false, Name = "ThirdPersonCamera" };
         _tpArm.AddChild(_tpCamera);
 
-        _interactPrompt = new Label { Text = "[E] Use console", Visible = false };
         var ui = new CanvasLayer();
         AddChild(ui);
+
+        _interactPrompt = new Label { Text = "[E] 2D panel   [Click] press a button", Visible = false };
         ui.AddChild(_interactPrompt);
         _interactPrompt.AnchorLeft = _interactPrompt.AnchorRight = 0.5f;
         _interactPrompt.AnchorTop = _interactPrompt.AnchorBottom = 0.85f;
 
-        _consoleStand = GetTree().Root.FindChild("ConsoleStand", true, false) as Node3D;
+        var crosshair = new Label { Text = "+", HorizontalAlignment = HorizontalAlignment.Center };
+        ui.AddChild(crosshair);
+        crosshair.AnchorLeft = crosshair.AnchorRight = crosshair.AnchorTop = crosshair.AnchorBottom = 0.5f;
+        crosshair.OffsetLeft = crosshair.OffsetTop = -8;
+        crosshair.OffsetRight = crosshair.OffsetBottom = 8;
+
+        _consoleStand = GetTree().Root.FindChild("ConsoleStand", true, false) as ConsoleStand;
         _operatorPanel = GetTree().Root.FindChild("OperatorPanel", true, false) as Control;
 
         Input.MouseMode = Input.MouseModeEnum.Captured;
@@ -122,15 +129,41 @@ public partial class PlayerController : CharacterBody3D
                     break;
             }
         }
-        else if (@event is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left }
-                 && Input.MouseMode == Input.MouseModeEnum.Visible && !_atConsole)
+        else if (@event is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left } mb)
         {
-            // Safety net for a focus-timing edge case: clicking back into the
-            // game window re-captures the mouse for looking around, in case
-            // capture didn't take right at startup (before the window had OS
-            // focus) and nothing else released it on purpose.
-            Input.MouseMode = Input.MouseModeEnum.Captured;
+            if (Input.MouseMode == Input.MouseModeEnum.Captured)
+                TryPressConsoleButton(); // crosshair raycast -- see that method's doc comment
+            else if (!_atConsole)
+            {
+                // Safety net for a focus-timing edge case: clicking back into
+                // the game window re-captures the mouse for looking around,
+                // in case capture didn't take right at startup (before the
+                // window had OS focus) and nothing else released it on
+                // purpose.
+                Input.MouseMode = Input.MouseModeEnum.Captured;
+            }
         }
+    }
+
+    /// <summary>Crosshair-style interaction (standard FPS pattern, since the
+    /// mouse cursor is invisible/locked in Captured mode -- there's nothing
+    /// visible to literally click ON, so "what you're looking at" stands in
+    /// for the cursor): raycasts from the active camera straight ahead, and
+    /// if it hits one of the console's real buttons within reach, presses it.</summary>
+    private void TryPressConsoleButton()
+    {
+        if (_consoleStand == null || !_atConsole)
+            return;
+        var camera = GetViewport().GetCamera3D();
+        if (camera == null)
+            return;
+        var from = camera.GlobalPosition;
+        var to = from - camera.GlobalTransform.Basis.Z * InteractRange; // -Z = camera forward
+        var query = PhysicsRayQueryParameters3D.Create(from, to);
+        query.Exclude = new Godot.Collections.Array<Rid> { GetRid() }; // don't hit our own capsule
+        var result = GetWorld3D().DirectSpaceState.IntersectRay(query);
+        if (result.Count > 0 && result["collider"].As<Node3D>() is Node3D hit)
+            _consoleStand.TryPress(hit);
     }
 
     private void ToggleView()

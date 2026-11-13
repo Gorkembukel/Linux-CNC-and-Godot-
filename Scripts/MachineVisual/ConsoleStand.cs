@@ -18,15 +18,13 @@ namespace CncTrainer;
 /// (StaticBody3D) since a future human character (planned: FP/TP controller)
 /// needs to not walk through the console.
 ///
-/// Scope note, stated plainly: this is a VISUAL console -- the screen shows
-/// live read-only status (mirroring OperatorPanel's own readout), but it is
-/// not itself clickable; the proven, already-working 2D `OperatorPanel`
-/// overlay (confirmed live by the user) remains the actual way to send
-/// commands. Making the 3D buttons/screen independently interactive (3D
-/// raycasting onto UI, or duplicating OperatorPanel's live logic into the
-/// SubViewport) was deliberately left out to avoid risking the working
-/// control path for a visual-only improvement -- flagged here rather than
-/// silently assumed equivalent to a real 3D-interactive panel.
+/// The 12 face buttons are REAL and clickable (see TryPress, called by
+/// PlayerController's crosshair raycast): they cover the core workflow
+/// (machine on/estop/home/cycle-start/feed-hold/stop/tool-change-confirm/jog)
+/// directly in 3D. MDI typing and the touch-off text fields still only exist
+/// on the 2D OperatorPanel (proximity + E) -- a world-space button can't
+/// usefully host a text field, so that boundary is deliberate, not an
+/// oversight.
 /// </summary>
 [Tool]
 public partial class ConsoleStand : Node3D
@@ -37,6 +35,7 @@ public partial class ConsoleStand : Node3D
 
     private BridgeClient _bridge;
     private Label _screenLabel;
+    private readonly System.Collections.Generic.Dictionary<ulong, System.Action> _buttonActions = new();
 
     public override void _Ready()
     {
@@ -56,6 +55,7 @@ public partial class ConsoleStand : Node3D
             RemoveChild(child);
             child.QueueFree();
         }
+        _buttonActions.Clear();
 
         var consoleBody = Mat(new Color(0.78f, 0.78f, 0.75f), metallic: 0.1f, rough: 0.7f); // off-white pendant plastic
         var darkTrim = Mat(new Color(0.12f, 0.12f, 0.13f), metallic: 0.2f, rough: 0.6f);
@@ -127,20 +127,75 @@ public partial class ConsoleStand : Node3D
 
     private void BuildButtons(Node3D panel, Godot.Material buttonMaterial)
     {
-        // Purely decorative grid of buttons below the screen.
-        for (int row = 0; row < 2; row++)
+        // Real, clickable buttons (see TryPress) covering the core workflow.
+        // MDI/touch-off need text entry, which stays on the 2D panel only.
+        (string label, System.Action action)[] buttons =
         {
-            for (int col = 0; col < 6; col++)
+            ("ON", () => { _bridge.ResetEstop(); _bridge.MachineOn(); }),
+            ("ESTOP", () => _bridge.MachineOff()),
+            ("HOME", () => _bridge.HomeAxis(0xFF)),
+            ("CYCLE", () => _bridge.RunProgram()),
+            ("HOLD", () => _bridge.PauseProgram()),
+            ("STOP", () => _bridge.StopProgram()),
+            ("T.CHG", () => _bridge.ConfirmToolChange()),
+            ("X-", () => _bridge.JogIncremental(0, -10f, -1f)),
+            ("X+", () => _bridge.JogIncremental(0, 10f, 1f)),
+            ("Z-", () => _bridge.JogIncremental(1, -10f, -1f)),
+            ("Z+", () => _bridge.JogIncremental(1, 10f, 1f)),
+            ("RUN", () =>
             {
-                panel.AddChild(new MeshInstance3D
-                {
-                    Mesh = new CylinderMesh { TopRadius = 0.015f, BottomRadius = 0.015f, Height = 0.015f },
-                    MaterialOverride = buttonMaterial,
-                    RotationDegrees = new Vector3(90f, 0f, 0f),
-                    Position = new Vector3(-0.09f + col * 0.035f, -0.095f - row * 0.04f, 0.045f),
-                });
-            }
+                _bridge.OpenProgram("nc_files/demo_facing_turning.ngc");
+                _bridge.RunProgram();
+            }),
+        };
+
+        for (int i = 0; i < buttons.Length; i++)
+        {
+            int row = i / 6, col = i % 6;
+            var pos = new Vector3(-0.09f + col * 0.035f, -0.095f - row * 0.04f, 0.045f);
+
+            var body = new StaticBody3D { InputRayPickable = true };
+            panel.AddChild(body);
+            body.AddChild(new MeshInstance3D
+            {
+                Mesh = new CylinderMesh { TopRadius = 0.015f, BottomRadius = 0.015f, Height = 0.015f },
+                MaterialOverride = buttonMaterial,
+                RotationDegrees = new Vector3(90f, 0f, 0f),
+                Position = pos,
+            });
+            body.AddChild(new CollisionShape3D
+            {
+                Shape = new CylinderShape3D { Radius = 0.016f, Height = 0.02f },
+                RotationDegrees = new Vector3(90f, 0f, 0f),
+                Position = pos,
+            });
+            body.AddChild(new Label3D
+            {
+                Text = buttons[i].label,
+                Position = pos + new Vector3(0f, 0.014f, 0.01f),
+                FontSize = 10,
+                PixelSize = 0.001f,
+                Modulate = new Color(0.1f, 0.1f, 0.1f),
+                NoDepthTest = true,
+            });
+
+            if (Engine.IsEditorHint())
+                continue; // action closures capture _bridge, which is null in the editor
+            _buttonActions[body.GetInstanceId()] = buttons[i].action;
         }
+    }
+
+    /// <summary>Called by PlayerController when its crosshair raycast hits a
+    /// Node3D within interaction range. Returns true (and runs the mapped
+    /// action) if that node is one of this console's buttons.</summary>
+    public bool TryPress(Node3D hit)
+    {
+        if (hit != null && _buttonActions.TryGetValue(hit.GetInstanceId(), out var action))
+        {
+            action();
+            return true;
+        }
+        return false;
     }
 
     public override void _Process(double delta)
