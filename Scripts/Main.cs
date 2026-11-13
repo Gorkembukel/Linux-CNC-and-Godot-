@@ -2,6 +2,7 @@ using Godot;
 using CncTrainer.Bridge;
 using CncTrainer.Material;
 using CncTrainer.Chips;
+using CncTrainer.Scheduling;
 
 namespace CncTrainer;
 
@@ -27,6 +28,11 @@ public partial class Main : Node3D
     private ChipFormation? _activeChipFormation;
     private double _timeSinceLastCut = 999.0;
 
+    private readonly JobScheduler _scheduler = new();
+    private readonly System.Collections.Generic.Queue<double> _recentFrameTimesMs = new();
+    private const int FrameTimeWindow = 60;
+    private const double TargetFrameMs = 1000.0 / 30.0; // brief section 4: 30 FPS floor
+
     public override void _Ready()
     {
         _bridge = GetNode<BridgeClient>("/root/BridgeClient");
@@ -41,71 +47,11 @@ public partial class Main : Node3D
         _bridge.Connect(BridgeClient.SignalName.ConnectionChanged, Callable.From<bool>(OnConnectionChanged));
         _bridge.Connect(BridgeClient.SignalName.StateUpdated, Callable.From(OnConfirmedStateUpdated));
 
-        if (OS.HasEnvironment("CNC_COMMAND_SELFTEST"))
-            _selfTestActive = true;
+        if (OS.HasEnvironment("CNC_BENCHMARK"))
+            _benchmark = new BenchmarkRunner(this, _material, _workpiece, _chips, _scheduler);
     }
 
-    // TEMPORARY, to verify the Godot->bridge COMMAND path actually works end to
-    // end (every prior phase only verified the bridge->Godot STATE path; the
-    // panel's buttons call these exact same BridgeClient methods, so this is a
-    // direct test of "do the buttons work" without needing simulated clicks).
-    // Remove once the operator panel has been manually clicked through once.
-    private bool _selfTestActive;
-    private double _selfTestTimer;
-    private int _selfTestStep;
-
-    private void RunCommandSelfTest(double delta)
-    {
-        _selfTestTimer += delta;
-        var s = _bridge.State;
-        switch (_selfTestStep)
-        {
-            case 0:
-                if (_bridge.IsBridgeConnected)
-                {
-                    GD.Print("[SelfTest] connected. Sending MachineOn...");
-                    _bridge.ResetEstop();
-                    _bridge.MachineOn();
-                    _selfTestStep = 1;
-                    _selfTestTimer = 0;
-                }
-                break;
-            case 1:
-                if (_selfTestTimer > 1.0)
-                {
-                    GD.Print($"[SelfTest] machine_on={s.MachineOn} estop={s.Estop}. Sending HomeAxis(all)...");
-                    _bridge.HomeAxis(0xFF);
-                    _selfTestStep = 2;
-                    _selfTestTimer = 0;
-                }
-                break;
-            case 2:
-                if (s.HomedX && s.HomedZ)
-                {
-                    GD.Print("[SelfTest] homed=true. Sending MDI 'G21 G8 G90' then 'G0 X17.25 Z-23.5'...");
-                    _bridge.SendMdi("G21 G8 G90");
-                    _bridge.SendMdi("G0 X17.25 Z-23.5");
-                    _selfTestStep = 3;
-                    _selfTestTimer = 0;
-                }
-                else if (_selfTestTimer > 25.0)
-                {
-                    GD.Print("[SelfTest] FAIL: homing did not complete in 25s");
-                    _selfTestStep = 99;
-                }
-                break;
-            case 3:
-                if (_selfTestTimer > 3.0)
-                {
-                    bool ok = Mathf.Abs(s.Position.X - 17.25f) < 0.01f && Mathf.Abs(s.Position.Y - (-23.5f)) < 0.01f;
-                    GD.Print(ok
-                        ? $"[SelfTest] PASS: position is exactly ({s.Position.X:F3},{s.Position.Y:F3}) as commanded via MDI through the bridge."
-                        : $"[SelfTest] FAIL: expected (17.250,-23.500), got ({s.Position.X:F3},{s.Position.Y:F3})");
-                    _selfTestStep = 99;
-                }
-                break;
-        }
-    }
+    private BenchmarkRunner _benchmark;
 
     private void OnConfirmedStateUpdated()
     {
@@ -154,18 +100,25 @@ public partial class Main : Node3D
         var pos = _bridge.Prediction.VisualPosition; // X = radius (mm), Z = along spindle (mm)
         _toolCube.Position = new Vector3(pos.Y, pos.X, 0f);
 
-        _workpiece.RebuildDirtyChunks();
-
         _timeSinceLastCut += delta;
         if (_timeSinceLastCut > 0.2) // tool left the material: stop spawning shortly after
             _activeChipFormation = null;
         var contactPointWorld = new Vector3(pos.Y, pos.X, 0f);
-        _chips.Tick(delta, _activeChipFormation, contactPointWorld);
+
+        // Brief section 4's priority classes: mesh regen is "High" (visibly
+        // wrong workpiece geometry is jarring), chip simulation is "Normal"
+        // (cosmetic, can lag or get capped under load without breaking
+        // anything -- see ChipSpawner's own hard cap for the "Low/deferrable"
+        // spirit applied to chips specifically).
+        _scheduler.Enqueue(JobPriority.High, () => _workpiece.RebuildDirtyChunks());
+        _scheduler.Enqueue(JobPriority.Normal, () => _chips.Tick(delta, _activeChipFormation, contactPointWorld));
+        _scheduler.RunFrame();
+
+        TrackFrameTimeAndAdaptBudgets(delta);
+
+        _benchmark?.Tick(delta);
 
         UpdateStatusLabel(_bridge.IsBridgeConnected);
-
-        if (_selfTestActive)
-            RunCommandSelfTest(delta);
 
         if (OS.HasEnvironment("CNC_DEBUG_PRINT"))
         {
@@ -177,6 +130,21 @@ public partial class Main : Node3D
                 GD.Print($"[Main] connected={_bridge.IsBridgeConnected} pos=({s.Position.X:F3},{s.Position.Y:F3}) seq={s.LastSeq}");
             }
         }
+    }
+
+    public JobScheduler Scheduler => _scheduler;
+
+    private void TrackFrameTimeAndAdaptBudgets(double delta)
+    {
+        double frameMs = delta * 1000.0;
+        _recentFrameTimesMs.Enqueue(frameMs);
+        while (_recentFrameTimesMs.Count > FrameTimeWindow)
+            _recentFrameTimesMs.Dequeue();
+
+        double sum = 0;
+        foreach (var t in _recentFrameTimesMs) sum += t;
+        double avg = sum / _recentFrameTimesMs.Count;
+        _scheduler.AdaptBudgets(avg, TargetFrameMs);
     }
 
     private void UpdateStatusLabel(bool connected)

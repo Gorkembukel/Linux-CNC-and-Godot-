@@ -1,25 +1,30 @@
 using System.Linq;
 using Godot;
 using CncTrainer.Bridge;
+using CncTrainer.Scheduling;
 
 namespace CncTrainer;
 
 /// <summary>
-/// Phase 1 debug overlay: predicted vs. confirmed position, an error-magnitude
-/// graph, and stream jitter / command RTT. Self-contained -- add as a Control
-/// node anywhere in a scene; it finds the BridgeClient autoload itself.
+/// Phase 1/5 debug overlay: predicted vs. confirmed position, an error-magnitude
+/// graph, stream jitter / command RTT, and (Phase 5) frame time + per-priority
+/// scheduler budgets/queue lengths/drops. Self-contained -- add as a Control
+/// node anywhere in a scene; it finds the BridgeClient autoload and the Main
+/// scene root itself.
 /// </summary>
 public partial class DebugOverlay : Control
 {
     [Export] public bool Enabled = true;
 
     private BridgeClient _bridge;
+    private Main _main;
     private Label _label;
     private Control _graph;
 
     public override void _Ready()
     {
         _bridge = GetNode<BridgeClient>("/root/BridgeClient");
+        _main = GetNode<Main>("/root/Main");
 
         _label = new Label { Position = new Vector2(8, 8) };
         AddChild(_label);
@@ -59,8 +64,23 @@ public partial class DebugOverlay : Control
             $"state stream jitter   {_bridge.StateStreamJitterMs,6:F2} ms\n" +
             $"last command RTT      {(double.IsNaN(_bridge.LastCommandRttMs) ? "n/a" : $"{_bridge.LastCommandRttMs:F1} ms")}\n" +
             $"packet age            {_bridge.LastPacketAgeSeconds * 1000:F0} ms\n" +
-            $"connected: {_bridge.IsBridgeConnected}";
+            $"connected: {_bridge.IsBridgeConnected}\n" +
+            SchedulerReport();
         _graph.QueueRedraw();
+    }
+
+    private string SchedulerReport()
+    {
+        var s = _main.Scheduler;
+        double fps = Engine.GetFramesPerSecond();
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"--- scheduler --- fps={fps:F0}  frame={1000.0 / System.Math.Max(fps, 0.001):F2} ms");
+        foreach (JobPriority p in new[] { JobPriority.High, JobPriority.Normal, JobPriority.Low })
+        {
+            sb.AppendLine($"{p,-8} used={s.LastUsedMs[p],5:F2}ms budget={s.BudgetMs[p],5:F2}ms " +
+                          $"queue={s.QueueLengths[p],3} dropped={s.DroppedCount[p]}");
+        }
+        return sb.ToString();
     }
 
     private void DrawGraph()
