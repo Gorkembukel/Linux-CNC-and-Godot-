@@ -16,7 +16,7 @@ from pathlib import Path
 import linuxcnc
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from deploy import sync_linuxcnc_config  # noqa: E402
+from deploy import sync_linuxcnc_config, sync_nc_files  # noqa: E402
 from linuxcnc_process import LinuxCNCProcess  # noqa: E402
 from net import discover_windows_host_ip, discover_own_ip  # noqa: E402
 from state_publisher import StatePublisher  # noqa: E402
@@ -83,7 +83,8 @@ def main() -> int:
         def retarget(addr):
             publisher.dest_addr = addr
 
-        server = CommandServer(stat, cmd, command_sock, on_subscribe=retarget)
+        server = CommandServer(stat, cmd, command_sock, on_subscribe=retarget,
+                               before_program_open=lambda: sync_nc_files(str(REPO_CONFIG_DIR)))
 
         command_thread = threading.Thread(target=server.run_forever, args=(stop_event.is_set,), daemon=True)
         command_thread.start()

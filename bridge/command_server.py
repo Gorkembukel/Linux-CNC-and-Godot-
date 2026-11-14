@@ -19,11 +19,12 @@ _JOG_STOP = linuxcnc.JOG_STOP
 
 
 class CommandServer:
-    def __init__(self, stat, cmd, sock: socket.socket, on_subscribe=None):
+    def __init__(self, stat, cmd, sock: socket.socket, on_subscribe=None, before_program_open=None):
         self.stat = stat
         self.cmd = cmd
         self.sock = sock
         self.on_subscribe = on_subscribe
+        self.before_program_open = before_program_open
         self._highest_client_seq: dict[int, int] = {}
         self._ack_seq = 0
         self._lock = threading.Lock()
@@ -74,6 +75,8 @@ class CommandServer:
             self.cmd.mode(linuxcnc.MODE_MDI)
             self.cmd.mdi(args.decode("utf-8"))
         elif kind == CommandKind.PROGRAM_OPEN:
+            if self.before_program_open:
+                self.before_program_open()
             self.cmd.mode(linuxcnc.MODE_AUTO)
             self.cmd.program_open(args.decode("utf-8"))
         elif kind == CommandKind.PROGRAM_RUN:

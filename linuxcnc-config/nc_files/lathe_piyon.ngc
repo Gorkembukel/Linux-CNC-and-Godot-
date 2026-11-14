@@ -1,0 +1,74 @@
+%
+( TORNA - SATRANC PIYONU )
+( Makine: Lathe / BenchLathe. Kutuk: cap 50mm. X = YARICAP - G8 )
+( Kure bas, boyun, yaka, icbukey govde, yuvarlak taban. R ile yay: G2/G3 X Z R )
+( Boyun ve govdenin ince kismi basin arkasinda kaldigi icin kaba pasolarla )
+( alinamaz, ince kalem tek pasoda alir )
+
+G21 G8 G18 G90 G54
+
+T1 M6
+G43 H1
+S800 M3
+
+( --- alin --- )
+G0 X26.0 Z2.0
+G1 Z0.0 F150
+G1 X-0.5 F80
+G0 Z2.0
+
+( --- kaba basamaklar --- )
+G0 X22.5
+G1 Z-50.0 F150
+G0 X26.0
+G0 Z2.0
+G0 X19.5
+G1 Z-40.0 F150
+G0 X26.0
+G0 Z2.0
+G0 X16.0
+G1 Z-39.0 F150
+G0 X26.0
+G0 Z2.0
+G0 X13.0
+G1 Z-38.0 F150
+G0 X26.0
+G0 Z2.0
+G0 X10.5
+G1 Z-35.5 F150
+G0 X26.0
+G0 Z5.0
+
+( --- ince: piyon profili --- )
+M5
+T2 M6
+G43 H2
+S1200 M3
+G0 X0.0 Z2.0
+G1 Z0.0 F80
+G3 X9.0 Z-9.0 I0.0 K-9.0 F60      ( basin on yarisi )
+G3 X5.0 Z-16.483 I-9.0 K0.0       ( basin arka yarisi, boyuna kadar )
+G1 X10.0 Z-18.0 F60               ( yaka )
+G1 Z-19.5
+G1 X5.5 Z-22.0
+G2 X14.0 Z-40.0 R25.0             ( icbukey govde )
+G1 X20.0 Z-41.0
+G3 X20.0 Z-47.0 R4.0              ( taban bombesi )
+G1 X22.5
+G1 Z-50.0
+G0 X26.0
+G0 Z5.0
+
+( --- kesme --- )
+M5
+T3 M6
+G43 H3
+S600 M3
+G0 X26.0 Z-48.5
+G1 X-0.5 F40
+G0 X26.0
+
+M5
+G0 X30.0 Z5.0
+M2
+%

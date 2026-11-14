@@ -1,0 +1,45 @@
+%
+( FREZE - PARAMETRIK DELIK DESENI )
+( Makine: Mill / BenchMill. Kutuk: 120 x 80 x 30 mm, X/Y sifiri ortada, Z0 ust yuzey )
+( T2 = 6mm parmak freze, matkap gibi kullanilir )
+( Delik sayisi, cember yaricapi ve derinlik asagidaki degiskenlerden gelir; )
+( sayilari degistirip programi yeniden yukleyin )
+
+#<delik_sayisi> = 8
+#<cember_r> = 28.0
+#<derinlik> = -8.0
+
+G21 G17 G90 G54
+
+T2 M6
+S3200 M3
+G0 Z10.0
+
+( --- cember uzerinde delikler: aci dongusu --- )
+#<i> = 0
+o100 while [#<i> LT #<delik_sayisi>]
+  #<aci> = [#<i> * 360.0 / #<delik_sayisi>]
+  G0 X[#<cember_r> * COS[#<aci>]] Y[#<cember_r> * SIN[#<aci>]]
+  G0 Z2.0
+  G1 Z#<derinlik> F100
+  G0 Z2.0
+  #<i> = [#<i> + 1]
+o100 endwhile
+
+( --- dort kosede delik: G81 delme cevrimi, G80 ile kapatilir --- )
+G98
+G81 X-50.0 Y-30.0 Z#<derinlik> R2.0 F100
+X50.0
+Y30.0
+X-50.0
+G80
+
+( --- ortada kademeli delme: G83, her dalmada 3mm --- )
+G83 X0.0 Y0.0 Z-15.0 R2.0 Q3.0 F100
+G80
+G0 Z50.0
+
+M5
+G0 X0.0 Y0.0
+M2
+%

@@ -83,6 +83,7 @@ public static class MachinePresets
     {
         Kind = MachineKind.Mill,
         MachineName = "Vmc",
+        DemoProgram = "nc_files/vmc_cok_takimli.ngc",
         WorkHeightMm = 950f,
         Enclosure = true,
         BodyColor = new Color(0.82f, 0.82f, 0.8f),
@@ -123,6 +124,7 @@ public static class MachinePresets
     {
         Kind = MachineKind.Mill,
         MachineName = "Vmc4Axis",
+        DemoProgram = "nc_files/indexer4_altigen_helis.ngc",
         WorkHeightMm = 1000f,
         Enclosure = true,
         BodyColor = new Color(0.82f, 0.82f, 0.8f),
@@ -146,6 +148,7 @@ public static class MachinePresets
     {
         Kind = MachineKind.Mill,
         MachineName = "Trunnion5Axis",
+        DemoProgram = "nc_files/trunnion5_bes_yuz.ngc",
         WorkHeightMm = 1050f,
         Enclosure = true,
         BodyColor = new Color(0.82f, 0.82f, 0.8f),

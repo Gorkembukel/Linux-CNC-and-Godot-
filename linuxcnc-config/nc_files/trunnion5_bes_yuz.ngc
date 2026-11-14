@@ -1,0 +1,49 @@
+%
+( 5 EKSEN - BES YUZ ISLEME, 3+2 KONUMLAMA )
+( Makine: "5-axis trunnion" sablonundan uretilen makine )
+( Kutuk: 100 x 100 x 60 mm blok, X/Y sifiri ortada, Z0 ust yuzey )
+( A ekseni ust yuzeyin 20mm altindan gecer, C tablayi dondurur )
+( A90'da yukari bakan yan yuz Z+30'dadir; parcanin ustu Y+20, alti Y-40 tarafindadir )
+( Takim ucu merkez kontrolu yoktur: koordinatlar makine eksenleridir )
+( T1 = 10mm parmak freze )
+
+G21 G17 G90 G54
+
+T1 M6
+S2400 M3
+G0 Z120.0
+G0 A0.0 C0.0
+
+( --- ust yuz: cap 40, 5mm derin cep, helisel giris --- )
+G0 X10.0 Y0.0
+G0 Z2.0
+G3 X10.0 Y0.0 I-10.0 J0.0 Z-2.5 F250
+G3 X10.0 Y0.0 I-10.0 J0.0 Z-5.0
+G3 X10.0 Y0.0 I-10.0 J0.0 F400
+G1 X15.0
+G3 X15.0 Y0.0 I-15.0 J0.0
+G1 X5.0
+G3 X5.0 Y0.0 I-5.0 J0.0
+G1 X0.0
+G0 Z120.0
+
+( --- dort yan yuz: her birinde bir kanal ve bir delik --- )
+#1 = 0.0
+o100 while [#1 LT 359.0]
+  G0 A90.0 C#1
+  G0 X-30.0 Y-5.0
+  G0 Z35.0
+  G1 Z26.0 F150
+  G1 X30.0 F300
+  G0 Z35.0
+  G0 X0.0 Y-25.0
+  G1 Z22.0 F120
+  G0 Z120.0
+  #1 = [#1 + 90.0]
+o100 endwhile
+
+M5
+G0 A0.0 C0.0
+G0 X0.0 Y0.0
+M2
+%

@@ -32,3 +32,11 @@ def sync_linuxcnc_config(repo_config_dir: str, ini_name: str) -> str:
         shutil.rmtree(dest)
     shutil.copytree(src, dest)
     return str(dest / ini_name)
+
+
+def sync_nc_files(repo_config_dir: str) -> None:
+    """Re-copies repo_config_dir/nc_files into the native copy, so a program
+    written or edited while the machine is running can be loaded without
+    restarting the bridge."""
+    shutil.copytree(Path(repo_config_dir).resolve() / "nc_files",
+                    NATIVE_ROOT / "linuxcnc-config" / "nc_files", dirs_exist_ok=True)
