@@ -17,15 +17,28 @@ public sealed class MachineProfile
     public readonly string Name;
     public readonly (AxisId Axis, byte Joint)[] Axes;
 
-    public MachineProfile(string name, (AxisId Axis, byte Joint)[] axes)
+    // Launch metadata for MachineProcessController: which WSL distro this
+    // machine's LinuxCNC instance runs in (Phase A/B's isolation work --
+    // each machine needs a genuinely separate distro, not just different
+    // ports, see PLAN.md) and the bridge/main.py args that must agree with
+    // BridgeClient's own port Export defaults for this machine's rig.
+    public readonly string WslDistro;
+    public readonly int StatePort;
+    public readonly int CommandPort;
+    public readonly double RateHz;
+
+    public MachineProfile(string name, (AxisId Axis, byte Joint)[] axes,
+        string wslDistro, int statePort, int commandPort, double rateHz)
     {
         Name = name;
         Axes = axes;
+        WslDistro = wslDistro;
+        StatePort = statePort;
+        CommandPort = commandPort;
+        RateHz = rateHz;
     }
 
-    public static readonly MachineProfile Lathe = new("Lathe", new[]
-    {
-        (AxisId.X, (byte)0),
-        (AxisId.Z, (byte)1),
-    });
+    public static readonly MachineProfile Lathe = new("Lathe",
+        new[] { (AxisId.X, (byte)0), (AxisId.Z, (byte)1) },
+        wslDistro: "Ubuntu", statePort: 9200, commandPort: 9201, rateHz: 100.0);
 }

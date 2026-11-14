@@ -10,6 +10,7 @@
 linuxcnc_bridge.log
 *_cmds.hal
 bridge/.bridge_endpoint
+bridge/bridge_session.log
 linuxcnc-config/lc.pid
 linuxcnc-config/lc_stdin.fifo
 

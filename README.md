@@ -57,14 +57,20 @@ networking works" below); nothing is hardcoded to a specific IP.
 .\start.ps1
 ```
 
-This cleans up any stale LinuxCNC state from a previous run, starts the bridge
-in its own PowerShell window (so you can watch its log / Ctrl+C it
-independently), waits for it to report ready, then launches Godot. **First
-cold start of LinuxCNC can take up to ~90 seconds** — this is normal (see
-PLAN.md's Phase 0 notes on why), not a hang.
+That's it — just launches Godot. Godot itself starts each machine's backing
+LinuxCNC/bridge process in WSL on its own (`Scripts/Machines/
+MachineProcessController.cs`) and stops it cleanly when you close the game
+window; there's no separate bridge window to watch or close by hand anymore.
+**First cold start of LinuxCNC can take up to ~90 seconds** — this is normal
+(see PLAN.md's Phase 0 notes on why), not a hang; the status label just
+reads "BRIDGE DISCONNECTED" until it connects on its own.
 
-If you'd rather run the two pieces yourself (e.g. to pass different bridge
-flags), see "Manual startup" below.
+If you want to watch the bridge's own live output while debugging (instead
+of its log file, `bridge/bridge_session.log`) or pass different bridge
+flags, see "Manual startup" below — but don't also run `start.ps1`/Godot at
+the same time: Godot will start (and the cleanup step it runs first will
+disrupt) its own copy regardless, which isn't what you want while watching
+a hand-started one.
 
 ### Operator panel walkthrough
 
@@ -94,13 +100,14 @@ angle, you'll want to zoom in to actually see the cut and chips.
 **F3** toggles the debug overlay (predicted vs. confirmed position, error
 graph, stream jitter, command latency, frame time, scheduler budgets/queues).
 
-### Manual startup (equivalent to what start.ps1 does)
+### Manual startup (debugging only -- `start.ps1` no longer needs this)
 
 ```
 # 1. Clean stale state (always safe to run, even if nothing is running):
 wsl -d Ubuntu -- bash /mnt/c/<path-to-repo>/bridge/clear_stale_shm.sh
 
-# 2. Start the bridge (blocks; leave this window open):
+# 2. Start the bridge (blocks; leave this window open -- don't also run
+#    start.ps1/Godot at the same time, see "Running it" above):
 wsl -d Ubuntu -- python3 -u /mnt/c/<path-to-repo>/bridge/main.py --rate-hz 100
 # wait for the line: "[bridge] publishing state to ...:9200 at 100.0 Hz, ..."
 

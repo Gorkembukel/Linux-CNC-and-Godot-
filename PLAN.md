@@ -743,6 +743,61 @@ two LinuxCNC processes as the same Linux user needs its own instance-id
 support verified working here first, before the mill's own bridge process
 is built. Not solved in Phase A; flagged so it isn't a surprise in Phase B.
 
+## Godot procedurally owns the LinuxCNC bridge process lifecycle (2026-11-14)
+
+User-driven ask, in their own words: no manual intervention on either the
+"server" (WSL/bridge) side or the game side, each time -- Godot itself
+should launch LinuxCNC with the right parameters, for however many
+machines eventually exist. Before this, `start.ps1` opened a **separate
+visible PowerShell window** running the bridge, waited for it, launched
+Godot, and told the user to close the bridge window by hand afterward.
+
+- `MachineProfile` (`Scripts/Machines/MachineProfile.cs`) gained launch
+  metadata: `WslDistro`, `StatePort`/`CommandPort`, `RateHz` -- the single
+  source of truth for both the bridge-launch args and (already)
+  `BridgeClient`'s own connection config, so they can't silently drift
+  apart as more machines are added.
+- New static `Scripts/Machines/MachineProcessController.cs`
+  (`StartBackingProcess`/`StopBackingProcess`, stateless, same style as
+  `WorkpiecePartBuilder`): shells out to `wsl.exe` to run
+  `clear_stale_shm.sh` then launch `bridge/main.py` (fire-and-forget --
+  `BridgeClient` already tolerates "not connected yet" and reconnects on
+  its own), redirecting output to `bridge/bridge_session.log` instead of a
+  visible window.
+- `Main.cs` calls `StartBackingProcess` in `_Ready()` for the lathe's rig,
+  and overrides `_Notification` to call `StopBackingProcess` for every rig
+  on `NotificationWMCloseRequest` (the real close-the-window play flow)
+  before quitting -- **stated limitation**: the Godot editor's own Stop
+  button can force-kill the process without delivering that notification
+  at all, a known Godot behavior, not fixable from here.
+- `start.ps1` simplified to just launching Godot; `README.md` updated to
+  match (manual bridge startup is now a debugging-only fallback, explicitly
+  not to be run at the same time as Godot).
+
+**Real bug found and fixed live, not just in theory**: a bare
+`pkill -SIGTERM -f bridge/main.py` was NOT reliable enough on its own.
+`wsl.exe -d <distro> -- bash -lc "..."` makes `bash` the direct child and
+`python3` ITS child; `pkill -f` matches both (it matches the whole command
+line, and bash's own cmdline contains the inner python invocation text
+too), and killing the outer bash let WSL's own invocation teardown cut the
+deeply-nested grandchild chain (python -> the `linuxcnc` wrapper ->
+`linuxcncsvr`/`rtapi_app`) short mid-shutdown -- confirmed live: `main.py`'s
+own clean-shutdown code ran (its log line printed) but `linuxcncsvr` and
+`rtapi_app` were still alive and running minutes later regardless. Fixed by
+having `StopBackingProcess` unconditionally run the same sweep
+`LinuxCNCProcess._kill_stragglers`/`clear_stale_shm.sh` already use for
+exactly this situation, after the SIGTERM, instead of trying to solve the
+exact WSL process-teardown race. Verified clean afterward both ways: zero
+matching processes, zero stale SysV IPC segments.
+
+**Verified live**: fresh WSL state, no manual bridge start at all, launched
+headless Godot -- it started its own bridge automatically, connected within
+~5 seconds, zero engine errors; then the (now two-step) stop sequence left
+nothing running and nothing stale behind. 36 C# tests + 13 Python tests
+still green. **Not yet verified by the user**: the actual
+`_Notification(NotificationWMCloseRequest)` path specifically needs a real
+windowed run + closing the window, which this agent cannot do.
+
 ---
 
 ## RESUME HERE (session closing, 2026-11-14)
@@ -813,6 +868,17 @@ position (12.345, -6.789), then started a second instance in
 exactly 12.345/-6.789 right up to being cleanly stopped afterward. Full
 process isolation confirmed; this is the mill's isolation strategy, settled.
 
+**Since then, also done this session**: Godot now procedurally starts and
+stops each machine's backing LinuxCNC/bridge process itself (see the
+"Godot procedurally owns the LinuxCNC bridge process lifecycle" section
+just above) -- `start.ps1` is now just "launch Godot," no bridge window, no
+manual cleanup. Verified live by this agent (fresh state, no manual bridge
+start, connects on its own within ~5s; stop sequence leaves nothing
+running/stale). **Not yet verified by the user** -- specifically the
+`NotificationWMCloseRequest` shutdown path needs a real windowed run
+(launch via `start.ps1`, use it, close the window) that this agent cannot
+do; ask for that before relying on it further.
+
 **Next, in the order the user picked ("3 ve 1'i yapalım"), now that Phase A
 exists and the isolation strategy is proven**:
 1. **Phase B -- the mill itself.** A 3-axis LinuxCNC sim config (deployed
@@ -821,11 +887,13 @@ exists and the isolation strategy is proven**:
    -- see Phase A's note on why that would violate LSP), new mill
    machine-body visuals, a mill demo G-code program, a second bridge
    process (own ports, own `.bridge_endpoint`-equivalent file) talking to a
-   second `MachineRig` in the same Godot scene as the lathe. `deploy.py`/
-   `linuxcnc_process.py`/`clear_stale_shm.sh` need to become
-   distro-aware (which `wsl.exe -d <name>` to shell out through) rather
-   than assuming the one default distro -- not done yet, next concrete
-   step.
+   second `MachineRig` in the same Godot scene as the lathe, started via
+   the new `MachineProcessController` with its own `MachineProfile` (just
+   add a second profile + a second `BridgeClient` node -- the controller
+   and lifecycle hooks already support more than one). `deploy.py`/
+   `linuxcnc_process.py`/`clear_stale_shm.sh` still need to become
+   distro-aware internally (which `wsl.exe -d <name>` to shell out
+   through) -- not done yet, next concrete step.
 2. **Training/scenario mode** -- exercises, mistake detection, scoring/time
    tracking. Not started at all yet. The one piece of "operator training"
    the project's own name promises that doesn't exist yet.
@@ -834,9 +902,10 @@ exists and the isolation strategy is proven**:
 windowed Godot session in this environment, only `--headless` + driving
 LinuxCNC directly via its Python module for live smoke-testing. Every
 feature this session was verified live that way (no engine errors across
-real bridge traffic), but the actual *visual*/*feel* result always needs
-the user's own run via `start.ps1` -- ask for that confirmation explicitly
-rather than assuming it from a clean headless run.
+real bridge traffic), but the actual *visual*/*feel* result -- and, now,
+the window-close shutdown path specifically -- always needs the user's own
+run via `start.ps1`. Ask for that confirmation explicitly rather than
+assuming it from a clean headless run.
 
 ---
 *Phase 0 environment approved implicitly by the user proceeding with the WSL fix; "do all phases, don't stop" given 2026-11-13.*
