@@ -82,23 +82,35 @@ public readonly struct PacketHeader
 
 public struct StateSample
 {
-    public double PosX, PosZ, VelX, VelZ, FeedRate, SpindleRpm;
+    // The 6 conventional CNC axis letters -- same fixed capacity as
+    // bridge/protocol.py's AXIS_CAPACITY. Fixed rather than variable-length
+    // on the wire: no framing complexity, and a machine with a different
+    // active-axis set needs zero protocol change (it just sets a different
+    // ActiveAxisMask bit pattern over the same fixed slots).
+    public const int AxisCapacity = 6;
+
+    public AxisVector Position, Velocity; // indexed via AxisVector.Get(AxisId)
+    public double FeedRate, SpindleRpm;
     public float FeedOverride, SpindleOverride;
     public int ToolNumber;
     public float ToolNoseRadius;
     public bool SpindleEnabled;
     public byte TaskModeRaw, InterpStateRaw, ExecState;
     public int MotionLine;
-    public bool Estop, MachineOn, HomedX, HomedZ, InCycle;
+    public bool Estop, MachineOn, InCycle;
+    public byte ActiveAxisMask, HomedMask;
+
+    public bool IsHomed(AxisId axis) => (HomedMask & (1 << (int)axis)) != 0;
+    public bool HasAxis(AxisId axis) => (ActiveAxisMask & (1 << (int)axis)) != 0;
 
     public static StateSample Read(BinaryReader r)
     {
-        var s = new StateSample
+        var position = ReadAxes(r);
+        var velocity = ReadAxes(r);
+        return new StateSample
         {
-            PosX = r.ReadDouble(),
-            PosZ = r.ReadDouble(),
-            VelX = r.ReadDouble(),
-            VelZ = r.ReadDouble(),
+            Position = position,
+            Velocity = velocity,
             FeedRate = r.ReadDouble(),
             SpindleRpm = r.ReadDouble(),
             FeedOverride = r.ReadSingle(),
@@ -112,32 +124,36 @@ public struct StateSample
             MotionLine = r.ReadInt32(),
             Estop = r.ReadByte() != 0,
             MachineOn = r.ReadByte() != 0,
-            HomedX = r.ReadByte() != 0,
-            HomedZ = r.ReadByte() != 0,
             InCycle = r.ReadByte() != 0,
+            ActiveAxisMask = r.ReadByte(),
+            HomedMask = r.ReadByte(),
         };
-        r.ReadByte(); // pad
-        return s;
     }
+
+    internal static AxisVector ReadAxes(BinaryReader r) => new(
+        (float)r.ReadDouble(), (float)r.ReadDouble(), (float)r.ReadDouble(),
+        (float)r.ReadDouble(), (float)r.ReadDouble(), (float)r.ReadDouble());
 }
 
 public struct PreviewSegment
 {
     public MotionType MotionType;
     public int LineNumber;
-    public double StartX, StartZ, EndX, EndZ;
+    public AxisVector Start, End;
     public double FeedRate;
 
     public static PreviewSegment Read(BinaryReader r)
     {
+        var motionType = (MotionType)r.ReadByte();
+        var lineNumber = r.ReadInt32();
+        var start = StateSample.ReadAxes(r);
+        var end = StateSample.ReadAxes(r);
         return new PreviewSegment
         {
-            MotionType = (MotionType)r.ReadByte(),
-            LineNumber = r.ReadInt32(),
-            StartX = r.ReadDouble(),
-            StartZ = r.ReadDouble(),
-            EndX = r.ReadDouble(),
-            EndZ = r.ReadDouble(),
+            MotionType = motionType,
+            LineNumber = lineNumber,
+            Start = start,
+            End = end,
             FeedRate = r.ReadDouble(),
         };
     }

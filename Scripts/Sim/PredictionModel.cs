@@ -1,13 +1,13 @@
 using System;
 using System.Collections.Generic;
-using Godot;
+using CncTrainer.Bridge;
 
 namespace CncTrainer.Sim;
 
 /// <summary>
 /// Client-side prediction/reconciliation for the tool's render-time position,
 /// analogous to prediction in networked games (brief section 3). Pure logic, no
-/// Godot engine dependency beyond the Vector2 struct, so it's unit-testable with
+/// Godot engine dependency beyond the AxisVector struct, so it's unit-testable with
 /// plain `dotnet test` (see Tests/).
 ///
 /// Approach: dead-reckon from the last CONFIRMED sample's position + velocity.
@@ -29,13 +29,13 @@ public class PredictionModel
 
     public const int ErrorHistoryCapacity = 240; // ~4s at 60 fps
 
-    private Vector2 _confirmedPos;
-    private Vector2 _confirmedVel;
+    private AxisVector _confirmedPos;
+    private AxisVector _confirmedVel;
     private double _confirmedTimeSeconds;
     private bool _hasConfirmed;
 
-    public Vector2 VisualPosition { get; private set; }
-    public Vector2 LastPredictedPosition { get; private set; }
+    public AxisVector VisualPosition { get; private set; }
+    public AxisVector LastPredictedPosition { get; private set; }
     public double LastErrorMagnitudeMm { get; private set; }
     public bool LastCorrectionWasSnap { get; private set; }
 
@@ -43,7 +43,7 @@ public class PredictionModel
 
     public IReadOnlyCollection<double> ErrorHistory => _errorHistory;
 
-    public void OnConfirmedSample(Vector2 pos, Vector2 vel, double timeSeconds)
+    public void OnConfirmedSample(AxisVector pos, AxisVector vel, double timeSeconds)
     {
         _confirmedPos = pos;
         _confirmedVel = vel;
@@ -56,24 +56,24 @@ public class PredictionModel
         }
     }
 
-    public Vector2 PredictAt(double nowSeconds)
+    public AxisVector PredictAt(double nowSeconds)
     {
         if (!_hasConfirmed)
-            return Vector2.Zero;
+            return AxisVector.Zero;
         float dt = (float)(nowSeconds - _confirmedTimeSeconds);
         return _confirmedPos + _confirmedVel * dt;
     }
 
     /// <summary>Call once per rendered frame. Returns the position to draw the tool at.</summary>
-    public Vector2 Update(double nowSeconds, double frameDtSeconds)
+    public AxisVector Update(double nowSeconds, double frameDtSeconds)
     {
         if (!_hasConfirmed)
-            return Vector2.Zero;
+            return AxisVector.Zero;
 
-        Vector2 predicted = PredictAt(nowSeconds);
+        AxisVector predicted = PredictAt(nowSeconds);
         LastPredictedPosition = predicted;
 
-        Vector2 error = predicted - VisualPosition;
+        AxisVector error = predicted - VisualPosition;
         double errorMag = error.Length();
         LastErrorMagnitudeMm = errorMag;
         RecordError(errorMag);

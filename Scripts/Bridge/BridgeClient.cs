@@ -7,13 +7,21 @@ using CncTrainer.Sim;
 namespace CncTrainer.Bridge;
 
 /// <summary>
-/// Autoload singleton: owns the UDP sockets to the bridge, parses incoming
+/// Owns the UDP sockets to ONE bridge/LinuxCNC instance, parses incoming
 /// packets, and exposes the latest MachineState plus a connection-health flag.
 /// Never blocks and never crashes the game if the bridge is down or restarts --
 /// see brief section 2 ("Godot must not freeze... show connection state and
 /// reconnect automatically"). UDP is connectionless, so "reconnect" here just
 /// means: keep listening, and flip IsBridgeConnected back to true the moment packets
 /// resume; nothing needs to be torn down and rebuilt on the Godot side.
+///
+/// Plain instantiable node, NOT a Godot autoload singleton -- running a
+/// second live machine (Phase B's mill) alongside this one means a second
+/// BridgeClient instance with its own ports/endpoint file, which an autoload
+/// (always exactly one, always at /root/BridgeClient) can't support. Callers
+/// get their reference injected (see Main.cs's Configure calls on
+/// OperatorPanel/ConsoleStand/DebugOverlay) instead of looking it up by a
+/// fixed absolute path.
 /// </summary>
 public partial class BridgeClient : Node
 {
@@ -21,6 +29,7 @@ public partial class BridgeClient : Node
     [Export] public int CommandPort = 9201;
     [Export] public string CommandHost = "127.0.0.1";
     [Export] public double ConnectionTimeoutSeconds = 1.0;
+    [Export] public string BridgeEndpointResourcePath = "res://bridge/.bridge_endpoint";
 
     public MachineState State { get; private set; } = new();
     public PredictionModel Prediction { get; private set; } = new();
@@ -79,7 +88,7 @@ public partial class BridgeClient : Node
         // missing or unreadable, falls back to the [Export] CommandHost as
         // configured (useful for a non-WSL/Linux-native dev setup where
         // 127.0.0.1 might actually be correct).
-        string endpointPath = ProjectSettings.GlobalizePath("res://bridge/.bridge_endpoint");
+        string endpointPath = ProjectSettings.GlobalizePath(BridgeEndpointResourcePath);
         if (System.IO.File.Exists(endpointPath))
         {
             string ip = System.IO.File.ReadAllText(endpointPath).Trim();
@@ -202,10 +211,10 @@ public partial class BridgeClient : Node
                     {
                         ["motion_type"] = (int)seg.MotionType,
                         ["line_number"] = seg.LineNumber,
-                        ["start_x"] = seg.StartX,
-                        ["start_z"] = seg.StartZ,
-                        ["end_x"] = seg.EndX,
-                        ["end_z"] = seg.EndZ,
+                        ["start_x"] = seg.Start.X,
+                        ["start_z"] = seg.Start.Z,
+                        ["end_x"] = seg.End.X,
+                        ["end_z"] = seg.End.Z,
                         ["feed_rate"] = seg.FeedRate,
                     });
             EmitSignal(SignalName.PreviewReceived, all);

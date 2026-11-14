@@ -8,19 +8,24 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "bridge"))
 
 from protocol import (  # noqa: E402
-    StateSample, PacketType, TaskMode, InterpState, Command, CommandKind,
-    PreviewSegment, pack_event, unpack_event, pack_ack, unpack_ack,
+    AXIS_CAPACITY, AXIS_X, AXIS_Z, StateSample, PacketType, TaskMode, InterpState,
+    Command, CommandKind, PreviewSegment, pack_event, unpack_event, pack_ack, unpack_ack,
     pack_preview_chunk, unpack_preview_chunk, unpack_header,
 )
 
 
 def _sample():
+    position = [0.0] * AXIS_CAPACITY
+    position[AXIS_X], position[AXIS_Z] = 12.5, -30.25
+    velocity = [0.0] * AXIS_CAPACITY
+    velocity[AXIS_X], velocity[AXIS_Z] = 1.0, -2.0
     return StateSample(
-        pos_x=12.5, pos_z=-30.25, vel_x=1.0, vel_z=-2.0, feed_rate=150.0,
+        position=tuple(position), velocity=tuple(velocity), feed_rate=150.0,
         spindle_rpm=800.0, feed_override=1.0, spindle_override=1.0, tool_number=2,
         tool_nose_radius=0.4, spindle_enabled=True, task_mode=int(TaskMode.AUTO),
         interp_state=int(InterpState.IDLE), exec_state=2, motion_line=42,
-        estop=False, machine_on=True, homed_x=True, homed_z=True, in_cycle=True,
+        estop=False, machine_on=True, in_cycle=True,
+        active_axis_mask=(1 << AXIS_X) | (1 << AXIS_Z), homed_mask=(1 << AXIS_X) | (1 << AXIS_Z),
     )
 
 
@@ -39,11 +44,13 @@ def test_state_sample_roundtrip():
     assert d1 == d2
 
 
-def test_state_sample_packet_is_96_bytes():
+def test_state_sample_packet_is_159_bytes():
     # Locks the wire size so an accidental field reorder/width change in
     # protocol.py is caught immediately instead of silently desyncing from
-    # Scripts/Bridge/BridgeProtocol.cs on the Godot side.
-    assert len(_sample().pack(seq=0)) == 96
+    # Scripts/Bridge/BridgeProtocol.cs on the Godot side. 159 = 18-byte
+    # header + 141-byte body (6-axis position+velocity fixed capacity, see
+    # protocol.py's AXIS_CAPACITY).
+    assert len(_sample().pack(seq=0)) == 159
 
 
 def test_event_roundtrip():
@@ -85,12 +92,16 @@ def test_command_dedup_ordering_contract():
     assert newer.client_seq > first.client_seq  # would be applied
 
 
+def _xz(x: float, z: float) -> tuple[float, ...]:
+    v = [0.0] * AXIS_CAPACITY
+    v[AXIS_X], v[AXIS_Z] = x, z
+    return tuple(v)
+
+
 def test_preview_chunk_roundtrip_and_chunking():
     segs = [
-        PreviewSegment(motion_type=1, line_number=10, start_x=0, start_z=0,
-                       end_x=10, end_z=0, feed_rate=150.0),
-        PreviewSegment(motion_type=0, line_number=11, start_x=10, start_z=0,
-                       end_x=10, end_z=5, feed_rate=0.0),
+        PreviewSegment(motion_type=1, line_number=10, start=_xz(0, 0), end=_xz(10, 0), feed_rate=150.0),
+        PreviewSegment(motion_type=0, line_number=11, start=_xz(10, 0), end=_xz(10, 5), feed_rate=0.0),
     ]
     packet = pack_preview_chunk(seq=6, total_segments=2, chunk_index=0, segments=segs)
     _, _, _, hlen = unpack_header(packet)

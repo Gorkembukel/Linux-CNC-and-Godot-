@@ -7,20 +7,33 @@ from __future__ import annotations
 import socket
 import time
 
-from protocol import StateSample, TaskMode, InterpState
+from protocol import AXIS_CAPACITY, AXIS_X, AXIS_Z, StateSample, TaskMode, InterpState
 
-_HOMED_X_JOINT = 0
-_HOMED_Z_JOINT = 1
+# stat.actual_position is ALWAYS axis-letter indexed (a 9-tuple X,Y,Z,A,B,C,
+# U,V,W) regardless of kinematics -- same order as protocol.py's AXIS_*
+# constants, so no per-machine mapping is needed for position/velocity at
+# all, lathe or mill alike. stat.homed, by contrast, is indexed by JOINT
+# number (this machine's kinematics config), which generally differs from
+# axis-letter order, so homed status alone needs a (joint, AXIS_*) map --
+# this lathe's is joint0->X, joint1->Z. A 3-axis mill's own StatePublisher
+# instance would pass its own map here instead of this module gaining
+# per-machine-type branches.
+DEFAULT_LATHE_JOINT_AXIS_MAP = ((0, AXIS_X), (1, AXIS_Z))
 
 
 class StatePublisher:
-    def __init__(self, stat, sock: socket.socket, dest_addr: tuple[str, int], rate_hz: float = 250.0):
+    def __init__(self, stat, sock: socket.socket, dest_addr: tuple[str, int], rate_hz: float = 250.0,
+                 joint_axis_map: tuple[tuple[int, int], ...] = DEFAULT_LATHE_JOINT_AXIS_MAP):
         self.stat = stat
         self.sock = sock
         self.dest_addr = dest_addr
         self.period = 1.0 / rate_hz
         self.seq = 0
-        self._prev_pos: tuple[float, float] | None = None
+        self.joint_axis_map = joint_axis_map
+        self.active_axis_mask = 0
+        for _joint, axis in joint_axis_map:
+            self.active_axis_mask |= 1 << axis
+        self._prev_pos: tuple[float, ...] | None = None
         self._prev_t: float | None = None
 
     def _tool_nose_radius(self) -> float:
@@ -33,16 +46,21 @@ class StatePublisher:
     def sample_once(self) -> StateSample:
         self.stat.poll()
         now = time.monotonic()
-        pos_x = self.stat.actual_position[0]
-        pos_z = self.stat.actual_position[2]
+
+        position = tuple(self.stat.actual_position[:AXIS_CAPACITY])
+
         if self._prev_pos is not None and self._prev_t is not None and now > self._prev_t:
             dt = now - self._prev_t
-            vel_x = (pos_x - self._prev_pos[0]) / dt
-            vel_z = (pos_z - self._prev_pos[1]) / dt
+            velocity = tuple((p - prev) / dt for p, prev in zip(position, self._prev_pos))
         else:
-            vel_x = vel_z = 0.0
-        self._prev_pos = (pos_x, pos_z)
+            velocity = (0.0,) * 6
+        self._prev_pos = position
         self._prev_t = now
+
+        homed_mask = 0
+        for joint, axis in self.joint_axis_map:
+            if self.stat.homed[joint]:
+                homed_mask |= 1 << axis
 
         # linuxcnc MODE_MANUAL=1,MODE_AUTO=2,MODE_MDI=3 -- remap to our 0-based enum
         task_mode = {1: TaskMode.MANUAL, 2: TaskMode.AUTO, 3: TaskMode.MDI}.get(self.stat.task_mode, TaskMode.MANUAL)
@@ -52,7 +70,7 @@ class StatePublisher:
 
         spindle0 = self.stat.spindle[0]
         return StateSample(
-            pos_x=pos_x, pos_z=pos_z, vel_x=vel_x, vel_z=vel_z,
+            position=position, velocity=velocity,
             feed_rate=self.stat.feedrate, spindle_rpm=spindle0["speed"],
             feed_override=self.stat.feedrate, spindle_override=spindle0["override"],
             tool_number=self.stat.tool_in_spindle, tool_nose_radius=self._tool_nose_radius(),
@@ -60,8 +78,8 @@ class StatePublisher:
             interp_state=int(interp_state), exec_state=self.stat.exec_state,
             motion_line=self.stat.motion_line, estop=bool(self.stat.estop),
             machine_on=bool(self.stat.enabled),
-            homed_x=bool(self.stat.homed[_HOMED_X_JOINT]), homed_z=bool(self.stat.homed[_HOMED_Z_JOINT]),
             in_cycle=self.stat.interp_state != 1,  # not INTERP_IDLE
+            active_axis_mask=self.active_axis_mask, homed_mask=homed_mask,
         )
 
     def publish_once(self) -> None:

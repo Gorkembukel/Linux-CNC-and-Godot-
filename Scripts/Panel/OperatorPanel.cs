@@ -18,6 +18,7 @@ namespace CncTrainer.Panel;
 public partial class OperatorPanel : Control
 {
     private BridgeClient _bridge;
+    private (AxisId Axis, byte Joint)[] _axes = MachineProfile.Lathe.Axes; // placeholder until Configure() runs
 
     private Label _modeStatusLabel;
     private Label _toolChangeLabel;
@@ -34,8 +35,6 @@ public partial class OperatorPanel : Control
 
     public override void _Ready()
     {
-        _bridge = GetNode<BridgeClient>("/root/BridgeClient");
-
         // Smaller than the first pass: user feedback was "UI covers everywhere"
         // at 1080p -- a shared small Theme shrinks every child control's
         // default font uniformly instead of hand-tuning each one.
@@ -52,6 +51,18 @@ public partial class OperatorPanel : Control
 
         var panelBg = new Godot.Panel { AnchorRight = 1, AnchorBottom = 1 };
         AddChild(panelBg);
+        // Row-building needs _bridge/_axes, not available until Configure()
+        // runs (called from Main._Ready, after this control's own _Ready) --
+        // see this class's Configure method.
+    }
+
+    /// <summary>Called by Main._Ready once this rig's BridgeClient exists --
+    /// replaces the old self-lookup via the fixed "/root/BridgeClient"
+    /// autoload path, which a second live machine (Phase B) can't support.</summary>
+    public void Configure(MachineRig rig)
+    {
+        _bridge = rig.Bridge;
+        _axes = rig.Profile.Axes;
 
         var root = new VBoxContainer { AnchorRight = 1, AnchorBottom = 1 };
         root.AddThemeConstantOverride("separation", 2);
@@ -95,8 +106,8 @@ public partial class OperatorPanel : Control
         col.AddChild(modeRow);
 
         var homeRow = new HBoxContainer();
-        homeRow.AddChild(MakeButton("HOME X", () => _bridge.HomeAxis(0)));
-        homeRow.AddChild(MakeButton("HOME Z", () => _bridge.HomeAxis(1)));
+        foreach (var (axis, joint) in _axes)
+            homeRow.AddChild(MakeButton($"HOME {axis}", () => _bridge.HomeAxis(joint)));
         homeRow.AddChild(MakeButton("HOME ALL", () => _bridge.HomeAxis(0xFF)));
         col.AddChild(homeRow);
 
@@ -120,10 +131,11 @@ public partial class OperatorPanel : Control
         _jogIncrementSelect.Select(2); // 0.1mm default, a common manual-mode step
         row.AddChild(_jogIncrementSelect);
 
-        row.AddChild(MakeJogButton("X-", axis: 0, direction: -1));
-        row.AddChild(MakeJogButton("X+", axis: 0, direction: +1));
-        row.AddChild(MakeJogButton("Z-", axis: 1, direction: -1));
-        row.AddChild(MakeJogButton("Z+", axis: 1, direction: +1));
+        foreach (var (axis, joint) in _axes)
+        {
+            row.AddChild(MakeJogButton($"{axis}-", axis: joint, direction: -1));
+            row.AddChild(MakeJogButton($"{axis}+", axis: joint, direction: +1));
+        }
         return row;
     }
 
@@ -255,7 +267,7 @@ public partial class OperatorPanel : Control
         {
             if (float.TryParse(knownZInput.Text, out float knownZ))
             {
-                float measuredZ = _bridge.State.Position.Y;
+                float measuredZ = _bridge.State.Position.Z;
                 _bridge.SendMdi($"G10 L1 P{_bridge.State.ToolNumber} Z{measuredZ - knownZ:F4}");
             }
         }));

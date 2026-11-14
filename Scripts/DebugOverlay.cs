@@ -23,9 +23,6 @@ public partial class DebugOverlay : Control
 
     public override void _Ready()
     {
-        _bridge = GetNode<BridgeClient>("/root/BridgeClient");
-        _main = GetNode<Main>("/root/Main");
-
         _label = new Label { Position = new Vector2(6, 6) };
         _label.AddThemeFontSizeOverride("font_size", 11);
         AddChild(_label);
@@ -41,6 +38,15 @@ public partial class DebugOverlay : Control
         Visible = Enabled;
     }
 
+    /// <summary>Called by Main._Ready once this rig's BridgeClient exists --
+    /// replaces the old self-lookup via the fixed "/root/BridgeClient"
+    /// autoload path, which a second live machine (Phase B) can't support.</summary>
+    public void Configure(MachineRig rig, Main main)
+    {
+        _bridge = rig.Bridge;
+        _main = main;
+    }
+
     public override void _Input(InputEvent @event)
     {
         if (@event is InputEventKey { Pressed: true, Keycode: Key.F3 })
@@ -52,15 +58,15 @@ public partial class DebugOverlay : Control
 
     public override void _Process(double delta)
     {
-        if (!Enabled)
+        if (!Enabled || _bridge == null)
             return;
 
         var p = _bridge.Prediction;
         _label.Text =
             $"[F3] DEBUG OVERLAY\n" +
-            $"confirmed  X={_bridge.State.Position.X,8:F3}  Z={_bridge.State.Position.Y,8:F3} mm\n" +
-            $"predicted  X={p.LastPredictedPosition.X,8:F3}  Z={p.LastPredictedPosition.Y,8:F3} mm\n" +
-            $"visual     X={p.VisualPosition.X,8:F3}  Z={p.VisualPosition.Y,8:F3} mm\n" +
+            $"confirmed  X={_bridge.State.Position.X,8:F3}  Z={_bridge.State.Position.Z,8:F3} mm\n" +
+            $"predicted  X={p.LastPredictedPosition.X,8:F3}  Z={p.LastPredictedPosition.Z,8:F3} mm\n" +
+            $"visual     X={p.VisualPosition.X,8:F3}  Z={p.VisualPosition.Z,8:F3} mm\n" +
             $"error      {p.LastErrorMagnitudeMm,8:F3} mm  {(p.LastCorrectionWasSnap ? "(SNAP)" : "(smoothed)")}\n" +
             $"state stream jitter   {_bridge.StateStreamJitterMs,6:F2} ms\n" +
             $"last command RTT      {(double.IsNaN(_bridge.LastCommandRttMs) ? "n/a" : $"{_bridge.LastCommandRttMs:F1} ms")}\n" +

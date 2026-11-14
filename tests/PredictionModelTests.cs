@@ -1,4 +1,4 @@
-using Godot;
+using CncTrainer.Bridge;
 using CncTrainer.Sim;
 
 namespace CncTrainer.Tests;
@@ -9,7 +9,7 @@ public class PredictionModelTests
     public void DeadReckons_FromLastConfirmedSample_WhenNoNewSampleArrives()
     {
         var model = new PredictionModel();
-        model.OnConfirmedSample(new Vector2(10, 0), new Vector2(5, 0), timeSeconds: 0.0); // 5 mm/s along X
+        model.OnConfirmedSample(new AxisVector(10, 0), new AxisVector(5, 0), timeSeconds: 0.0); // 5 mm/s along X
 
         // No new sample for 1 second: predicted position should extrapolate linearly.
         var predicted = model.PredictAt(1.0);
@@ -22,11 +22,11 @@ public class PredictionModelTests
     public void Update_SmoothsSmallErrors_InsteadOfSnapping()
     {
         var model = new PredictionModel { SnapThresholdMm = 10.0, SmoothingTimeConstantSeconds = 0.1 };
-        model.OnConfirmedSample(new Vector2(0, 0), new Vector2(0, 0), 0.0);
+        model.OnConfirmedSample(new AxisVector(0, 0), new AxisVector(0, 0), 0.0);
 
         // A confirmed sample that disagrees with the dead-reckoned position by a
         // small amount (simulates noisy/late samples from a known path).
-        model.OnConfirmedSample(new Vector2(2, 0), new Vector2(0, 0), 0.0);
+        model.OnConfirmedSample(new AxisVector(2, 0), new AxisVector(0, 0), 0.0);
         var visual = model.Update(nowSeconds: 0.0, frameDtSeconds: 1.0 / 60.0);
 
         // Should move PART of the way toward the 2mm error, not all of it, and
@@ -40,11 +40,11 @@ public class PredictionModelTests
     public void Update_SnapsInstantly_WhenErrorExceedsThreshold()
     {
         var model = new PredictionModel { SnapThresholdMm = 1.0 };
-        model.OnConfirmedSample(new Vector2(0, 0), new Vector2(0, 0), 0.0);
+        model.OnConfirmedSample(new AxisVector(0, 0), new AxisVector(0, 0), 0.0);
 
         // A big, sudden jump (e.g. a dropped packet followed by a far-away
         // confirmed sample) should snap immediately rather than visibly glide.
-        model.OnConfirmedSample(new Vector2(50, 0), new Vector2(0, 0), 0.0);
+        model.OnConfirmedSample(new AxisVector(50, 0), new AxisVector(0, 0), 0.0);
         var visual = model.Update(nowSeconds: 0.0, frameDtSeconds: 1.0 / 60.0);
 
         Assert.Equal(50.0, visual.X, precision: 3);
@@ -63,14 +63,14 @@ public class PredictionModelTests
         const double speed = 10.0; // mm/s along X
         const double dt = 1.0 / 100.0; // 100 Hz confirmed samples, matching the bridge's default rate
 
-        model.OnConfirmedSample(new Vector2(0, 0), new Vector2((float)speed, 0), t);
+        model.OnConfirmedSample(new AxisVector(0, 0), new AxisVector((float)speed, 0), t);
 
         for (int i = 0; i < 300; i++) // 3 seconds of motion
         {
             t += dt;
             double truePos = speed * t;
             double noise = (rng.NextDouble() - 0.5) * 0.4; // +-0.2mm jitter
-            model.OnConfirmedSample(new Vector2((float)(truePos + noise), 0), new Vector2((float)speed, 0), t);
+            model.OnConfirmedSample(new AxisVector((float)(truePos + noise), 0), new AxisVector((float)speed, 0), t);
             model.Update(t, dt);
         }
 

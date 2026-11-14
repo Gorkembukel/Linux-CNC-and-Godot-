@@ -3,6 +3,7 @@ using CncTrainer.Bridge;
 using CncTrainer.Material;
 using CncTrainer.Chips;
 using CncTrainer.Scheduling;
+using CncTrainer.Panel;
 
 namespace CncTrainer;
 
@@ -13,7 +14,8 @@ public partial class Main : Node3D
 {
     [Export] public MaterialKind StockMaterial = MaterialKind.Steel;
 
-    private BridgeClient _bridge;
+    private readonly System.Collections.Generic.List<MachineRig> _rigs = new();
+    private BridgeClient _bridge; // the lathe's rig -- Main.cs's cutting logic is still lathe-specific (see PLAN.md)
     private Label _statusLabel;
     private WorkpieceVisual _workpiece;
     private MachineBody _machineBody;
@@ -31,7 +33,7 @@ public partial class Main : Node3D
 
     public override void _Ready()
     {
-        _bridge = GetNode<BridgeClient>("/root/BridgeClient");
+        _bridge = GetNode<BridgeClient>("BridgeClient"); // plain child node now, not a /root/ autoload (see BridgeClient's own doc comment)
         _statusLabel = GetNode<Label>("UI/StatusLabel");
         _workpiece = GetNode<WorkpieceVisual>("Workpiece");
         _machineBody = GetNode<MachineBody>("MachineBody");
@@ -39,6 +41,16 @@ public partial class Main : Node3D
         _partsContainer = GetNode<Node3D>("Parts");
 
         _material = _workpiece.Profile; // built in WorkpieceVisual's own _Ready(), which runs before this (children before parent)
+
+        var lathe = new MachineRig(MachineProfile.Lathe, _bridge);
+        _rigs.Add(lathe);
+
+        // Inject the rig into every consumer that used to look the bridge up
+        // itself via the fixed "/root/BridgeClient" autoload path -- the
+        // actual fix that makes a second live machine (Phase B) possible.
+        GetNode<OperatorPanel>("UI/OperatorPanel").Configure(lathe);
+        GetNode<ConsoleStand>("ConsoleStand").Configure(lathe);
+        GetNode<DebugOverlay>("UI/DebugOverlay").Configure(lathe, this);
 
         _bridge.Connect(BridgeClient.SignalName.ConnectionChanged, Callable.From<bool>(OnConnectionChanged));
         _bridge.Connect(BridgeClient.SignalName.StateUpdated, Callable.From(OnConfirmedStateUpdated));
@@ -49,10 +61,16 @@ public partial class Main : Node3D
 
     private BenchmarkRunner _benchmark;
 
+    /// <summary>Main.cs's cutting logic is still lathe-specific (see PLAN.md's
+    /// Phase A scope note) -- projects the bridge's axis-generic Position/
+    /// VisualPosition down to the (radius, Z) pair LatheRadiusProfile.Sweep
+    /// and the world-position mapping actually need.</summary>
+    private static Vector2 LatheXZ(AxisVector v) => new(v.Get(AxisId.X), v.Get(AxisId.Z));
+
     private void OnConfirmedStateUpdated()
     {
         var s = _bridge.State;
-        var pos = s.Position; // CONFIRMED only -- material removal must never use predicted data
+        var pos = LatheXZ(s.Position); // CONFIRMED only -- material removal must never use predicted data
 
         if (_lastConfirmedPos is Vector2 prev)
         {
@@ -124,7 +142,7 @@ public partial class Main : Node3D
         // layer that's allowed to be "wrong" for a frame or two. Anything that
         // must never roll back (material removal, Phase 2) reads _bridge.State
         // (confirmed-only) instead, never _bridge.Prediction.
-        var pos = _bridge.Prediction.VisualPosition; // X = radius (mm), Z = along spindle (mm)
+        var pos = LatheXZ(_bridge.Prediction.VisualPosition); // X = radius (mm), Y(here) = Z along spindle (mm)
         // World units are meters (WorldScale.MmToM) throughout the scene; the
         // underlying machine data stays in mm (LinuxCNC's own units) all the
         // way up to this boundary.
@@ -159,7 +177,7 @@ public partial class Main : Node3D
             {
                 _debugPrintTimer = 0;
                 var s = _bridge.State;
-                GD.Print($"[Main] connected={_bridge.IsBridgeConnected} pos=({s.Position.X:F3},{s.Position.Y:F3}) seq={s.LastSeq}");
+                GD.Print($"[Main] connected={_bridge.IsBridgeConnected} pos=({s.Position.X:F3},{s.Position.Z:F3}) seq={s.LastSeq}");
             }
         }
     }
@@ -183,7 +201,7 @@ public partial class Main : Node3D
     {
         var s = _bridge.State;
         _statusLabel.Text = connected
-            ? $"BRIDGE CONNECTED\nX={s.Position.X:F3} Z={s.Position.Y:F3} mm\n" +
+            ? $"BRIDGE CONNECTED\nX={s.Position.X:F3} Z={s.Position.Z:F3} mm\n" +
               $"Feed={s.FeedRate:F1} Spindle={s.SpindleRpm:F0} rpm\n" +
               $"Tool T{s.ToolNumber}  Mode={s.TaskMode}  Estop={s.Estop}\n" +
               $"seq={s.LastSeq} age={_bridge.LastPacketAgeSeconds * 1000:F0} ms"

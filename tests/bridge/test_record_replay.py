@@ -10,17 +10,22 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "bridge"))
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 
-from protocol import StateSample, TaskMode, InterpState  # noqa: E402
+from protocol import AXIS_X, AXIS_Z, StateSample, TaskMode, InterpState  # noqa: E402
 import record_replay  # noqa: E402
 
 
 def _sample(seq: int) -> bytes:
+    position = [0.0] * 6
+    position[AXIS_X], position[AXIS_Z] = float(seq), -float(seq)
+    velocity = [0.0] * 6
+    velocity[AXIS_X], velocity[AXIS_Z] = 1.0, -1.0
     s = StateSample(
-        pos_x=float(seq), pos_z=-float(seq), vel_x=1.0, vel_z=-1.0, feed_rate=150.0,
+        position=tuple(position), velocity=tuple(velocity), feed_rate=150.0,
         spindle_rpm=800.0, feed_override=1.0, spindle_override=1.0, tool_number=1,
         tool_nose_radius=0.4, spindle_enabled=True, task_mode=int(TaskMode.AUTO),
         interp_state=int(InterpState.READING), exec_state=2, motion_line=seq,
-        estop=False, machine_on=True, homed_x=True, homed_z=True, in_cycle=True,
+        estop=False, machine_on=True, in_cycle=True,
+        active_axis_mask=(1 << AXIS_X) | (1 << AXIS_Z), homed_mask=(1 << AXIS_X) | (1 << AXIS_Z),
     )
     return s.pack(seq=seq)
 

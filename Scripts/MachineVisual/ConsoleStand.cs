@@ -38,6 +38,7 @@ public partial class ConsoleStand : Node3D
     private static readonly string[] PageNames = { "POSITION", "PROGRAM", "TOOL / OFFSET", "STATUS / ALARM" };
 
     private BridgeClient _bridge;
+    private (AxisId Axis, byte Joint)[] _axes = MachineProfile.Lathe.Axes; // placeholder until Configure() runs
     private Label _titleLabel;
     private Label _bodyLabel;
     private int _page;
@@ -48,12 +49,19 @@ public partial class ConsoleStand : Node3D
     public override void _Ready()
     {
         Position = BasePosition;
+        RebuildGeometry(); // editor preview + runtime's first frame, using the placeholder axes above
+    }
+
+    /// <summary>Called by Main._Ready once this rig's BridgeClient exists --
+    /// replaces the old self-lookup via the fixed "/root/BridgeClient"
+    /// autoload path. Rebuilds so the physical jog buttons always match
+    /// whichever rig this console is actually wired to, not just the
+    /// placeholder default.</summary>
+    public void Configure(MachineRig rig)
+    {
+        _bridge = rig.Bridge;
+        _axes = rig.Profile.Axes;
         RebuildGeometry();
-
-        if (Engine.IsEditorHint())
-            return; // the rest is runtime-only (needs the BridgeClient autoload)
-
-        _bridge = GetNode<BridgeClient>("/root/BridgeClient");
     }
 
     private void RebuildGeometry()
@@ -195,7 +203,11 @@ public partial class ConsoleStand : Node3D
     {
         // Real, clickable buttons (see TryPress) covering the core workflow.
         // MDI/touch-off need text entry, which stays on the 2D panel only.
-        (string label, System.Action action)[] buttons =
+        // Fixed prefix/suffix buttons, with one jog -/+ pair per this rig's
+        // actual axis list spliced in between -- the row/col grid below
+        // already adapts to whatever length this list ends up, so a
+        // machine with more axes (Phase B's mill) needs no layout change.
+        var buttons = new System.Collections.Generic.List<(string label, System.Action action)>
         {
             ("ON", () => { _bridge.ResetEstop(); _bridge.MachineOn(); }),
             ("HOME", () => _bridge.HomeAxis(0xFF)),
@@ -203,18 +215,19 @@ public partial class ConsoleStand : Node3D
             ("HOLD", () => _bridge.PauseProgram()),
             ("STOP", () => _bridge.StopProgram()),
             ("T.CHG", () => _bridge.ConfirmToolChange()),
-            ("X-", () => _bridge.JogIncremental(0, -10f, -1f)),
-            ("X+", () => _bridge.JogIncremental(0, 10f, 1f)),
-            ("Z-", () => _bridge.JogIncremental(1, -10f, -1f)),
-            ("Z+", () => _bridge.JogIncremental(1, 10f, 1f)),
-            ("RUN", () =>
-            {
-                _bridge.OpenProgram("nc_files/demo_facing_turning.ngc");
-                _bridge.RunProgram();
-            }),
         };
+        foreach (var (axis, joint) in _axes)
+        {
+            buttons.Add(($"{axis}-", () => _bridge.JogIncremental(joint, -10f, -1f)));
+            buttons.Add(($"{axis}+", () => _bridge.JogIncremental(joint, 10f, 1f)));
+        }
+        buttons.Add(("RUN", () =>
+        {
+            _bridge.OpenProgram("nc_files/demo_facing_turning.ngc");
+            _bridge.RunProgram();
+        }));
 
-        for (int i = 0; i < buttons.Length; i++)
+        for (int i = 0; i < buttons.Count; i++)
         {
             int row = i / 4, col = i % 4;
             var pos = new Vector3(-0.15f + col * 0.1f, -0.14f - row * 0.04f, 0.045f);
@@ -327,7 +340,7 @@ public partial class ConsoleStand : Node3D
         {
             0 => // POSITION -- the actual machine coordinates LinuxCNC reports, plus motion state
                 $"X  {s.Position.X,10:F4}\n" +
-                $"Z  {s.Position.Y,10:F4}\n\n" +
+                $"Z  {s.Position.Z,10:F4}\n\n" +
                 $"FEED   {s.FeedRate,8:F1} ({s.FeedOverride * 100:F0}%)\n" +
                 $"SPDL   {s.SpindleRpm,8:F0} ({s.SpindleOverride * 100:F0}%)\n" +
                 $"{(s.InCycle ? "IN CYCLE" : "IDLE")}",
@@ -345,7 +358,7 @@ public partial class ConsoleStand : Node3D
             _ => // STATUS / ALARM
                 $"ESTOP      {(s.Estop ? "*** ACTIVE ***" : "clear")}\n" +
                 $"MACHINE    {(s.MachineOn ? "ON" : "OFF")}\n" +
-                $"HOMED X/Z  {(s.HomedX ? "Y" : "n")} / {(s.HomedZ ? "Y" : "n")}\n" +
+                $"HOMED X/Z  {(s.IsHomed(AxisId.X) ? "Y" : "n")} / {(s.IsHomed(AxisId.Z) ? "Y" : "n")}\n" +
                 $"SPINDLE    {(s.SpindleEnabled ? "ON" : "off")}\n\n" +
                 $"link: seq={s.LastSeq} age={_bridge.LastPacketAgeSeconds * 1000:F0}ms",
         };

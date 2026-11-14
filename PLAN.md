@@ -639,29 +639,127 @@ no engine errors. Visual confirmation of how the rotation/animation actually
 looks still needs the user's own run via `start.ps1` -- this agent has no
 windowed session.
 
+## Phase A: N-axis, SOLID machine architecture -- foundation for mill support (2026-11-14)
+
+Before building the actual mill, generalized the entire bridge/sim stack
+from "hardcoded 2-axis lathe" to an N-axis, multi-machine-capable design per
+the user's explicit request ("sektörde kaç eksenli makina varsa hepsini
+kapsayacak şekilde OOD ve SOLID prensiplerine uygun bir tasarım yap") and
+their choice to run the mill **alongside** the lathe in the same world
+later, not a separate scene. Three research passes (wire protocol, C#
+bridge/UI layer, material-model/test fixtures) mapped every 2-axis
+assumption before touching anything -- see the approved plan's Context
+section for the full list.
+
+**Wire protocol** (`bridge/protocol.py` + `Scripts/Bridge/BridgeProtocol.cs`,
+hand-mirrored as always): `StateSample`'s `pos_x/pos_z/vel_x/vel_z` became
+fixed-capacity `position`/`velocity` (6 slots -- X,Y,Z,A,B,C, LinuxCNC's own
+axis-letter order) plus `active_axis_mask`/`homed_mask` bytes replacing
+`homed_x`/`homed_z`. Fixed capacity, not variable-length: zero framing
+complexity, and a machine with different active axes (the mill) needs zero
+protocol change. `PreviewSegment` got the same treatment. Packet grew from
+96 to 159 bytes (18-byte header + 141-byte body) -- irrelevant at 100Hz on
+loopback. `AxisId` (`CncTrainer.Bridge`, mirrored by `bridge/protocol.py`'s
+`AXIS_X..AXIS_C` constants) and `AxisVector` (a zero-allocation 6-float
+struct, same shape as Godot's own Vector2/Vector3, with `+`/`-`/`*`/
+`Length()`) replace the old lathe-only `Vector2` convention everywhere:
+`MachineState`, `PredictionModel` (the single largest "shape of the data"
+change -- it's built entirely on vector arithmetic).
+
+**`BridgeClient` is no longer a Godot autoload singleton** -- it's a plain
+node, instantiated as a child of `Main` in `Scenes/Main.tscn`, configured
+per-instance (ports, endpoint file, axes). This is the actual fix that makes
+a second live machine possible; a fixed `/root/BridgeClient` path cannot
+support two. Every consumer that used to self-lookup that fixed path
+(`Main.cs`, `OperatorPanel.cs`, `ConsoleStand.cs`, `DebugOverlay.cs`) instead
+receives its reference injected via a new `Configure(MachineRig rig)` method,
+called from `Main._Ready` once the rig exists.
+
+**New `Scripts/Machines/`**: `MachineProfile` (per-machine-type axis/joint
+descriptor -- deliberately just data, no factory callbacks yet; Phase A has
+exactly one real machine type, and a factory with one implementation to
+factor against would be speculative) and `MachineRig` (bundles one live
+machine's `BridgeClient` + `MachineProfile`). `Main.cs` holds a
+`List<MachineRig>` -- today exactly one (the lathe); Phase B's mill appends
+a second without changing this structure. **Important finding that shaped
+the design**: `IMaterialModel.Sweep`'s `SweepResult` (1D dirty-bucket
+indices, a "severed index" with no equivalent on a mill) is fundamentally a
+lathe-radius-profile concept that can't honestly represent a mill's 2D
+heightmap -- forcing both to implement one shared interface would violate
+Liskov Substitution. Left `IMaterialModel`/`LatheRadiusProfile` exactly as
+they are; `Main.cs`'s cutting logic stays explicitly lathe-specific (a small
+`LatheXZ` helper projects the new 6-axis `AxisVector` down to the
+`Vector2(radius, Z)` that code already expects) rather than being forced
+through a leaky abstraction. `ChipClassifier` needed zero changes -- it
+already only takes 3 plain scalars with no lathe-specific math in its body.
+
+**OperatorPanel/ConsoleStand's jog and home buttons now loop over the
+owning rig's axis list** instead of 4 hardcoded X/Z button literals --
+verified to produce the exact same labels/behavior for the lathe (zero
+visible change), ready for however many axes a future machine's rig
+reports. `ConsoleStand` (a `[Tool]` script that must still preview correctly
+in the editor with no bridge) builds its physical buttons once with a
+placeholder default axis list, then rebuilds via `Configure()` once the
+real rig exists, so its buttons always match whatever it's actually wired
+to.
+
+**Verified live, not just by inspection**: 36 C# tests (29 -> 36: new
+`AxisVectorTests`, updated `ProtocolCrossLanguageTests`/
+`PredictionModelTests`) + 13 Python tests (updated `test_protocol.py`,
+`test_preview.py`, `test_record_replay.py` for the new field shapes) all
+green. Then the critical check: restarted the bridge+LinuxCNC fresh, ran
+headless Godot with `CNC_DEBUG_PRINT=1` through the exact same sequence as
+the previous session's feature work -- 4 MDI tool changes (turret
+animation), then two real parting cuts producing two correctly-sized,
+correctly-massed finished parts (0.748kg/98 buckets and 0.216kg/29 buckets,
+matching the pre-refactor baseline within normal sampling noise) -- with
+zero engine errors throughout. One red herring during this check: an
+"extraction didn't fire" moment that turned out to be leftover tool state
+(T1's 0.8mm nose radius) from chaining two ad hoc test scripts in one
+LinuxCNC session, not a regression -- confirmed by a clean restart.
+
+**Explicitly deferred to Phase B**: the mill itself (3-axis LinuxCNC sim
+config, the heightmap material model, mill visuals, a mill demo program),
+and the real open risk flagged in the approved plan -- LinuxCNC's uspace
+NML/HAL uses fixed, global (not per-instance) SysV IPC keys by default, and
+this repo's own cleanup scripts (`clear_stale_shm.sh`, `linuxcnc_process.py`'s
+`pkill -x` by fixed process name) are global, not per-instance, so running
+two LinuxCNC processes as the same Linux user needs its own instance-id
+support verified working here first, before the mill's own bridge process
+is built. Not solved in Phase A; flagged so it isn't a surprise in Phase B.
+
 ---
 
 ## RESUME HERE (session closing, 2026-11-14)
 
-**Done and user-confirmed live this session**: chuck/cut-orientation fix,
-finished parts as real pickupable `RigidBody3D` objects (F key), and the
-red-cube -> real 3-station tool turret with change-indexing animation (see
-the three status sections just above this one for full detail). Branch
-`phase0-godot-bridge-client`, not pushed anywhere (no git remote configured
-yet; user chose to skip pushing for now). 29->33 C# tests and 13 Python
-tests all green as of the last commit (`bc0ba27`).
+**Done this session, Phase A only -- not yet user-confirmed live** (see the
+"Phase A" status section just above for full detail): the entire bridge/sim
+stack generalized from hardcoded-2-axis to N-axis/SOLID (new wire protocol,
+`AxisId`/`AxisVector`, de-singletoned `BridgeClient`, `MachineRig`/
+`MachineProfile`), with the existing lathe migrated through it. Verified
+live by this agent (headless Godot + real bridge, same tool-change/parting
+sequence as the previous session, zero engine errors, same masses/bucket
+counts as the pre-refactor baseline) -- but the user has NOT yet run this
+themselves via `start.ps1`. **Ask for that confirmation before building
+anything further on top of this** (especially before Phase B, which builds
+directly on this architecture). Branch `phase0-godot-bridge-client`, not
+pushed (no remote configured; user's choice to skip pushing for now).
+36 C# tests + 13 Python tests all green as of the last commit before this
+note.
 
-**Next, in the order the user picked ("3 ve 1'i yapalım")**:
-1. **Mill support** -- a second machine type. `IMaterialModel` was already
-   abstracted for this (`LatheRadiusProfile` implements it now; a future
-   `HeightmapMillModel` was the placeholder named back in Phase 2). Needs:
-   a mill LinuxCNC sim config (3-axis, not 2-axis lathe), the heightmap
-   material model itself, and new machine-body visuals (a mill looks
-   nothing like a lathe). Not started at all yet -- no code, no config.
-2. **Training/scenario mode** -- exercises, mistake detection (crash/wrong-
-   speed/etc.), scoring/time tracking. Not started at all yet. This is the
-   one piece of "operator training" the brief's own name promises that
-   doesn't exist yet (everything else so far is the simulator itself).
+**Next, in the order the user picked ("3 ve 1'i yapalım"), now that Phase A
+exists**:
+1. **Phase B -- the mill itself.** A 3-axis LinuxCNC sim config, a
+   heightmap-based material model (deliberately NOT `IMaterialModel`/
+   `LatheRadiusProfile` -- see Phase A's note on why that would violate
+   LSP), new mill machine-body visuals, a mill demo G-code program, wired
+   up as a second `MachineRig` alongside the lathe in the same scene. Has a
+   real open risk flagged in Phase A's notes (LinuxCNC multi-instance IPC)
+   that needs a spike/verification before the mill's own bridge process is
+   built -- do that first, not last.
+2. **Training/scenario mode** -- exercises, mistake detection, scoring/time
+   tracking. Not started at all yet. The one piece of "operator training"
+   the project's own name promises that doesn't exist yet.
 
 **Known environment constraint, not a code gap**: this agent has no
 windowed Godot session in this environment, only `--headless` + driving

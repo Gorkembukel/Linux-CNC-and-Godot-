@@ -1,5 +1,3 @@
-using Godot;
-
 namespace CncTrainer.Bridge;
 
 /// <summary>
@@ -11,8 +9,8 @@ namespace CncTrainer.Bridge;
 /// </summary>
 public class MachineState
 {
-    public Vector2 Position; // X, Z in mm, machine coordinates
-    public Vector2 Velocity;
+    public AxisVector Position; // machine coordinates, mm/deg depending on axis
+    public AxisVector Velocity;
     public double FeedRate;
     public double SpindleRpm;
     public float FeedOverride = 1.0f;
@@ -26,20 +24,23 @@ public class MachineState
     public int MotionLine;
     public bool Estop;
     public bool MachineOn;
-    public bool HomedX, HomedZ;
+    public byte ActiveAxisMask, HomedMask;
     public bool InCycle;
 
     public ulong LastSeq;
     public long LastTMonoNs;
     public ulong SampleCount;
 
+    public bool IsHomed(AxisId axis) => (HomedMask & (1 << (int)axis)) != 0;
+    public bool HasAxis(AxisId axis) => (ActiveAxisMask & (1 << (int)axis)) != 0;
+
     public void ApplyState(PacketHeader header, StateSample s)
     {
         if (SampleCount > 0 && header.Seq <= LastSeq)
             return; // stale/reordered packet, ignore
 
-        Position = new Vector2((float)s.PosX, (float)s.PosZ);
-        Velocity = new Vector2((float)s.VelX, (float)s.VelZ);
+        Position = s.Position;
+        Velocity = s.Velocity;
         FeedRate = s.FeedRate;
         SpindleRpm = s.SpindleRpm;
         FeedOverride = s.FeedOverride;
@@ -53,8 +54,8 @@ public class MachineState
         MotionLine = s.MotionLine;
         Estop = s.Estop;
         MachineOn = s.MachineOn;
-        HomedX = s.HomedX;
-        HomedZ = s.HomedZ;
+        ActiveAxisMask = s.ActiveAxisMask;
+        HomedMask = s.HomedMask;
         InCycle = s.InCycle;
 
         LastSeq = header.Seq;
