@@ -15,10 +15,6 @@ run/main_scene="res://Scenes/Main.tscn"
 config/features=PackedStringArray("4.7", "C#", "Forward Plus")
 config/icon="res://icon.svg"
 
-[editor_plugins]
-
-enabled=PackedStringArray("res://addons/cnc_machine_generator/plugin.cfg")
-
 [display]
 
 window/size/viewport_width=1920
@@ -29,6 +25,10 @@ window/stretch/aspect="expand"
 [dotnet]
 
 project/assembly_name="Linux"
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/cnc_machine_generator/plugin.cfg")
 
 [physics]
 

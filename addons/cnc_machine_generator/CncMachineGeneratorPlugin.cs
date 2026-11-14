@@ -27,13 +27,26 @@ public partial class CncMachineGeneratorPlugin : EditorPlugin
 
     public override void _EnterTree()
     {
-        _dock = new EditorDock { Title = "Machine Generator", DefaultSlot = EditorDock.DockSlot.RightUl };
+        // Its own, normally empty slot (below the Inspector) rather than a
+        // fourth tab beside Inspector/Signals/Groups: there it overflowed
+        // the narrow tab bar and was reported as "the dock doesn't show".
+        _dock = new EditorDock
+        {
+            Title = "Machine Generator",
+            LayoutKey = "cnc_machine_generator",
+            DefaultSlot = EditorDock.DockSlot.RightBl,
+        };
         _dock.AddChild(BuildDock());
         AddDock(_dock);
+        _dock.MakeVisible();
+        AddToolMenuItem(ToolMenuName, Callable.From(() => _dock.MakeVisible()));
     }
+
+    private const string ToolMenuName = "CNC Machine Generator";
 
     public override void _ExitTree()
     {
+        RemoveToolMenuItem(ToolMenuName);
         RemoveDock(_dock);
         _dock.QueueFree();
     }

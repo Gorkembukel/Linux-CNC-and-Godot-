@@ -1,0 +1,109 @@
+%
+( DEMO PROGRAM - KONI + M20x2.5 DIS CEKME )
+( Kutuk: 50mm capinda silindirik malzeme, aynadan cikinti 80mm )
+( Z0 = alin tornalanmis uc yuzey, eksi Z aynaya dogru gider )
+( X ekseni YARICAP modundadir - G8, LinuxCNC varsayilani )
+( Hedef Parca: Ucta R10mm / Cap 20mm -> Z-40'da R25mm / Cap 50mm koni )
+(              Z-40 ile Z-62 arasi M20x2.5 silindirik dis bolgesi )
+( T1 = Kaba kalemi, T2 = Finis kalemi, T3 = 3mm Keski, T4 = Dis kalemi )
+
+G21         ( metrik )
+G8          ( X ekseni yaricap modu )
+G18         ( XZ duzlemi )
+G90         ( mutlak koordinat sistemi )
+
+T1 M6       ( kaba kalemi cagir )
+G43 H1
+S800 M3     ( fener mili 800 dev/dak )
+G54
+
+( --- alin tornalama --- )
+G0 X26.0 Z2.0
+G1 Z0.0 F150
+G1 X-0.5 F80
+G0 Z2.0
+
+( --- 1. ASAMA: DIS CEKILECEK SILINDIRIK FATURAYI KABA BOSALTMA --- )
+( Koni Z-40'da bitecek, Z-40 ile Z-62 arasi M20 icin R10.0'a inecek )
+G0 X22.0 Z2.0
+G1 Z-62.0 F150
+G0 X26.0 Z2.0
+G0 X19.0
+G1 Z-62.0 F150
+G0 X26.0 Z2.0
+G0 X16.0
+G1 Z-62.0 F150
+G0 X26.0 Z2.0
+G0 X13.0
+G1 Z-62.0 F150
+G0 X26.0 Z2.0
+G0 X10.3
+G1 Z-62.0 F150
+G0 X26.0 Z2.0
+
+( --- 2. ASAMA: KONI PROFILINI KABA BOSALTMA (Z0 -> Z-40) --- )
+G0 X22.0 Z2.0
+G1 Z-32.0 F150
+G0 X26.0 Z2.0
+G0 X19.0
+G1 Z-24.0 F150
+G0 X26.0 Z2.0
+G0 X16.0
+G1 Z-16.0 F150
+G0 X26.0 Z2.0
+G0 X13.0
+G1 Z-8.0 F150
+G0 X26.0 Z2.0
+
+( Kaba koni on finis pasosu - 0.3mm pay )
+G0 X10.3 Z2.0
+G1 Z0.0 F150
+G1 X25.3 Z-40.0 F120
+G0 X26.0 Z5.0
+
+( --- takim degisimi: finis kalemi --- )
+M5
+T2 M6
+G43 H2
+S1200 M3
+
+( --- finis pasosu: koni + M20 dis ustu capi + dis dibi bosaltma --- )
+G0 X10.0 Z2.0
+G1 Z0.0 F100
+G1 X25.0 Z-40.0 F80       ( tam koni yuzeyi )
+G1 X10.0 Z-40.0 F80       ( koni tabanina dik inis )
+G1 Z-58.0 F80             ( M20 dis ustu yaricapi: R10.0mm )
+G1 X8.3 Z-58.0 F60        ( dis kalemi cikis kanali / relief groove )
+G1 Z-64.0 F80             ( keski kalemi icin bosluk )
+G0 X26.0
+G0 Z5.0
+
+( --- takim degisimi: 60 derece metrik dis kalemi --- )
+M5
+T4 M6
+G43 H4
+S400 M3                   ( dis cekme icin dusuk devir: 400 rpm )
+
+( --- M20x2.5 DIS CEKME CEVRIMI - LinuxCNC G76 --- )
+( Hatve P=2.5mm, baslangic Z-37.0'dan bitis Z-59.0'a )
+( Dis ustu yaricapi X10.0, dis dibi derinligi K=1.534mm [yaricapta] )
+G0 X12.0 Z-37.0           ( emniyetli baslangic konumu )
+G76 P2.5 Z-59.0 I-2.0 J0.25 K1.534 R1.5 Q29.5 H2 E1.5 L2
+G0 X26.0
+G0 Z5.0
+
+( --- takim degisimi: keski kalemi --- )
+M5
+T3 M6
+G43 H3
+S600 M3
+
+( --- Z-62 noktasindan parcayi koparma --- )
+G0 X26.0 Z-62.0
+G1 X-0.5 F40
+G0 X26.0
+
+M5                        ( fener mili durdur )
+G0 X30.0 Z5.0
+M2                        ( program sonu )
+%
