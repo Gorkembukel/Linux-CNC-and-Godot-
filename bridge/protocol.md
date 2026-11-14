@@ -111,3 +111,11 @@ u8  ok
 u16 text_len
 u8[text_len] text    (error message if ok == 0)
 ```
+
+## SUBSCRIBE packet (Godot -> bridge), packet_type = 18
+
+Header only, no payload. Godot sends it once a second from its STATE socket
+to the bridge command port; the bridge then sends the STATE stream to that
+packet source address, out of the command socket. This makes the stream a
+reply to outbound traffic, which stateful firewalls pass without an inbound
+rule.

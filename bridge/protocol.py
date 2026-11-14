@@ -30,6 +30,7 @@ class PacketType(IntEnum):
     PREVIEW = 3
     COMMAND = 16
     ACK = 17
+    SUBSCRIBE = 18
 
 
 class TaskMode(IntEnum):

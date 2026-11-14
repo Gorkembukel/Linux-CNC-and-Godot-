@@ -111,6 +111,7 @@ public partial class BridgeClient : Node
 
     public override void _Process(double delta)
     {
+        SubscribeToStateStream(delta);
         DrainStatePackets();
 
         double ageMs = Time.GetTicksMsec() - _lastPacketMsec;
@@ -124,6 +125,25 @@ public partial class BridgeClient : Node
 
         Prediction.Update(Time.GetTicksUsec() / 1_000_000.0, delta);
     }
+
+    // The bridge sends its state stream back to the source address of this
+    // packet. Sent from the state socket itself, so a stateful firewall
+    // treats the incoming stream as replies and needs no inbound rule.
+    private void SubscribeToStateStream(double delta)
+    {
+        _subscribeCountdown -= delta;
+        if (_subscribeCountdown > 0)
+            return;
+        _subscribeCountdown = 1.0;
+
+        using var ms = new MemoryStream();
+        using var w = new BinaryWriter(ms);
+        new PacketHeader((byte)PacketType.Subscribe, 0, DateTime.UtcNow.Ticks).Write(w);
+        _stateSocket.SetDestAddress(CommandHost, CommandPort);
+        _stateSocket.PutPacket(ms.ToArray());
+    }
+
+    private double _subscribeCountdown;
 
     private void DrainStatePackets()
     {

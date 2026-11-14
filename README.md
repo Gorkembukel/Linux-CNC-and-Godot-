@@ -32,10 +32,11 @@ port, even its non-realtime "uspace" mode needs a real Linux kernel.
    wsl -d Ubuntu -- sudo apt-get install -y linuxcnc-uspace linuxcnc-uspace-dev python3-pip git build-essential
    ```
 
-3. **Windows Firewall rule** (required — WSL2's `vEthernet (WSL)` adapter has
-   inbound UDP blocked by default, which silently drops the bridge's entire
-   position stream with no error on either side). In an **elevated**
-   PowerShell:
+3. **Windows Firewall rule** (optional fallback — the state stream now
+   arrives as replies to Godot's own outbound SUBSCRIBE packets, which a
+   stateful firewall lets through without any inbound rule; see the
+   networking section below). Only needed if a firewall on your machine
+   does not track UDP replies. In an **elevated** PowerShell:
    ```
    New-NetFirewallRule -DisplayName "Godot CNC Bridge" -Direction Inbound -Protocol UDP -LocalPort 9200,9201 -Action Allow -Profile Any
    ```
@@ -66,7 +67,7 @@ window; there's no separate bridge window to watch or close by hand anymore.
 reads "BRIDGE DISCONNECTED" until it connects on its own.
 
 If you want to watch the bridge's own live output while debugging (instead
-of its log file, `bridge/bridge_session.log`) or pass different bridge
+of its log file, `bridge/bridge_session_<MachineName>.log`) or pass different bridge
 flags, see "Manual startup" below — but don't also run `start.ps1`/Godot at
 the same time: Godot will start (and the cleanup step it runs first will
 disrupt) its own copy regardless, which isn't what you want while watching
@@ -118,9 +119,17 @@ dotnet build Linux.csproj
 
 ## How the networking works (read this before debugging connection issues)
 
-- **Bridge → Godot** (position/state stream, 9200/udp): the bridge discovers
-  the Windows host's address on the WSL2 virtual network itself (`ip route`'s
-  default gateway) and sends there. Godot just listens on `0.0.0.0:9200`.
+- **Bridge → Godot** (position/state stream): once a second Godot sends a
+  SUBSCRIBE packet from its state socket to the bridge's command port, and
+  the bridge sends the state stream back to that packet's source address,
+  out of the command socket. To a stateful firewall the stream is a reply
+  to Godot's own traffic, so it passes with no inbound rule — unsolicited
+  WSL → Windows UDP was found blocked by a third-party firewall (Kaspersky)
+  that ignores Windows Firewall rules entirely. Until the first SUBSCRIBE
+  arrives the bridge falls back to sending to the Windows host's address
+  (`ip route`'s default gateway) on the state port.
+- **Ports per machine**: all WSL distros share one network address, so each
+  machine needs its own pair — lathe 9200/9201, mill 9202/9203.
 - **Godot → bridge** (commands, 9201/udp): WSL2's usual "a socket in the VM is
   reachable from Windows at `127.0.0.1`" **does not work for UDP** on at least
   some WSL2 builds (confirmed the hard way during development). So instead,

@@ -31,6 +31,7 @@ public partial class ConsoleStand : Node3D
     [Export] public Vector3 BasePosition = new(-0.15f, WorldScale.FloorY, 0.5f);
     [Export] public float PostHeight = 0.95f;
     [Export] public float PanelTiltDegrees = -25f;
+    [Export] public string DemoProgram = "nc_files/demo_facing_turning.ngc";
 
     private const int ScreenPixelWidth = 420;
     private const int ScreenPixelHeight = 252;
@@ -51,6 +52,8 @@ public partial class ConsoleStand : Node3D
     public override void _Ready()
     {
         Position = BasePosition;
+        if (!Engine.IsEditorHint())
+            AddToGroup("console_stands");
         RebuildGeometry(); // editor preview + runtime's first frame, using the placeholder axes above
     }
 
@@ -225,7 +228,7 @@ public partial class ConsoleStand : Node3D
         }
         buttons.Add(("RUN", () =>
         {
-            _bridge.OpenProgram("nc_files/demo_facing_turning.ngc");
+            _bridge.OpenProgram(DemoProgram);
             _bridge.RunProgram();
         }));
 
@@ -341,8 +344,7 @@ public partial class ConsoleStand : Node3D
         _bodyLabel.Text = _page switch
         {
             0 => // POSITION -- the actual machine coordinates LinuxCNC reports, plus motion state
-                $"X  {s.Position.X,10:F4}\n" +
-                $"Z  {s.Position.Z,10:F4}\n\n" +
+                AxisLines(s) + "\n" +
                 $"FEED   {s.FeedRate,8:F1} ({s.FeedOverride * 100:F0}%)\n" +
                 $"SPDL   {s.SpindleRpm,8:F0} ({s.SpindleOverride * 100:F0}%)\n" +
                 $"{(s.InCycle ? "IN CYCLE" : "IDLE")}",
@@ -360,10 +362,26 @@ public partial class ConsoleStand : Node3D
             _ => // STATUS / ALARM
                 $"ESTOP      {(s.Estop ? "*** ACTIVE ***" : "clear")}\n" +
                 $"MACHINE    {(s.MachineOn ? "ON" : "OFF")}\n" +
-                $"HOMED X/Z  {(s.IsHomed(AxisId.X) ? "Y" : "n")} / {(s.IsHomed(AxisId.Z) ? "Y" : "n")}\n" +
+                $"HOMED      {HomedSummary(s)}\n" +
                 $"SPINDLE    {(s.SpindleEnabled ? "ON" : "off")}\n\n" +
                 $"link: seq={s.LastSeq} age={_bridge.LastPacketAgeSeconds * 1000:F0}ms",
         };
+    }
+
+    private string AxisLines(MachineState s)
+    {
+        string text = "";
+        foreach (var (axis, _) in _axes)
+            text += $"{axis}  {s.Position.Get(axis),10:F4}\n";
+        return text;
+    }
+
+    private string HomedSummary(MachineState s)
+    {
+        string text = "";
+        foreach (var (axis, _) in _axes)
+            text += $"{axis}:{(s.IsHomed(axis) ? "Y" : "n")} ";
+        return text;
     }
 
     private static void SetLed(StandardMaterial3D mat, bool on) =>

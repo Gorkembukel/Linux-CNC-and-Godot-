@@ -850,7 +850,7 @@ real editor window.
 
 ---
 
-## RESUME HERE (session closing, 2026-11-14)
+## Earlier resume note (2026-11-14) -- superseded by the RESUME HERE at the end of this file
 
 **Phase A done and user-confirmed live** (see the "Phase A" status section
 just above for full detail): the entire bridge/sim stack generalized from
@@ -959,3 +959,89 @@ assuming it from a clean headless run.
 
 ---
 *Phase 0 environment approved implicitly by the user proceeding with the WSL fix; "do all phases, don't stop" given 2026-11-13.*
+
+## Phase B, first slice: a live 3-axis mill next to the lathe (2026-11-14)
+
+**Bridge side**
+- `bridge/main.py --ini <file>` picks the INI inside `linuxcnc-config/`
+  (default `sim_lathe.ini`); the joint->axis map for the homed mask is read
+  from that INI (`[TRAJ] COORDINATES`) instead of being hardcoded lathe X/Z.
+  `deploy.sync_linuxcnc_config` takes the INI name.
+- New `linuxcnc-config/sim_mill.ini` (XYZ trivkins, Z homes first and parks
+  at Z=50), `sim_mill.tbl` (T1 10mm, T2 6mm flat end mills, D = diameter),
+  `nc_files/demo_mill_pocket.ngc` (face pass, 50x30 pocket, circular
+  channel, four corner holes). Origin = centre of the stock top face.
+- "Distro-aware deploy.py/linuxcnc_process.py" turned out to be unnecessary:
+  those run INSIDE the distro, each distro has its own home and /tmp. Only
+  the INI name needed parametrizing. Both distros share ONE network address
+  (same WSL2 VM), so `bridge/.bridge_endpoint` can stay a single shared
+  file, but ports must differ per machine: lathe 9200/9201, mill 9202/9203.
+
+**Real environment bug found and fixed: state stream blocked by Kaspersky.**
+At the start of this session NO state packets reached Windows at all, lathe
+included (plain UDP listener on 9200 got nothing; the Windows Firewall rule
+was present and enabled). This machine runs Kaspersky Security Cloud as its
+firewall product, which ignores Windows Firewall rules and drops unsolicited
+WSL -> Windows UDP. Replies to an outbound socket DO pass (verified both
+ways with raw sockets). Fix: new SUBSCRIBE packet (type 18). BridgeClient
+sends it once a second from its state socket to the bridge command port;
+the bridge sends the state stream to that source address out of the command
+socket. No inbound firewall rule is needed any more, for any number of
+machines. Why it worked earlier the same day is unknown (not investigated).
+
+**Godot side**
+- `Scripts/Material/MillHeightmap.cs` -- height grid (0.5mm) cut by a flat
+  end mill; exact swept-disc test per node (handles plunges, slots, ramps).
+  Deliberately separate from `IMaterialModel` (see Phase A note on LSP).
+  7 unit tests in `tests/MillHeightmapTests.cs`.
+- `Scripts/Material/MillStockVisual.cs` -- chunked grid mesh (40x40 cells
+  per chunk, direct ArrayMesh arrays, side walls on the outer edge).
+- `Scripts/MachineVisual/MillBody.cs` -- primitive gantry mill: stock fixed,
+  beam = machine Y, carriage = X, quill = Z. Local axes: X = machine X,
+  Y up = machine Z, Z = -machine Y.
+- `Scripts/Machines/MillMachine.cs` + `Scenes/Machines/Mill.tscn`, instanced
+  in `Main.tscn` at x = +1.6m. Same five launch exports as the lathe plus
+  `IniFile` (also added to `LatheMachine`), so the generator plugin can use
+  either scene as a template.
+- `IMachine` (Rig + StopBackingProcess): `Main` now stops every machine on
+  window close. `MachineProfile.IniFile`; bridge log is now per machine
+  (`bridge/bridge_session_<Name>.log`).
+- `ConsoleStand`: axis readout/homed line follow the rig axis list, new
+  `DemoProgram` export; registers in group `console_stands` and the player
+  now interacts with whichever console is nearest.
+
+**Verified by this agent (headless Godot + both real bridges)**: both
+machines start and connect on their own; a driven slot cut removed 958 mm3
+in Godot vs 957 analytic; the full demo program ran to the end (212 s at
+150% feed) with 23.3 cm3 removed vs ~23.2 expected, zero engine errors, no
+disconnects. 43 C# tests + 13 Python tests green.
+
+**NOT verified -- needs the user in a real window**: how the mill, the cut
+stock and chips actually look; walking to the mill console and pressing
+ON / HOME / RUN there; closing the window stops both machines.
+
+**Known gaps left on purpose**
+- The 2D operator panel, debug overlay and status label are still wired to
+  the lathe only; the mill is driven from its 3D console.
+- `StatePublisher` sends `stat.feedrate` (the override scale, ~1.0) as
+  `feed_rate`; lathe chip classification uses it. The mill derives feed
+  from confirmed velocity instead. Not changed for the lathe -- it would
+  alter user-confirmed chip behaviour; decide with the user.
+- `ConsoleStand._Ready` sets `Position = BasePosition`, so moving the node
+  in the editor has no effect at runtime (the lathe scene has such a move).
+- G-code preview is still X/Z only. No tool-length offsets on the mill.
+- The mill tool change completed without a T.CHG confirm in the driven run;
+  not investigated.
+
+---
+
+## RESUME HERE (2026-11-14, after Phase B first slice)
+
+Branch `phase0-godot-bridge-client`, no remote. Read the Phase B section
+just above. Next:
+1. Ask the user to run `start.ps1` and confirm the mill visually (see the
+   NOT verified list above), then fix whatever looks wrong.
+2. Decide with the user: point the 2D panel / overlay at the nearest
+   machine, and whether to fix the lathe `feed_rate` field.
+3. Training/scenario mode (exercises, mistake detection, scoring) -- still
+   not started.

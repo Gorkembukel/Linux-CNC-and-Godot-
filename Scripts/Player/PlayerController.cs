@@ -97,7 +97,6 @@ public partial class PlayerController : CharacterBody3D
         crosshair.OffsetLeft = crosshair.OffsetTop = -8;
         crosshair.OffsetRight = crosshair.OffsetBottom = 8;
 
-        _consoleStand = GetTree().Root.FindChild("ConsoleStand", true, false) as ConsoleStand;
         _operatorPanel = GetTree().Root.FindChild("OperatorPanel", true, false) as Control;
 
         Input.MouseMode = Input.MouseModeEnum.Captured;
@@ -275,9 +274,14 @@ public partial class PlayerController : CharacterBody3D
 
     private void UpdateConsoleProximity()
     {
+        _consoleStand = null;
+        foreach (var node in GetTree().GetNodesInGroup("console_stands"))
+            if (node is ConsoleStand stand && (_consoleStand == null ||
+                GlobalPosition.DistanceTo(stand.GlobalPosition) < GlobalPosition.DistanceTo(_consoleStand.GlobalPosition)))
+                _consoleStand = stand;
         if (_consoleStand == null)
             return;
-        bool inRange = GlobalPosition.DistanceTo(_consoleStand.GlobalPosition) <= InteractRange;
+        bool inRange =GlobalPosition.DistanceTo(_consoleStand.GlobalPosition) <= InteractRange;
         if (inRange != _atConsole)
         {
             _atConsole = inRange;

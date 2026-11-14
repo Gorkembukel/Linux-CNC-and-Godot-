@@ -29,8 +29,8 @@ public static class MachineProcessController
         {
             RunWsl(profile.WslDistro, $"bash {wslRoot}/bridge/clear_stale_shm.sh", waitMs: 10000);
 
-            string logPath = $"{wslRoot}/bridge/bridge_session.log";
-            string startCmd = $"python3 -u {wslRoot}/bridge/main.py --rate-hz {profile.RateHz} " +
+            string logPath = $"{wslRoot}/bridge/bridge_session_{profile.Name}.log";
+            string startCmd = $"python3 -u {wslRoot}/bridge/main.py --ini {profile.IniFile} --rate-hz {profile.RateHz} " +
                                $"--state-port {profile.StatePort} --command-port {profile.CommandPort} " +
                                $"> {logPath} 2>&1";
             StartWslFireAndForget(profile.WslDistro, startCmd);

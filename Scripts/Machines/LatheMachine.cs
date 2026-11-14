@@ -21,13 +21,14 @@ namespace CncTrainer;
 /// set of parameters the machine-scene-generator editor plugin fills in
 /// when it creates a new machine scene from this one as a template.
 /// </summary>
-public partial class LatheMachine : Node3D
+public partial class LatheMachine : Node3D, IMachine
 {
     [Export] public string MachineName = "Lathe";
     [Export] public string WslDistro = "Ubuntu";
     [Export] public int StatePort = 9200;
     [Export] public int CommandPort = 9201;
     [Export] public double RateHz = 100.0;
+    [Export] public string IniFile = "sim_lathe.ini";
     [Export] public MaterialKind StockMaterial = MaterialKind.Steel;
 
     public MachineRig Rig { get; private set; }
@@ -62,7 +63,7 @@ public partial class LatheMachine : Node3D
 
         _material = _workpiece.Profile; // built in WorkpieceVisual's own _Ready(), which runs before this (children before parent)
 
-        var profile = new MachineProfile(MachineName, LatheAxes, WslDistro, StatePort, CommandPort, RateHz);
+        var profile = new MachineProfile(MachineName, LatheAxes, WslDistro, StatePort, CommandPort, RateHz, IniFile);
         Rig = new MachineRig(profile, _bridge);
 
         // Godot owns this machine's backing LinuxCNC/bridge process now --

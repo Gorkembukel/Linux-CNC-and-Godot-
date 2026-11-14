@@ -14,6 +14,7 @@ public enum PacketType : byte
     Preview = 3,
     Command = 16,
     Ack = 17,
+    Subscribe = 18,
 }
 
 public enum TaskMode : byte { Manual = 0, Auto = 1, Mdi = 2 }

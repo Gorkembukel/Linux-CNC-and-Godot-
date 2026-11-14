@@ -2,7 +2,7 @@
 STATE publisher and COMMAND server until killed (Ctrl+C / SIGTERM).
 
 Usage (inside WSL2 Ubuntu, with linuxcnc-uspace installed):
-    python3 bridge/main.py [--rate-hz 250]
+    python3 bridge/main.py [--ini sim_mill.ini] [--rate-hz 250]
 """
 from __future__ import annotations
 
@@ -31,14 +31,19 @@ REPO_CONFIG_DIR = REPO_ROOT / "linuxcnc-config"
 
 def main() -> int:
     ap = argparse.ArgumentParser()
+    ap.add_argument("--ini", default="sim_lathe.ini", help="INI file name inside linuxcnc-config/")
     ap.add_argument("--rate-hz", type=float, default=250.0)
     ap.add_argument("--state-port", type=int, default=STATE_PORT)
     ap.add_argument("--command-port", type=int, default=COMMAND_PORT)
     args = ap.parse_args()
 
     print(f"[bridge] syncing config from {REPO_CONFIG_DIR} to native WSL filesystem...")
-    ini_path = sync_linuxcnc_config(str(REPO_CONFIG_DIR))
+    ini_path = sync_linuxcnc_config(str(REPO_CONFIG_DIR), args.ini)
     print(f"[bridge] native ini: {ini_path}")
+
+    # trivkins assigns joints in the order the axis letters are listed.
+    coordinates = linuxcnc.ini(ini_path).find("TRAJ", "COORDINATES").split()
+    joint_axis_map = tuple((joint, "XYZABC".index(letter)) for joint, letter in enumerate(coordinates))
 
     dest_ip = discover_windows_host_ip()
     print(f"[bridge] Windows host (state stream destination): {dest_ip}")
@@ -64,12 +69,21 @@ def main() -> int:
         cmd = linuxcnc.command()
         stat.poll()
 
-        state_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        publisher = StatePublisher(stat, state_sock, (dest_ip, args.state_port), rate_hz=args.rate_hz)
-
         command_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         command_sock.bind(("0.0.0.0", args.command_port))
-        server = CommandServer(stat, cmd, command_sock)
+
+        # State goes out of the command socket, to whichever address last
+        # sent a SUBSCRIBE to it: a stateful firewall on the Windows side
+        # then sees the stream as replies to Godot's own outbound packets
+        # and lets it through with no inbound rule. The gateway address is
+        # only the destination until the first SUBSCRIBE arrives.
+        publisher = StatePublisher(stat, command_sock, (dest_ip, args.state_port), rate_hz=args.rate_hz,
+                                   joint_axis_map=joint_axis_map)
+
+        def retarget(addr):
+            publisher.dest_addr = addr
+
+        server = CommandServer(stat, cmd, command_sock, on_subscribe=retarget)
 
         command_thread = threading.Thread(target=server.run_forever, args=(stop_event.is_set,), daemon=True)
         command_thread.start()

@@ -1,0 +1,31 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://Scripts/Bridge/BridgeClient.cs" id="1"]
+[ext_resource type="Script" path="res://Scripts/Material/MillStockVisual.cs" id="2"]
+[ext_resource type="Script" path="res://Scripts/MachineVisual/MillBody.cs" id="3"]
+[ext_resource type="Script" path="res://Scripts/MachineVisual/ConsoleStand.cs" id="4"]
+[ext_resource type="Script" path="res://Scripts/Chips/ChipSpawner.cs" id="5"]
+[ext_resource type="Script" path="res://Scripts/Machines/MillMachine.cs" id="6"]
+
+[node name="Mill" type="Node3D"]
+script = ExtResource("6")
+
+[node name="BridgeClient" type="Node" parent="."]
+script = ExtResource("1")
+StatePort = 9202
+CommandPort = 9203
+
+[node name="Stock" type="Node3D" parent="."]
+script = ExtResource("2")
+
+[node name="MillBody" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="ConsoleStand" type="Node3D" parent="."]
+script = ExtResource("4")
+BasePosition = Vector3(-0.6, -1.1, 0.45)
+DemoProgram = "nc_files/demo_mill_pocket.ngc"
+
+[node name="ChipSpawner" type="Node3D" parent="."]
+script = ExtResource("5")
+FloorWorldY = -0.03

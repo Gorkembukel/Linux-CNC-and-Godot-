@@ -21,7 +21,7 @@ from protocol import AXIS_X, AXIS_Z, MotionType  # noqa: E402
 
 @pytest.fixture(scope="module")
 def running_machine():
-    ini_path = sync_linuxcnc_config(str(CONFIG_DIR))
+    ini_path = sync_linuxcnc_config(str(CONFIG_DIR), "sim_lathe.ini")
     with LinuxCNCProcess(ini_path) as proc:
         stat = linuxcnc.stat()
         stat.poll()

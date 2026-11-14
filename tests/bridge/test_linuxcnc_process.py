@@ -17,7 +17,7 @@ from linuxcnc_process import LinuxCNCProcess  # noqa: E402
 
 
 def test_start_stop_lifecycle_is_clean():
-    ini_path = sync_linuxcnc_config(str(CONFIG_DIR))
+    ini_path = sync_linuxcnc_config(str(CONFIG_DIR), "sim_lathe.ini")
     proc = LinuxCNCProcess(ini_path)
     proc.start()
     try:
@@ -32,7 +32,7 @@ def test_start_stop_lifecycle_is_clean():
 
 
 def test_home_and_jog_both_axes():
-    ini_path = sync_linuxcnc_config(str(CONFIG_DIR))
+    ini_path = sync_linuxcnc_config(str(CONFIG_DIR), "sim_lathe.ini")
     with LinuxCNCProcess(ini_path) as proc:
         stat = linuxcnc.stat()
         cmd = linuxcnc.command()

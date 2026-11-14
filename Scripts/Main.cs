@@ -51,7 +51,9 @@ public partial class Main : Node3D
             return;
         _shutdownStarted = true;
 
-        _lathe.StopBackingProcess();
+        foreach (var child in GetChildren())
+            if (child is IMachine machine)
+                machine.StopBackingProcess();
 
         GetTree().Quit();
     }

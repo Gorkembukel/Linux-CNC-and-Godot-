@@ -19,10 +19,11 @@ _JOG_STOP = linuxcnc.JOG_STOP
 
 
 class CommandServer:
-    def __init__(self, stat, cmd, sock: socket.socket):
+    def __init__(self, stat, cmd, sock: socket.socket, on_subscribe=None):
         self.stat = stat
         self.cmd = cmd
         self.sock = sock
+        self.on_subscribe = on_subscribe
         self._highest_client_seq: dict[int, int] = {}
         self._ack_seq = 0
         self._lock = threading.Lock()
@@ -34,6 +35,10 @@ class CommandServer:
 
     def handle_packet(self, data: bytes, addr) -> None:
         packet_type, seq, t_mono_ns, hlen = unpack_header(data)
+        if packet_type == PacketType.SUBSCRIBE:
+            if self.on_subscribe:
+                self.on_subscribe(addr)
+            return
         if packet_type != PacketType.COMMAND:
             return
         command = Command.unpack(data[hlen:])

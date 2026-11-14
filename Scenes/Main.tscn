@@ -6,6 +6,7 @@
 [ext_resource type="Script" uid="uid://b0e3etxia5dtm" path="res://Scripts/CameraController.cs" id="6"]
 [ext_resource type="PackedScene" uid="uid://ct7xvxnqqr4e5" path="res://Scenes/Machines/Lathe.tscn" id="11"]
 [ext_resource type="PackedScene" uid="uid://ddlr61u8q7x3p" path="res://Scenes/Player.tscn" id="12"]
+[ext_resource type="PackedScene" path="res://Scenes/Machines/Mill.tscn" id="13"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_floor"]
 size = Vector3(6, 0.1, 6)
@@ -43,6 +44,9 @@ shape = SubResource("BoxShape3D_floor")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.15, -1.1, 1.3)
 
 [node name="Lathe" parent="." unique_id=535766212 instance=ExtResource("11")]
+
+[node name="Mill" parent="." instance=ExtResource("13")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.6, 0, 0)
 
 [node name="UI" type="CanvasLayer" parent="." unique_id=1928220117]
 

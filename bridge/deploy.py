@@ -22,13 +22,13 @@ from pathlib import Path
 NATIVE_ROOT = Path.home() / "godot-cnc-trainer"
 
 
-def sync_linuxcnc_config(repo_config_dir: str) -> str:
+def sync_linuxcnc_config(repo_config_dir: str, ini_name: str) -> str:
     """Copies repo_config_dir (expected to be the /mnt/c/... linuxcnc-config
     directory) to NATIVE_ROOT/linuxcnc-config, overwriting it, and returns the
-    path to the native copy's sim_lathe.ini."""
+    path to the native copy's `ini_name`."""
     src = Path(repo_config_dir).resolve()
     dest = NATIVE_ROOT / "linuxcnc-config"
     if dest.exists():
         shutil.rmtree(dest)
     shutil.copytree(src, dest)
-    return str(dest / "sim_lathe.ini")
+    return str(dest / ini_name)
