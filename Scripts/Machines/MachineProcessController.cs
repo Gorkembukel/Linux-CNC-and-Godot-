@@ -66,10 +66,10 @@ public static class MachineProcessController
     {
         try
         {
-            RunWsl(profile.WslDistro, "pkill -SIGTERM -f bridge/main.py", waitMs: 5000);
+            RunWsl(profile.WslDistro, "pkill -SIGTERM -f '[b]ridge/main.py'", waitMs: 5000);
             RunWsl(profile.WslDistro,
                 "pkill -9 -x linuxcncsvr; pkill -9 -x milltask; pkill -9 -x rtapi_app; " +
-                "pkill -9 -f bridge/main.py; true",
+                "pkill -9 -f '[b]ridge/main.py'; true",
                 waitMs: 5000);
             string wslRoot = GetWslProjectPath();
             RunWsl(profile.WslDistro, $"bash {wslRoot}/bridge/clear_stale_shm.sh", waitMs: 10000);

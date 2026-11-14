@@ -8,16 +8,16 @@ namespace CncTrainer;
 /// <summary>
 /// Phase 1/5 debug overlay: predicted vs. confirmed position, an error-magnitude
 /// graph, stream jitter / command RTT, and (Phase 5) frame time + per-priority
-/// scheduler budgets/queue lengths/drops. Self-contained -- add as a Control
-/// node anywhere in a scene; it finds the BridgeClient autoload and the Main
-/// scene root itself.
+/// scheduler budgets/queue lengths/drops. Lives in the workshop's UI canvas
+/// (Scenes/Main.tscn); gets its bridge/scheduler injected via Configure()
+/// from whichever machine the workshop wires it to.
 /// </summary>
 public partial class DebugOverlay : Control
 {
     [Export] public bool Enabled = true;
 
     private BridgeClient _bridge;
-    private Main _main;
+    private JobScheduler _scheduler;
     private Label _label;
     private Control _graph;
 
@@ -40,11 +40,15 @@ public partial class DebugOverlay : Control
 
     /// <summary>Called by Main._Ready once this rig's BridgeClient exists --
     /// replaces the old self-lookup via the fixed "/root/BridgeClient"
-    /// autoload path, which a second live machine (Phase B) can't support.</summary>
-    public void Configure(MachineRig rig, Main main)
+    /// autoload path, which a second live machine (Phase B) can't support.
+    /// Takes the scheduler directly (not a whole Main/LatheMachine
+    /// reference) -- that's the only thing SchedulerReport actually needs,
+    /// and the scheduler now lives on whichever machine scene owns it, not
+    /// on the workshop's own root.</summary>
+    public void Configure(MachineRig rig, JobScheduler scheduler)
     {
         _bridge = rig.Bridge;
-        _main = main;
+        _scheduler = scheduler;
     }
 
     public override void _Input(InputEvent @event)
@@ -78,7 +82,7 @@ public partial class DebugOverlay : Control
 
     private string SchedulerReport()
     {
-        var s = _main.Scheduler;
+        var s = _scheduler;
         double fps = Engine.GetFramesPerSecond();
         var sb = new System.Text.StringBuilder();
         sb.AppendLine($"--- scheduler --- fps={fps:F0}  frame={1000.0 / System.Math.Max(fps, 0.001):F2} ms");

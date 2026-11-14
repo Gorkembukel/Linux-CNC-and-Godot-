@@ -18,7 +18,9 @@ namespace CncTrainer.Panel;
 public partial class OperatorPanel : Control
 {
     private BridgeClient _bridge;
-    private (AxisId Axis, byte Joint)[] _axes = MachineProfile.Lathe.Axes; // placeholder until Configure() runs
+    // Placeholder until Configure() runs; matches a lathe's real axes, same
+    // as LatheMachine's own.
+    private (AxisId Axis, byte Joint)[] _axes = { (AxisId.X, (byte)0), (AxisId.Z, (byte)1) };
 
     private Label _modeStatusLabel;
     private Label _toolChangeLabel;

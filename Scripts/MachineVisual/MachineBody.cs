@@ -4,16 +4,17 @@ namespace CncTrainer;
 
 /// <summary>
 /// Brief section 1 ("look like a real machine") + user request: a primitive-
-/// built lathe body (floor, bed/cabinet, headstock, chuck, carriage) since no
-/// suitable CC0/CC-BY model was found (see ASSETS.md for the search).
+/// built lathe body (bed/cabinet, headstock, chuck, carriage+turret) since no
+/// suitable CC0/CC-BY model was found (see ASSETS.md for the search). The
+/// floor/ground is the workshop's (Scenes/Main.tscn), not this one
+/// machine's -- see that scene's own static "Floor" node.
 ///
 /// [Tool]: runs in the EDITOR too, not just at play time -- a plain runtime
 /// script only generates its meshes once the game actually runs, so opening
 /// the scene in the editor showed nothing at all ("editörden bakınca bir
 /// anlamı yok" -- exactly right, and the reason for this attribute). Anything
-/// that needs the running game (the BridgeClient autoload) is guarded by
-/// Engine.IsEditorHint() so it only runs at play time; the geometry itself
-/// builds either way.
+/// that needs the running game is guarded by Engine.IsEditorHint() so it
+/// only runs at play time; the geometry itself builds either way.
 ///
 /// World units are meters (see WorldScale.cs) -- this was mm-scale before,
 /// which is incompatible with any future human-scale character controller
@@ -62,14 +63,10 @@ public partial class MachineBody : Node3D
         var machineGreen = Mat(new Color(0.15f, 0.35f, 0.22f), metallic: 0.2f, rough: 0.6f); // common machine-tool paint
         var darkGray = Mat(new Color(0.22f, 0.23f, 0.25f), metallic: 0.5f, rough: 0.6f);
         var chuckMetal = Mat(new Color(0.55f, 0.56f, 0.58f), metallic: 0.85f, rough: 0.3f);
-        var floorMat = Mat(new Color(0.35f, 0.35f, 0.37f), metallic: 0.05f, rough: 0.9f);
 
-        // Floor: a human (planned: FP/TP controller) needs something to stand
-        // on and collide with. Large flat slab, top surface at WorldScale.FloorY.
-        AddStaticBox(
-            size: new Vector3(6f, 0.1f, 6f),
-            center: new Vector3(0f, WorldScale.FloorY - 0.05f, 0f),
-            material: floorMat, name: "Floor");
+        // The floor now lives in the workshop (Scenes/Main.tscn's own
+        // static "Floor" node) rather than here -- it's shared ground, not
+        // part of any one machine, now that a machine is its own scene.
 
         // Bed/cabinet: one box from the floor up to just below the spindle
         // centerline -- doubles as the machine's stand, simplifying geometry

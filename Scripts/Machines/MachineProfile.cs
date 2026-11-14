@@ -7,10 +7,10 @@ namespace CncTrainer.Bridge;
 /// Deliberately just data (no factory callbacks for a material model/visual
 /// body yet): Phase A has exactly one real machine type, and adding factory
 /// hooks with only one implementation to factor against would be
-/// speculative. Phase B's mill adds its own MachineProfile instance; the
-/// list this lives in (see Main.cs's `_rigs`) is the actual Open/Closed
-/// extension point -- adding a machine means appending to that list, not
-/// editing this class.
+/// speculative. Built from a machine scene's own [Export] fields now (see
+/// LatheMachine.cs) rather than a hardcoded static instance -- that's what
+/// lets the machine-scene-generator editor plugin parametrize a new
+/// machine scene by just filling in a form.
 /// </summary>
 public sealed class MachineProfile
 {
@@ -37,8 +37,4 @@ public sealed class MachineProfile
         CommandPort = commandPort;
         RateHz = rateHz;
     }
-
-    public static readonly MachineProfile Lathe = new("Lathe",
-        new[] { (AxisId.X, (byte)0), (AxisId.Z, (byte)1) },
-        wslDistro: "Ubuntu", statePort: 9200, commandPort: 9201, rateHz: 100.0);
 }

@@ -38,7 +38,9 @@ public partial class ConsoleStand : Node3D
     private static readonly string[] PageNames = { "POSITION", "PROGRAM", "TOOL / OFFSET", "STATUS / ALARM" };
 
     private BridgeClient _bridge;
-    private (AxisId Axis, byte Joint)[] _axes = MachineProfile.Lathe.Axes; // placeholder until Configure() runs
+    // Placeholder until Configure() runs (editor preview + the first runtime
+    // frame); matches a lathe's real axes, same as LatheMachine's own.
+    private (AxisId Axis, byte Joint)[] _axes = { (AxisId.X, (byte)0), (AxisId.Z, (byte)1) };
     private Label _titleLabel;
     private Label _bodyLabel;
     private int _page;

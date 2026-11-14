@@ -797,6 +797,56 @@ nothing running and nothing stale behind. 36 C# tests + 13 Python tests
 still green. **Not yet verified by the user**: the actual
 `_Notification(NotificationWMCloseRequest)` path specifically needs a real
 windowed run + closing the window, which this agent cannot do.
+(Update: the user ran it and confirmed it works -- "tamam çalışıyor".)
+
+## Scene split (workshop / machine / player) + machine-scene generator plugin (2026-11-14)
+
+User ask, before adding anything new: stop keeping everything flat in
+`Main.tscn`. Now:
+
+- `Scenes/Machines/Lathe.tscn` -- the lathe as its own scene (BridgeClient,
+  Workpiece, MachineBody, ConsoleStand, ChipSpawner, Parts), root script
+  `Scripts/Machines/LatheMachine.cs`, which took over everything
+  lathe-specific that used to sit in `Main.cs` (cutting/chip/part-extraction
+  logic, scheduler, benchmark hook, its own backing-process start). Its
+  `[Export]`s (`MachineName`/`WslDistro`/`StatePort`/`CommandPort`/`RateHz`)
+  replace the old hardcoded `MachineProfile.Lathe` (removed).
+- `Scenes/Player.tscn` -- the player as its own scene (no script changes).
+- `Scenes/Main.tscn` is the workshop: camera, light, a plain static `Floor`
+  (moved out of `MachineBody.cs`, which no longer builds it), the UI canvas,
+  and instances of the two scenes above. `Main.cs` shrank to wiring the
+  workshop UI to `lathe.Rig`, the status label, and the shutdown fan-out.
+- `DebugOverlay.Configure` now takes the `JobScheduler` directly and
+  `BenchmarkRunner` takes a plain `Node` -- neither needs `Main` anymore.
+- `addons/cnc_machine_generator/` -- editor plugin (enabled in
+  `project.godot`), one dock: template scene + name/distro/ports/rate ->
+  writes `Scenes/Machines/<Name>.tscn`. Refuses to overwrite. Uses
+  `Node.Set(name, value)`, so any machine root script exposing the same
+  five exports works as a template. Uses Godot 4.7's `EditorDock`/`AddDock`
+  (the older `AddControlToDock` is deprecated there).
+
+**Found while verifying the generator, fixed**: a generated scene's
+`BridgeClient` child kept its default 9200/9201 ports, so a machine
+generated on other ports would start its bridge there and never hear it
+(`BridgeClient` binds in its own `_Ready()`, before the machine root's).
+The plugin now writes the ports onto the `BridgeClient` child too.
+
+**Also fixed**: `StopBackingProcess`'s pkill pattern is now
+`'[b]ridge/main.py'` -- in a compound command, a plain `-f bridge/main.py`
+also matches (and kills) the very `bash -lc` running the sweep.
+
+**Still open for a second live machine** (Phase B, not solved here):
+`bridge/main.py` always writes the one fixed `bridge/.bridge_endpoint`
+file and always deploys `linuxcnc-config/`; a second machine needs both
+parametrized, and the generator can't do that from the Godot side.
+
+**Verified by this agent**: 36 C# tests green; headless game run after the
+split gives the same three part extractions as before (0.069kg/10,
+0.748kg/98, 0.216kg/29), no engine errors; the generator's exact
+Load/Instantiate/Set/Pack/Save sequence run headless produces a scene that
+loads back with the right values; the editor starts headless with the
+plugin enabled and no errors. **Not verified**: clicking the dock in a
+real editor window.
 
 ---
 

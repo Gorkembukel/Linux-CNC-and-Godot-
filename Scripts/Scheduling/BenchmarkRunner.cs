@@ -18,7 +18,7 @@ namespace CncTrainer;
 /// </summary>
 public class BenchmarkRunner
 {
-    private readonly Main _main;
+    private readonly Node _owner;
     private readonly LatheRadiusProfile _material;
     private readonly WorkpieceVisual _workpiece;
     private readonly ChipSpawner _chips;
@@ -30,10 +30,10 @@ public class BenchmarkRunner
     private float _sweepZ;
     private readonly ChipFormation _heavyFormation;
 
-    public BenchmarkRunner(Main main, LatheRadiusProfile material, WorkpieceVisual workpiece,
+    public BenchmarkRunner(Node owner, LatheRadiusProfile material, WorkpieceVisual workpiece,
         ChipSpawner chips, Scheduling.JobScheduler scheduler)
     {
-        _main = main;
+        _owner = owner;
         _material = material;
         _workpiece = workpiece;
         _chips = chips;
@@ -83,6 +83,6 @@ public class BenchmarkRunner
                   $"Low dropped={_scheduler.DroppedCount[Scheduling.JobPriority.Low]}");
         GD.Print("[Benchmark] DONE");
 
-        _main.GetTree().Quit();
+        _owner.GetTree().Quit();
     }
 }
