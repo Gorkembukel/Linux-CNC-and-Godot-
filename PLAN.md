@@ -371,6 +371,21 @@ status sections above; this is just the index)
     command as ONE string argument to `bash -lc "..."`, e.g.
     `wsl.exe -d Ubuntu -- bash -lc "python3 -u /mnt/c/.../main.py"` -- this
     is the pattern used everywhere above and it isn't affected.
+15. `/usr/bin/linuxcnc` (the installed system launcher, not anything in
+    this repo) refuses to run a second concurrent instance on the same WSL
+    distro -- not a shared-memory/NML-key collision (tried giving each its
+    own `.nml` file with distinct keys first; made no difference), but a
+    single, globally fixed `LOCKFILE=/tmp/linuxcnc.lock` the script checks
+    on every headless start: if one's already there, it assumes a crashed
+    leftover and kills whatever's running before starting itself. `/tmp` is
+    one filesystem shared by every user on a distro, so a second Linux user
+    doesn't escape it either -- only a genuinely separate WSL distro (its
+    own filesystem) does. Fixed by installing a second distro
+    (`Ubuntu-26.04`, matching the original's version -- confirmed 24.04
+    does NOT carry the `linuxcnc-uspace` package, 26.04 does) for the
+    mill's own LinuxCNC instance; empirically verified two concurrent
+    instances across the two distros don't interfere with each other at
+    all. See the "Phase A" status section above for the full trail.
 
 ## Phase 4 (operator panel) -- confirmed working live, end to end (2026-11-13)
 
@@ -762,30 +777,55 @@ superficial `stat.poll()` against the old connection still returned
 plausible-looking numbers afterward, which is itself a trap -- don't take
 "it didn't throw" as proof of health; check the actual process list.)
 
-**Concrete fix path identified, not yet built or verified**: give each
-machine's config its own `.nml` file (a copy of the default with distinct
-numeric keys per buffer) and point to it via `[EMC] NML_FILE` in that
-machine's own INI. Still unverified: whether the deeper HAL/RTAPI motion
-shared memory (`DEFAULT_SHMEM_KEY=100` in
-`/usr/include/linuxcnc/emcmotcfg.h`, a different layer than NML, no INI-level
-override found by inspection) also needs a matching fix, or whether uspace's
-"simulated realtime" keeps that per-process rather than truly shared. The
-honest alternative, if the per-instance-NML-file fix doesn't fully resolve
-it: run the mill's LinuxCNC instance as a second WSL2 Linux user (or a
-second WSL distro entirely), sidestepping shared-key collisions altogether
-at the cost of a second bridge-deployment path to maintain. **This choice
-needs the user's input before Phase B's bridge-side work starts** -- it
-changes `deploy.py`/`linuxcnc_process.py`'s shape either way.
+**Tried the per-instance `.nml`-file fix first (per the user's own
+preference) -- it did NOT work.** Gave the copied config its own `.nml`
+file with every buffer's numeric key shifted (1001-1005 -> 2001-2005) and
+pointed to it via `[EMC] NML_FILE`. Instance 1's `linuxcncsvr` still died
+the moment instance 2 started -- identical symptom as before. Reading the
+actual failure log (`linuxcnc_bridge.log`) revealed the REAL root cause,
+unrelated to NML/shared-memory keys entirely: `/usr/bin/linuxcnc` (the
+system launcher script itself, not anything in this repo) checks a single,
+globally fixed `LOCKFILE=/tmp/linuxcnc.lock` on every headless start, and
+when it finds one already present, it assumes that's a crashed leftover
+and **actively kills whatever's already running** before starting itself.
+This isn't a resource collision we can configure around from the INI side
+at all -- it's deliberate behavior in the installed launcher. Confirmed by
+inspecting `/usr/bin/linuxcnc` directly (`grep -n LOCKFILE`).
+
+**Why this also rules out "separate Linux user, same WSL distro"**: `/tmp`
+is one filesystem shared by every user on a given WSL distro, so a second
+user would hit the exact same `/tmp/linuxcnc.lock`. Only a genuinely
+separate WSL distro (its own filesystem, its own `/tmp`) escapes it.
+
+**Installed and empirically verified a second, fully separate WSL distro**
+(user's choice, after seeing this): `Ubuntu-26.04`, installed to
+`E:\WSL\Ubuntu-26.04-Mill` (not C: -- disk space was tight, ~9GB free, user
+chose E:), `linuxcnc-uspace` installed via `apt` (same package, same
+`resolute/universe` repo as the original "Ubuntu" distro -- note
+**Ubuntu 24.04 does NOT carry this package**, confirmed by trying it first
+and finding nothing in its repos; 26.04 does), a `gorke` user set as
+`/etc/wsl.conf`'s default. **Proof, not just theory**: started a LinuxCNC
+instance in the original "Ubuntu" distro, homed it, moved it to a specific
+position (12.345, -6.789), then started a second instance in
+`Ubuntu-26.04` concurrently, homed it, moved IT to a different position
+(99.0, -88.0) -- instance 1's full process set (`linuxcncsvr`/`io`/
+`halui`/`milltask`) stayed alive and untouched throughout, and reported
+exactly 12.345/-6.789 right up to being cleanly stopped afterward. Full
+process isolation confirmed; this is the mill's isolation strategy, settled.
 
 **Next, in the order the user picked ("3 ve 1'i yapalım"), now that Phase A
-exists**:
-1. **Phase B -- the mill itself.** A 3-axis LinuxCNC sim config, a
-   heightmap-based material model (deliberately NOT `IMaterialModel`/
-   `LatheRadiusProfile` -- see Phase A's note on why that would violate
-   LSP), new mill machine-body visuals, a mill demo G-code program, wired
-   up as a second `MachineRig` alongside the lathe in the same scene. The
-   multi-instance isolation strategy above must be picked and verified
-   working before the mill's own bridge process is built, not after.
+exists and the isolation strategy is proven**:
+1. **Phase B -- the mill itself.** A 3-axis LinuxCNC sim config (deployed
+   to and run from the new `Ubuntu-26.04` distro), a heightmap-based
+   material model (deliberately NOT `IMaterialModel`/`LatheRadiusProfile`
+   -- see Phase A's note on why that would violate LSP), new mill
+   machine-body visuals, a mill demo G-code program, a second bridge
+   process (own ports, own `.bridge_endpoint`-equivalent file) talking to a
+   second `MachineRig` in the same Godot scene as the lathe. `deploy.py`/
+   `linuxcnc_process.py`/`clear_stale_shm.sh` need to become
+   distro-aware (which `wsl.exe -d <name>` to shell out through) rather
+   than assuming the one default distro -- not done yet, next concrete
+   step.
 2. **Training/scenario mode** -- exercises, mistake detection, scoring/time
    tracking. Not started at all yet. The one piece of "operator training"
    the project's own name promises that doesn't exist yet.
