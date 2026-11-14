@@ -14,7 +14,6 @@ public partial class Main : Node3D
     [Export] public MaterialKind StockMaterial = MaterialKind.Steel;
 
     private BridgeClient _bridge;
-    private MeshInstance3D _toolCube;
     private Label _statusLabel;
     private WorkpieceVisual _workpiece;
     private MachineBody _machineBody;
@@ -33,7 +32,6 @@ public partial class Main : Node3D
     public override void _Ready()
     {
         _bridge = GetNode<BridgeClient>("/root/BridgeClient");
-        _toolCube = GetNode<MeshInstance3D>("ToolCube");
         _statusLabel = GetNode<Label>("UI/StatusLabel");
         _workpiece = GetNode<WorkpieceVisual>("Workpiece");
         _machineBody = GetNode<MachineBody>("MachineBody");
@@ -131,8 +129,8 @@ public partial class Main : Node3D
         // underlying machine data stays in mm (LinuxCNC's own units) all the
         // way up to this boundary.
         var toolWorldPos = new Vector3(pos.Y, pos.X, 0f) * WorldScale.MmToM;
-        _toolCube.Position = toolWorldPos;
         _machineBody.UpdateCarriage(toolWorldPos.X);
+        _machineBody.UpdateTool(toolWorldPos.Y, _bridge.State.ToolNumber, delta);
 
         _timeSinceLastCut += delta;
         if (_timeSinceLastCut > 0.2) // tool left the material: stop spawning shortly after

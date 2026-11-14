@@ -36,7 +36,15 @@ public partial class MachineBody : Node3D
     [Export] public float BedFarEndWorldX = -0.45f;
     [Export] public float BedNearEndWorldX = 0.15f;
 
+    private const int StationCount = 3; // matches linuxcnc-config/sim_lathe.tbl's T1/T2/T3 exactly -- no speculative empty station
+    [Export] public float TurretToolReachMm = 45f; // distance from turret center to a tool's insert tip
+    [Export] public float TurretIndexSpeedDegPerSec = 240f;
+
     private MeshInstance3D _carriage;
+    private Node3D _turret;
+    private float _turretIndexAngleDeg = 180f; // station 0 starts active (tool 1), matching _turretTargetAngleDeg so it doesn't spin on the very first frame
+    private float _turretTargetAngleDeg = 180f;
+    private int _lastToolNumber = -1;
 
     public override void _Ready()
     {
@@ -105,10 +113,11 @@ public partial class MachineBody : Node3D
         AddChild(chuck);
 
         // Carriage: rides the bed, repositioned along X every frame to track
-        // the tool's Z position (see UpdateCarriage) -- a simplification
-        // (doesn't model the cross-slide's own separate radial motion).
-        // Decorative only; small and keeps pace with the tool, not worth
-        // colliding against.
+        // the tool's Z position (see UpdateCarriage). Decorative only; small
+        // and keeps pace with the tool, not worth colliding against. Carries
+        // the turret (below), which DOES now model the cross-slide's radial
+        // motion -- the carriage box itself still doesn't move in Y, only
+        // the turret riding on it does.
         _carriage = new MeshInstance3D
         {
             Mesh = new BoxMesh { Size = new Vector3(0.05f, 0.06f, 0.12f) },
@@ -117,6 +126,66 @@ public partial class MachineBody : Node3D
             Position = new Vector3(0f, bedTopY + 0.03f, 0f),
         };
         AddChild(_carriage);
+
+        BuildTurret(darkGray);
+    }
+
+    /// <summary>Real tool turret, replacing the old flat "red cube" tool
+    /// marker: a small indexing disc (child of the carriage, so it inherits
+    /// the carriage's X/Z tracking) with one station per real tool in
+    /// sim_lathe.tbl, each a fixed shank+insert built once here and never
+    /// touched again -- only the turret's own transform animates per frame
+    /// (see UpdateTool). T1/T2 (turning tools) get different insert colors
+    /// so the active one reads at a glance; T3 gets a wider insert, matching
+    /// its "3mm wide" parting-tool note in sim_lathe.tbl.</summary>
+    private void BuildTurret(Godot.Material shankMaterial)
+    {
+        const float turretBodyRadius = 0.035f;
+        float reachWorld = TurretToolReachMm * WorldScale.MmToM;
+
+        _turret = new Node3D { Name = "Turret", RotationDegrees = new Vector3(_turretIndexAngleDeg, 0f, 0f) };
+        _carriage.AddChild(_turret);
+
+        _turret.AddChild(new MeshInstance3D
+        {
+            Mesh = new CylinderMesh { TopRadius = turretBodyRadius, BottomRadius = turretBodyRadius, Height = 0.03f },
+            MaterialOverride = shankMaterial,
+            // CylinderMesh's axis is Y by default; rotate so its indexing
+            // axis points along world X (the spindle axis), same pattern as
+            // the chuck cylinder above.
+            RotationDegrees = new Vector3(0f, 0f, 90f),
+        });
+
+        (Color insertColor, float shankWidthMm, float insertSizeMm)[] stations =
+        {
+            (new Color(0.85f, 0.65f, 0.2f), 10f, 6f),  // T1 roughing -- amber carbide-look insert
+            (new Color(0.3f, 0.8f, 0.9f), 8f, 5f),     // T2 finishing -- cyan, visually distinct from T1
+            (new Color(0.9f, 0.9f, 0.95f), 6f, 10f),   // T3 parting -- wider insert (it's the 3mm-wide parting tool)
+        };
+
+        for (int i = 0; i < stations.Length; i++)
+        {
+            var (insertColor, shankWidthMm, insertSizeMm) = stations[i];
+            var pivot = new Node3D { RotationDegrees = new Vector3(i * (360f / StationCount), 0f, 0f) };
+            _turret.AddChild(pivot);
+
+            float shankWidth = shankWidthMm * WorldScale.MmToM;
+            float shankLength = reachWorld - turretBodyRadius;
+            pivot.AddChild(new MeshInstance3D
+            {
+                Mesh = new BoxMesh { Size = new Vector3(shankWidth, shankLength, shankWidth) },
+                MaterialOverride = shankMaterial,
+                Position = new Vector3(0f, turretBodyRadius + shankLength / 2f, 0f),
+            });
+
+            float insertSize = insertSizeMm * WorldScale.MmToM;
+            pivot.AddChild(new MeshInstance3D
+            {
+                Mesh = new BoxMesh { Size = new Vector3(shankWidth, insertSize, shankWidth) },
+                MaterialOverride = Mat(insertColor, metallic: 0.3f, rough: 0.3f),
+                Position = new Vector3(0f, reachWorld - insertSize / 2f, 0f),
+            });
+        }
     }
 
     /// <summary>Call every frame (play mode only) with the tool's current world-X (= machine Z).</summary>
@@ -125,6 +194,46 @@ public partial class MachineBody : Node3D
         if (_carriage == null)
             return;
         _carriage.Position = new Vector3(toolWorldX, _carriage.Position.Y, 0f);
+    }
+
+    /// <summary>Call every frame (play mode only) with the tool's current
+    /// world-Y (= machine X / radius) and the bridge's reported tool
+    /// number. Indexes the turret toward whichever tool is active and keeps
+    /// the turret's own Y such that the active station's insert lands
+    /// exactly on toolTipWorldY, at any radius/retract distance -- the role
+    /// a real cross-slide plays (see BuildTurret's doc comment).</summary>
+    public void UpdateTool(float toolTipWorldY, int toolNumber, double delta)
+    {
+        if (_turret == null)
+            return;
+
+        if (toolNumber != _lastToolNumber && toolNumber >= 1 && toolNumber <= StationCount)
+        {
+            _lastToolNumber = toolNumber;
+            _turretTargetAngleDeg = TargetIndexAngleDeg(toolNumber, StationCount);
+        }
+
+        _turretIndexAngleDeg = StepAngleToward(_turretIndexAngleDeg, _turretTargetAngleDeg, TurretIndexSpeedDegPerSec * (float)delta);
+        _turret.RotationDegrees = new Vector3(_turretIndexAngleDeg, 0f, 0f);
+
+        float reachWorld = TurretToolReachMm * WorldScale.MmToM;
+        _turret.Position = new Vector3(0f, toolTipWorldY + reachWorld, 0f);
+    }
+
+    /// <summary>Rotate the turret so station (toolNumber-1)%stationCount's
+    /// fixed local +Y direction (where its insert sits) ends up pointing
+    /// world -Y (toward the centerline). Pure math (Godot.Mathf only, no
+    /// engine objects) -- unit-testable without the engine, same pattern as
+    /// LatheRadiusProfile/WorkpiecePartBuilder.</summary>
+    public static float TargetIndexAngleDeg(int toolNumber, int stationCount) =>
+        180f - ((toolNumber - 1) % stationCount) * (360f / stationCount);
+
+    /// <summary>Rate-limited step from `current` toward `target`, taking the
+    /// shorter way around the 0/360 wrap.</summary>
+    public static float StepAngleToward(float current, float target, float maxStepDeg)
+    {
+        float diff = Mathf.Wrap(target - current, -180f, 180f);
+        return current + Mathf.Clamp(diff, -maxStepDeg, maxStepDeg);
     }
 
     private void AddStaticBox(Vector3 size, Vector3 center, Godot.Material material, string name)

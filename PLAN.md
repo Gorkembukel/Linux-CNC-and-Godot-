@@ -597,5 +597,37 @@ confirmed it looks right -- the chuck's new position and the finished-part
 pickup/carry both hold up in practice, not just in the headless/MDI smoke
 test above.
 
+## Real tool turret replaces the "red cube" (2026-11-14)
+
+Before starting mill support, fixed another user-reported realism gap: the
+tool was a plain red cube, teleporting instantly on a tool change with no
+sense of a real magazine. `MachineBody.cs` gained a 3-station turret (one
+per real tool in `sim_lathe.tbl`: T1 roughing/amber insert, T2
+finishing/cyan insert, T3 parting/wider insert matching its 3mm-wide note),
+mounted on the existing `_carriage` so it inherits the carriage's Z
+tracking for free.
+
+Two things animate every frame in the new `MachineBody.UpdateTool`: the
+turret's rotation rate-limits toward whichever station matches the bridge's
+current `ToolNumber` (a real "change motion" instead of an instant swap),
+and the turret's own Y position tracks `toolTipWorldY + TurretToolReachMm`
+so the active (fixed-length) tool's insert lands exactly on the real tip at
+any radius/retract distance -- this also removes the carriage's old "doesn't
+model the cross-slide's own radial motion" caveat, since the turret now
+does. The two small angle formulas (target angle from tool number;
+rate-limited step) are pulled out as pure-math `public static` methods,
+unit-tested the same way `LatheRadiusProfile`'s math is.
+
+`ToolCube` (the old flat marker, plus its now-unused mesh/material
+sub-resources) removed from `Scenes/Main.tscn`; `Main.cs` now calls
+`_machineBody.UpdateTool(...)` instead of positioning it directly.
+
+Verified live against the real bridge (headless Godot, `CNC_DEBUG_PRINT=1`):
+drove 4 MDI tool changes (T1->T2->T3->T1, each confirmed via the existing
+`iocontrol.0.tool-changed` halcmd pulse) plus a retract/approach jog, with
+no engine errors. Visual confirmation of how the rotation/animation actually
+looks still needs the user's own run via `start.ps1` -- this agent has no
+windowed session.
+
 ---
 *Phase 0 environment approved implicitly by the user proceeding with the WSL fix; "do all phases, don't stop" given 2026-11-13.*
