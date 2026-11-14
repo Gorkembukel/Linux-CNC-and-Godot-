@@ -21,7 +21,7 @@ public partial class Main : Node3D
     public override void _Ready()
     {
         foreach (var child in GetChildren())
-            if (child is IMachine machine)
+            if (child is IMachine { Rig: not null } machine)
                 _machines.Add(machine);
 
         _statusLabel = GetNode<Label>("UI/StatusLabel");

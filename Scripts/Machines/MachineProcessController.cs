@@ -13,6 +13,8 @@ namespace CncTrainer.Bridge;
 /// </summary>
 public static class MachineProcessController
 {
+    private static readonly System.Collections.Generic.Dictionary<string, string> MachineByDistro = new();
+
     /// <summary>Cleans stale IPC (synchronous, fast -- same step `start.ps1`
     /// used to run first) then launches `bridge/main.py` for this profile,
     /// fire-and-forget. Not awaited: BridgeClient already tolerates "not
@@ -24,6 +26,15 @@ public static class MachineProcessController
     /// window `start.ps1` used to open.</summary>
     public static void StartBackingProcess(MachineProfile profile)
     {
+        // /usr/bin/linuxcnc kills whatever instance already runs in the same
+        // distro, so a second machine there would take the first one down.
+        if (!MachineByDistro.TryAdd(profile.WslDistro, profile.Name))
+        {
+            GD.PrintErr($"[MachineProcessController] '{profile.Name}' not started: another machine already runs in " +
+                        $"WSL distro '{profile.WslDistro}' (LinuxCNC allows one instance per distro).");
+            return;
+        }
+
         string wslRoot = GetWslProjectPath();
         try
         {
@@ -64,6 +75,9 @@ public static class MachineProcessController
     /// of trying to fix the exact WSL process-teardown race.</summary>
     public static void StopBackingProcess(MachineProfile profile)
     {
+        if (!MachineByDistro.TryGetValue(profile.WslDistro, out string owner) || owner != profile.Name)
+            return;
+        MachineByDistro.Remove(profile.WslDistro);
         try
         {
             RunWsl(profile.WslDistro, "pkill -SIGTERM -f '[b]ridge/main.py'", waitMs: 5000);

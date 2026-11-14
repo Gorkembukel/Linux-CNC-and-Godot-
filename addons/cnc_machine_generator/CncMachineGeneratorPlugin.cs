@@ -1,37 +1,39 @@
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.RegularExpressions;
 using Godot;
+using CncTrainer.Spec;
 
 namespace CncTrainer.Addons;
 
 /// <summary>
-/// Editor plugin: generates a new machine scene from an existing one in
-/// Scenes/Machines used as a template, filling in the launch parameters
-/// every machine root script exports (MachineName / WslDistro / StatePort /
-/// CommandPort / RateHz). Everything else (INI file, demo program, visuals)
-/// comes from the template. Uses Node.Get/Set by name rather than a
-/// specific script type, so any machine scene works as a template.
+/// Editor dock that designs a machine as a MachineSpec (axes, travels,
+/// tools, sizes, physical build) starting from a preset, shows it live, and
+/// generates its scene in Scenes/Machines plus its LinuxCNC configuration.
 /// </summary>
 [Tool]
 public partial class CncMachineGeneratorPlugin : EditorPlugin
 {
-    private const string MachinesDir = "res://Scenes/Machines";
+    private const string SpecsDir = "res://Machines/Specs";
     private const string ToolMenuName = "CNC Machine Generator";
-    private const float MachineSpacing = 1.6f;
+    private const float MachineSpacing = 2.5f;
 
-    private readonly record struct MachineInfo(string Path, string Name, string Distro, int StatePort, int CommandPort, double RateHz);
+    private readonly record struct ExistingMachine(string File, string Name, string Distro, int StatePort, int CommandPort);
 
     private EditorDock _dock;
-    private OptionButton _templateSelect;
-    private LineEdit _nameInput;
-    private LineEdit _distroInput;
-    private SpinBox _statePortInput;
-    private SpinBox _commandPortInput;
-    private SpinBox _rateHzInput;
+    private OptionButton _presetSelect;
+    private readonly List<System.Func<MachineSpec>> _presetFactories = new();
+    private EditorInspector _inspector;
+    private ProceduralMachine _preview;
+    private Camera3D _previewCamera;
+    private float _orbitYaw = 0.6f, _orbitPitch = 0.35f, _orbitDistance = 3.5f;
+    private Label _problemsLabel, _statusLabel;
     private CheckBox _addToSceneCheck;
-    private Label _statusLabel;
-    private List<MachineInfo> _machines = new();
+    private Button _generateButton;
+
+    private MachineSpec _draft;
+    private string _checkedFingerprint;
+    private double _checkTimer;
+    private List<ExistingMachine> _existing = new();
 
     public override void _EnterTree()
     {
@@ -48,7 +50,8 @@ public partial class CncMachineGeneratorPlugin : EditorPlugin
         AddDock(_dock);
         _dock.MakeVisible();
         AddToolMenuItem(ToolMenuName, Callable.From(() => _dock.MakeVisible()));
-        RefreshMachines();
+        RefreshPresets();
+        LoadPreset(0);
     }
 
     public override void _ExitTree()
@@ -63,188 +66,252 @@ public partial class CncMachineGeneratorPlugin : EditorPlugin
         var root = new VBoxContainer { Name = "Machine Generator" };
         root.AddThemeConstantOverride("separation", 4);
 
-        var templateRow = new HBoxContainer();
-        _templateSelect = new OptionButton { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-        _templateSelect.ItemSelected += _ => ApplyTemplateDefaults();
-        templateRow.AddChild(_templateSelect);
-        var refreshButton = new Button { Text = "Refresh", TooltipText = "Re-read the machine scenes in Scenes/Machines" };
-        refreshButton.Pressed += RefreshMachines;
-        templateRow.AddChild(refreshButton);
-        AddField(root, "Template scene", templateRow);
+        root.AddChild(new Label { Text = "Start from" });
+        _presetSelect = new OptionButton { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, FitToLongestItem = false };
+        _presetSelect.ItemSelected += index => LoadPreset((int)index);
+        root.AddChild(_presetSelect);
 
-        _nameInput = new LineEdit { PlaceholderText = "e.g. Mill2" };
-        AddField(root, "Machine name", _nameInput);
+        var previewContainer = new SubViewportContainer
+        {
+            Stretch = true,
+            CustomMinimumSize = new Vector2(0, 220),
+            TooltipText = "Drag to orbit, scroll to zoom",
+        };
+        previewContainer.GuiInput += OnPreviewInput;
+        root.AddChild(previewContainer);
+        var viewport = new SubViewport { OwnWorld3D = true };
+        previewContainer.AddChild(viewport);
+        viewport.AddChild(new DirectionalLight3D { RotationDegrees = new Vector3(-50f, -35f, 0f) });
+        viewport.AddChild(new WorldEnvironment
+        {
+            Environment = new Godot.Environment
+            {
+                BackgroundMode = Godot.Environment.BGMode.Color,
+                BackgroundColor = new Color(0.17f, 0.18f, 0.2f),
+                AmbientLightSource = Godot.Environment.AmbientSource.Color,
+                AmbientLightColor = Colors.White,
+                AmbientLightEnergy = 0.5f,
+            },
+        });
+        _previewCamera = new Camera3D { Fov = 40f };
+        viewport.AddChild(_previewCamera);
+        _preview = new ProceduralMachine { Name = "Preview" };
+        viewport.AddChild(_preview);
+        UpdatePreviewCamera();
 
-        _distroInput = new LineEdit { TooltipText = "Each running machine needs its own WSL distro: LinuxCNC allows one instance per distro." };
-        AddField(root, "WSL distro", _distroInput);
+        _inspector = new EditorInspector
+        {
+            SizeFlagsVertical = Control.SizeFlags.ExpandFill,
+            CustomMinimumSize = new Vector2(0, 260),
+        };
+        root.AddChild(_inspector);
 
-        _statePortInput = new SpinBox { MinValue = 1024, MaxValue = 65535 };
-        AddField(root, "State port", _statePortInput);
+        _problemsLabel = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
+        root.AddChild(_problemsLabel);
 
-        _commandPortInput = new SpinBox { MinValue = 1024, MaxValue = 65535 };
-        AddField(root, "Command port", _commandPortInput);
-
-        _rateHzInput = new SpinBox { MinValue = 1, MaxValue = 1000, Value = 100 };
-        AddField(root, "Rate (Hz)", _rateHzInput);
+        var buttons = new HBoxContainer();
+        var saveSpecButton = new Button
+        {
+            Text = "Save as preset",
+            TooltipText = $"Saves this spec to {SpecsDir} so it shows up in the list above",
+        };
+        saveSpecButton.Pressed += OnSaveSpecPressed;
+        buttons.AddChild(saveSpecButton);
+        _generateButton = new Button { Text = "Generate Machine Scene", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+        _generateButton.Pressed += OnGeneratePressed;
+        buttons.AddChild(_generateButton);
+        root.AddChild(buttons);
 
         _addToSceneCheck = new CheckBox { Text = "Add to the open scene", ButtonPressed = true };
         root.AddChild(_addToSceneCheck);
 
-        var generateButton = new Button { Text = "Generate Machine Scene" };
-        generateButton.Pressed += OnGeneratePressed;
-        root.AddChild(generateButton);
-
         _statusLabel = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
         root.AddChild(_statusLabel);
-
         return root;
     }
 
-    private static void AddField(Container parent, string label, Control field)
+    private void OnPreviewInput(InputEvent @event)
     {
-        parent.AddChild(new Label { Text = label });
-        parent.AddChild(field);
+        if (@event is InputEventMouseMotion motion && motion.ButtonMask.HasFlag(MouseButtonMask.Left))
+        {
+            _orbitYaw -= motion.Relative.X * 0.01f;
+            _orbitPitch = Mathf.Clamp(_orbitPitch + motion.Relative.Y * 0.01f, -0.2f, 1.4f);
+        }
+        else if (@event is InputEventMouseButton { Pressed: true } button)
+        {
+            if (button.ButtonIndex == MouseButton.WheelUp)
+                _orbitDistance = Mathf.Max(0.8f, _orbitDistance * 0.9f);
+            else if (button.ButtonIndex == MouseButton.WheelDown)
+                _orbitDistance = Mathf.Min(12f, _orbitDistance * 1.1f);
+            else
+                return;
+        }
+        else
+            return;
+        UpdatePreviewCamera();
     }
 
-    private void RefreshMachines()
+    private void UpdatePreviewCamera()
     {
-        _machines = new List<MachineInfo>();
-        foreach (string file in DirAccess.GetFilesAt(MachinesDir))
+        var target = new Vector3(0f, (_draft?.WorkHeightMm ?? 1000f) * WorldScale.MmToM, 0f);
+        var offset = new Vector3(Mathf.Sin(_orbitYaw) * Mathf.Cos(_orbitPitch), Mathf.Sin(_orbitPitch),
+            Mathf.Cos(_orbitYaw) * Mathf.Cos(_orbitPitch)) * _orbitDistance;
+        _previewCamera.Position = target + offset;
+        _previewCamera.Basis = Basis.LookingAt(-offset, Vector3.Up);
+    }
+
+    private void RefreshPresets()
+    {
+        _presetSelect.Clear();
+        _presetFactories.Clear();
+        foreach (var (label, create) in MachinePresets.All)
         {
-            if (!file.EndsWith(".tscn"))
-                continue;
-            string path = $"{MachinesDir}/{file}";
-            var root = GD.Load<PackedScene>(path)?.Instantiate();
+            _presetSelect.AddItem(label);
+            _presetFactories.Add(create);
+        }
+        if (!DirAccess.DirExistsAbsolute(SpecsDir))
+            return;
+        foreach (string file in DirAccess.GetFilesAt(SpecsDir).Where(f => f.EndsWith(".tres")))
+        {
+            string path = $"{SpecsDir}/{file}";
+            _presetSelect.AddItem($"Saved: {file.GetBaseName()}");
+            _presetFactories.Add(() => (MachineSpec)GD.Load<MachineSpec>(path).DuplicateDeep(Resource.DeepDuplicateMode.All));
+        }
+    }
+
+    private void LoadPreset(int index)
+    {
+        _draft = _presetFactories[index]();
+        ScanExistingMachines();
+        int highestPort = _existing.Count > 0 ? _existing.Max(m => Mathf.Max(m.StatePort, m.CommandPort)) : 9199;
+        _draft.StatePort = highestPort + 1;
+        _draft.CommandPort = highestPort + 2;
+
+        _preview.Spec = _draft;
+        _inspector.Edit(_draft);
+        _orbitDistance = _draft.Kind == MachineKind.Mill
+            ? Mathf.Max(2.5f, _draft.Mill.BaseWidthMm * WorldScale.MmToM * 2.8f)
+            : Mathf.Max(2.5f, _draft.Lathe.BedLengthMm * WorldScale.MmToM * 2.2f);
+        UpdatePreviewCamera();
+        _checkedFingerprint = null;
+        _statusLabel.Text = "";
+    }
+
+    /// <summary>Name, distro and ports of every machine scene already in
+    /// Scenes/Machines, procedural or hand-written.</summary>
+    private void ScanExistingMachines()
+    {
+        _existing = new List<ExistingMachine>();
+        foreach (string file in DirAccess.GetFilesAt(MachineSceneWriter.MachinesDir).Where(f => f.EndsWith(".tscn")))
+        {
+            var root = GD.Load<PackedScene>($"{MachineSceneWriter.MachinesDir}/{file}")?.Instantiate();
             if (root == null)
                 continue;
-            _machines.Add(new MachineInfo(path, root.Get("MachineName").AsString(), root.Get("WslDistro").AsString(),
-                root.Get("StatePort").AsInt32(), root.Get("CommandPort").AsInt32(), root.Get("RateHz").AsDouble()));
+            if (root is ProceduralMachine { Spec: MachineSpec spec })
+                _existing.Add(new ExistingMachine(file, spec.MachineName, spec.WslDistro, spec.StatePort, spec.CommandPort));
+            else
+                _existing.Add(new ExistingMachine(file, root.Get("MachineName").AsString(), root.Get("WslDistro").AsString(),
+                    root.Get("StatePort").AsInt32(), root.Get("CommandPort").AsInt32()));
             root.Free();
         }
-
-        string previous = _templateSelect.ItemCount > 0 ? _templateSelect.GetItemText(_templateSelect.Selected) : "";
-        _templateSelect.Clear();
-        foreach (var machine in _machines)
-            _templateSelect.AddItem(machine.Path.GetFile());
-        for (int i = 0; i < _templateSelect.ItemCount; i++)
-            if (_templateSelect.GetItemText(i) == previous)
-                _templateSelect.Select(i);
-
-        int highestPort = _machines.Count > 0 ? _machines.Max(m => Mathf.Max(m.StatePort, m.CommandPort)) : 9199;
-        _statePortInput.Value = highestPort + 1;
-        _commandPortInput.Value = highestPort + 2;
-        ApplyTemplateDefaults();
     }
 
-    private void ApplyTemplateDefaults()
+    public override void _Process(double delta)
     {
-        if (_machines.Count == 0)
+        _checkTimer += delta;
+        if (_checkTimer < 0.3 || _draft == null)
             return;
-        var template = _machines[_templateSelect.Selected];
-        _distroInput.Text = template.Distro;
-        _rateHzInput.Value = template.RateHz;
+        _checkTimer = 0.0;
+        string fingerprint = _draft.Fingerprint();
+        if (fingerprint == _checkedFingerprint)
+            return;
+        _checkedFingerprint = fingerprint;
+
+        var problems = Problems();
+        var warnings = Warnings();
+        _generateButton.Disabled = problems.Count > 0;
+        _problemsLabel.Text = string.Join("\n", problems.Select(p => "✖ " + p).Concat(warnings.Select(w => "⚠ " + w)));
+        _problemsLabel.Visible = _problemsLabel.Text.Length > 0;
+        _problemsLabel.Modulate = problems.Count > 0 ? new Color(1f, 0.45f, 0.4f) : new Color(1f, 0.8f, 0.35f);
+    }
+
+    private List<string> Problems()
+    {
+        var problems = _draft.Validate();
+        if (ResourceLoader.Exists(MachineSceneWriter.ScenePath(_draft)))
+            problems.Add($"{MachineSceneWriter.ScenePath(_draft)} already exists -- pick a different name.");
+        foreach (var other in _existing)
+            if (other.StatePort == _draft.StatePort || other.StatePort == _draft.CommandPort ||
+                other.CommandPort == _draft.StatePort || other.CommandPort == _draft.CommandPort)
+                problems.Add($"Port already used by {other.File} ({other.StatePort}/{other.CommandPort}).");
+        return problems;
+    }
+
+    private List<string> Warnings()
+    {
+        var warnings = new List<string>();
+        var sameDistro = _existing.Where(m => m.Distro == _draft.WslDistro).Select(m => m.File).ToArray();
+        if (sameDistro.Length > 0)
+            warnings.Add($"{string.Join(", ", sameDistro)} also runs in '{_draft.WslDistro}'. LinuxCNC allows one instance " +
+                         "per distro: of the machines in one scene sharing a distro, only the first one starts.");
+        if (_draft.DemoProgram.Length > 0 && !FileAccess.FileExists("res://linuxcnc-config/" + _draft.DemoProgram))
+            warnings.Add($"Demo program linuxcnc-config/{_draft.DemoProgram} does not exist.");
+        return warnings;
+    }
+
+    private void OnSaveSpecPressed()
+    {
+        DirAccess.MakeDirRecursiveAbsolute(SpecsDir);
+        string path = $"{SpecsDir}/{_draft.MachineName}.tres";
+        var result = ResourceSaver.Save(_draft.DuplicateDeep(Resource.DeepDuplicateMode.All), path);
+        _statusLabel.Text = result == Error.Ok ? $"Saved {path}." : $"Failed to save {path} ({result}).";
+        if (result != Error.Ok)
+            return;
+        EditorInterface.Singleton.GetResourceFilesystem().Scan();
+        int selected = _presetSelect.Selected;
+        RefreshPresets();
+        _presetSelect.Select(selected);
     }
 
     private void OnGeneratePressed()
     {
-        if (_machines.Count == 0)
+        ScanExistingMachines();
+        var problems = Problems();
+        if (problems.Count > 0)
         {
-            _statusLabel.Text = $"No machine scenes found in {MachinesDir} to use as a template.";
+            _statusLabel.Text = problems[0];
             return;
         }
 
-        string machineName = _nameInput.Text.Trim();
-        // The name ends up in a file name and on a shell command line.
-        if (!Regex.IsMatch(machineName, "^[A-Za-z][A-Za-z0-9_]*$"))
+        string path = MachineSceneWriter.ScenePath(_draft);
+        var result = MachineSceneWriter.Save(_draft);
+        if (result != Error.Ok)
         {
-            _statusLabel.Text = "Machine name must start with a letter and use only letters, digits and _.";
+            _statusLabel.Text = $"Failed to save {path} ({result}).";
             return;
         }
 
-        string savePath = $"{MachinesDir}/{machineName}.tscn";
-        if (ResourceLoader.Exists(savePath))
-        {
-            _statusLabel.Text = $"{savePath} already exists -- pick a different name.";
-            return;
-        }
-
-        string distro = _distroInput.Text.Trim();
-        int statePort = (int)_statePortInput.Value, commandPort = (int)_commandPortInput.Value;
-        if (distro.Length == 0)
-        {
-            _statusLabel.Text = "Enter the WSL distro this machine's LinuxCNC runs in.";
-            return;
-        }
-        if (statePort == commandPort)
-        {
-            _statusLabel.Text = "State port and command port must differ.";
-            return;
-        }
-        foreach (var other in _machines)
-            if (other.StatePort == statePort || other.StatePort == commandPort ||
-                other.CommandPort == statePort || other.CommandPort == commandPort)
-            {
-                _statusLabel.Text = $"Port already used by {other.Path.GetFile()} ({other.StatePort}/{other.CommandPort}).";
-                return;
-            }
-
-        var template = _machines[_templateSelect.Selected];
-        var instance = GD.Load<PackedScene>(template.Path).Instantiate();
-        instance.Name = machineName;
-        instance.Set("MachineName", machineName);
-        instance.Set("WslDistro", distro);
-        instance.Set("StatePort", statePort);
-        instance.Set("CommandPort", commandPort);
-        instance.Set("RateHz", _rateHzInput.Value);
-
-        // BridgeClient binds its sockets in its own _Ready(), before the
-        // machine root's, so it can't pick the ports up from the root at
-        // runtime -- they have to be written into the scene here too.
-        var bridgeClient = instance.GetNodeOrNull("BridgeClient");
-        bridgeClient?.Set("StatePort", statePort);
-        bridgeClient?.Set("CommandPort", commandPort);
-
-        var packed = new PackedScene();
-        var packResult = packed.Pack(instance);
-        instance.Free();
-        if (packResult != Error.Ok)
-        {
-            _statusLabel.Text = $"Failed to pack the new scene ({packResult}).";
-            return;
-        }
-
-        var saveResult = ResourceSaver.Save(packed, savePath);
-        if (saveResult != Error.Ok)
-        {
-            _statusLabel.Text = $"Failed to save {savePath} ({saveResult}).";
-            return;
-        }
-
-        string status = $"Created {savePath}.";
+        string status = $"Created {path} and linuxcnc-config/{_draft.ConfigStem}.ini / .tbl.";
         if (_addToSceneCheck.ButtonPressed)
-            status += AddToOpenScene(savePath, machineName);
-
-        var sharedDistro = _machines.Where(m => m.Distro == distro).Select(m => m.Path.GetFile()).ToArray();
-        if (sharedDistro.Length > 0)
-            status += $"\nWarning: {string.Join(", ", sharedDistro)} also runs in '{distro}'. " +
-                      "LinuxCNC allows one instance per distro, so they cannot run at the same time.";
+            status += AddToOpenScene(path, _draft.MachineName);
         _statusLabel.Text = status;
 
         EditorInterface.Singleton.GetResourceFilesystem().Scan();
-        RefreshMachines();
+        ScanExistingMachines();
+        _checkedFingerprint = null;
     }
 
     private static string AddToOpenScene(string scenePath, string machineName)
     {
         if (EditorInterface.Singleton.GetEditedSceneRoot() is not Node3D sceneRoot)
             return "\nNot added to a scene: no 3D scene is open.";
-        if (GD.Load<PackedScene>(scenePath).Instantiate() is not Node3D node)
-            return "\nNot added to a scene: the machine root is not a Node3D.";
+        var node = GD.Load<PackedScene>(scenePath).Instantiate<Node3D>();
 
         var placed = sceneRoot.GetChildren().OfType<Node3D>()
-            .Where(n => n.SceneFilePath.StartsWith(MachinesDir)).ToArray();
+            .Where(n => n.SceneFilePath.StartsWith(MachineSceneWriter.MachinesDir)).ToArray();
         node.Name = machineName;
-        node.Position = new Vector3(placed.Length > 0 ? placed.Max(n => n.Position.X) + MachineSpacing : 0f, 0f, 0f);
+        // A procedural machine's origin is on the floor.
+        node.Position = new Vector3(placed.Length > 0 ? placed.Max(n => n.Position.X) + MachineSpacing : 0f, WorldScale.FloorY, 0f);
         sceneRoot.AddChild(node);
         node.Owner = sceneRoot;
         EditorInterface.Singleton.MarkSceneAsUnsaved();

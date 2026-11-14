@@ -22,3 +22,6 @@ __pycache__/
 bin/
 obj/
 .vs/
+
+# LinuxCNC configs generated from a MachineSpec at machine start
+linuxcnc-config/gen_*
