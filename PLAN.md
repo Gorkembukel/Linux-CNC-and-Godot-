@@ -1066,3 +1066,69 @@ just above. Next:
   with no errors, headless game connects both machines with no errors.
   NOT verified (needs a real window): the dock showing up and a full
   Generate click, switching machines in the 2D panel, console placement.
+
+---
+
+## Spec-driven machine generator (2026-11-14, branch `machine-spec-generator`)
+
+User ask: the generator plugin only copied a template scene; it must let
+someone describe a real machine in full (axes, travels, tools, sizes,
+physical build) and get the scene procedurally. Decisions taken with the
+user: full cutting on 4/5-axis machines, the hand-written `Lathe.tscn` /
+`Mill.tscn` and their body code stay untouched (generated machines are a
+separate code path), editing happens in a dock + the Godot Inspector.
+
+- `Scripts/Machines/Spec/`: `MachineSpec` (+ `AxisSpec`, `ToolSpec`,
+  `MillStructure`, `LatheStructure`) are `[GlobalClass]` Resources, the single
+  source of truth for one machine. `MachinePresets` has nine starting points
+  (benchtop mill/lathe that run the two demo programs, C-frame VMC, gantry
+  router, 4-axis indexer, 5-axis trunnion, 5-axis swivel head, flat-bed and
+  slant-bed lathes). `MachineSpec.Validate()` lists what would stop it working.
+- `LinuxCncConfigWriter`: spec -> `linuxcnc-config/gen_<Name>.ini/.tbl`
+  (gitignored), rewritten at every machine start so they cannot drift from
+  the spec. Rotary axes become ANGULAR joints under trivkins; joints are in
+  X Y Z A B C order whatever the chain order is. No bridge change was needed.
+- `MachineKinematics`: chain order = axis list order; each axis is carried
+  by the tool side or the workpiece side. Drives the body nodes and gives the
+  tool pose in the stock frame for cutting.
+- `VoxelStock` + `VoxelMesher` + `VoxelStockVisual`: signed-distance voxel
+  stock cut by a cutter in any orientation (flat / bull / ball end mill,
+  drill, chamfer), chunked surface-nets mesh. Every generated mill uses it,
+  3-axis ones included; `Mill.tscn` keeps its heightmap. Surface nets bevel
+  sharp edges by about one voxel step (visual only, volumes come from the
+  field).
+- `ProceduralMillBody` / `ProceduralLatheBody` / `ToolMeshBuilder`: bodies
+  built from the spec (C-frame or gantry, tables/saddles, trunnion, indexer,
+  platter, swivel-head fork, magazine, enclosure; flat or slant bed, jaw
+  chuck, disc turret or tool post, tailstock).
+- `ProceduralMachine` (`[Tool]`, `IMachine`): the scene stores only this
+  node, its spec and a `ConsoleStand`; the rest is rebuilt from the spec, in
+  the editor too (edit the spec in the Inspector, the machine reshapes). Its
+  origin is ON THE FLOOR (place at y = `WorldScale.FloorY`), unlike the two
+  hand-written machines. Runtime logic is in `MillCutting` / `LatheCutting`.
+- `MachineProcessController` refuses to start a second machine in a WSL
+  distro that already runs one (it would kill the first, see item 15 above);
+  `Main` skips machines without a rig.
+- Plugin dock: preset list (built-in + `res://Machines/Specs/*.tres`), live
+  3D preview, embedded Inspector, problem list, "Save as preset", Generate.
+
+**Verified by the agent, live against LinuxCNC**: generated benchtop mill ran
+`demo_mill_pocket.ngc` to the end, 23.17 cm3 removed (heightmap mill: 23.3,
+analytic ~23.2); generated benchtop lathe ran `demo_facing_turning.ngc`,
+parts 0.069 kg and 0.576 kg; generated 5-axis trunnion started, homed, and an
+MDI sequence removed 393 mm3 on the top face, +394 on a side face at A90,
++997 for a 20 mm slot there (analytic 393 / 393 / 1000). Workshop run with
+the hand-written lathe + a generated mill connected both and refused a third
+machine on a taken distro; the original `Main.tscn` still connects both
+machines. 59 C# tests green. Bodies were checked on screenshots from a
+windowed run (so a windowed Godot DOES work from the agent session).
+
+**NOT verified (needs the user in the editor)**: the dock itself (preview
+orbit, embedded Inspector editing arrays of axes/tools, Generate button,
+live rebuild when a placed machine's spec is edited); chips and the console
+on a generated machine in a real play session.
+
+**Left out on purpose**: mill-turn lathes (C/Y axis), RTCP/TCP kinematics,
+tool-length offsets (the tool tip is always at the reported position, a
+longer tool lifts the head), collision of holder/head with the part, G-code
+preview beyond X/Z. Pytest bridge suite not re-run (no bridge file changed).

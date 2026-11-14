@@ -187,6 +187,38 @@ tools/                 record_replay.py
 PLAN.md, PERF.md, ASSETS.md   Architecture/decisions, benchmarks, asset status
 ```
 
+## Generating a machine (editor plugin)
+
+The **Machine Generator** dock (Project > Tools > CNC Machine Generator)
+builds a machine scene and its LinuxCNC configuration from a description of
+the machine, so a real machine can be modelled without writing code:
+
+1. Pick the preset closest to the machine (3-axis VMC, gantry router, 4-axis
+   indexer, 5-axis trunnion or swivel head, flat-bed or slant-bed lathe).
+2. Edit it in the dock's inspector; the preview updates as you type.
+   - **Axes**: letter, travel limits, speed, home position, and whether the
+     axis moves the tool or the workpiece. For mills the list order is the
+     kinematic chain (first = closest to the base). Rotary axes take a pivot
+     point in machine X/Y/Z mm from work zero.
+   - **Tools**: number, type, diameter, corner/nose radius, length.
+   - **Structure**: frame type, table, workholding, stock, magazine (mill);
+     bed, slide angle, chuck, turret, tailstock, stock (lathe).
+   - **LinuxCNC**: WSL distro, ports, demo program.
+3. Fix whatever the problem list under the inspector reports, then
+   **Generate Machine Scene**. This writes `Scenes/Machines/<Name>.tscn` and
+   can add it to the open scene. "Save as preset" keeps the spec in
+   `res://Machines/Specs/` for reuse.
+
+A placed machine stays editable: select it, open its `Spec` in the Inspector,
+and the body rebuilds in the viewport. `linuxcnc-config/gen_<Name>.ini/.tbl`
+are regenerated from the spec every time the machine starts.
+
+Limits: one running LinuxCNC per WSL distro, so machines sharing a distro
+cannot run in the same scene; work zero is the centre of the stock's top face
+(mill) or the free end on the centreline (lathe); kinematics are plain
+trivkins (no tool-centre-point control); tool-length offsets are not
+modelled; lathes are X/Z only.
+
 ## Known limitations (also see PLAN.md's "non-obvious things" list)
 
 - The cut-profile visual state (which parts of the stock have been removed)
