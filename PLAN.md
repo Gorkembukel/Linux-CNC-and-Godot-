@@ -744,16 +744,48 @@ Phase B on top of this. Branch `phase0-godot-bridge-client`, not pushed (no
 remote configured; user's choice to skip pushing for now). 36 C# tests +
 13 Python tests all green as of the last commit before this note.
 
+**Spiked the LinuxCNC multi-instance risk (2026-11-14) -- confirmed real,
+not solved yet.** Started two LinuxCNC instances concurrently under the
+same WSL2 Linux user (the existing deployed lathe config + an exact copy in
+a second directory, both with unmodified default NML settings). Found by
+direct inspection first: `/usr/share/linuxcnc/linuxcnc.nml` (the default
+NML buffer definition file, used because neither INI sets `[EMC] NML_FILE`)
+hardcodes explicit numeric SysV keys per buffer (`emcCommand`=1001,
+`emcStatus`=1002, `emcError`=1003, `toolCmd`=1004, `toolSts`=1005) --
+identical for any config that doesn't override `NML_FILE`. Empirically
+confirmed the collision this causes: started instance 1, homed it, moved it
+to a known position (confirmed via its own `stat()`/`command()`), then
+started instance 2 from a copy of the same config -- **instance 1's own
+`linuxcncsvr` and `milltask` processes disappeared** (died) the moment
+instance 2 started, even though instance 1 was never stopped. (A
+superficial `stat.poll()` against the old connection still returned
+plausible-looking numbers afterward, which is itself a trap -- don't take
+"it didn't throw" as proof of health; check the actual process list.)
+
+**Concrete fix path identified, not yet built or verified**: give each
+machine's config its own `.nml` file (a copy of the default with distinct
+numeric keys per buffer) and point to it via `[EMC] NML_FILE` in that
+machine's own INI. Still unverified: whether the deeper HAL/RTAPI motion
+shared memory (`DEFAULT_SHMEM_KEY=100` in
+`/usr/include/linuxcnc/emcmotcfg.h`, a different layer than NML, no INI-level
+override found by inspection) also needs a matching fix, or whether uspace's
+"simulated realtime" keeps that per-process rather than truly shared. The
+honest alternative, if the per-instance-NML-file fix doesn't fully resolve
+it: run the mill's LinuxCNC instance as a second WSL2 Linux user (or a
+second WSL distro entirely), sidestepping shared-key collisions altogether
+at the cost of a second bridge-deployment path to maintain. **This choice
+needs the user's input before Phase B's bridge-side work starts** -- it
+changes `deploy.py`/`linuxcnc_process.py`'s shape either way.
+
 **Next, in the order the user picked ("3 ve 1'i yapalım"), now that Phase A
 exists**:
 1. **Phase B -- the mill itself.** A 3-axis LinuxCNC sim config, a
    heightmap-based material model (deliberately NOT `IMaterialModel`/
    `LatheRadiusProfile` -- see Phase A's note on why that would violate
    LSP), new mill machine-body visuals, a mill demo G-code program, wired
-   up as a second `MachineRig` alongside the lathe in the same scene. Has a
-   real open risk flagged in Phase A's notes (LinuxCNC multi-instance IPC)
-   that needs a spike/verification before the mill's own bridge process is
-   built -- do that first, not last.
+   up as a second `MachineRig` alongside the lathe in the same scene. The
+   multi-instance isolation strategy above must be picked and verified
+   working before the mill's own bridge process is built, not after.
 2. **Training/scenario mode** -- exercises, mistake detection, scoring/time
    tracking. Not started at all yet. The one piece of "operator training"
    the project's own name promises that doesn't exist yet.
