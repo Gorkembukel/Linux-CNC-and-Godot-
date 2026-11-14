@@ -361,6 +361,16 @@ status sections above; this is just the index)
     the real machine" mechanism. Worth a line in a future phase or in
     known-limitations documentation (README.md/ASSETS.md), not silently
     ignored.
+14. From this Windows Git-Bash tool specifically (not PowerShell): passing
+    `wsl.exe` a bare POSIX path as its own argv (e.g.
+    `wsl.exe -d Ubuntu -- python3 -u /mnt/c/.../main.py`) gets silently
+    mangled by Git Bash's own path translation into garbage like
+    `D:/Git/mnt/c/.../main.py` before `wsl.exe` ever sees it -- confirmed by
+    comparing `wsl.exe -d Ubuntu -- pwd` (fine) against the same tool passed
+    an explicit `/mnt/c/...` path (broken). Fix: always wrap the whole
+    command as ONE string argument to `bash -lc "..."`, e.g.
+    `wsl.exe -d Ubuntu -- bash -lc "python3 -u /mnt/c/.../main.py"` -- this
+    is the pattern used everywhere above and it isn't affected.
 
 ## Phase 4 (operator panel) -- confirmed working live, end to end (2026-11-13)
 
@@ -628,6 +638,38 @@ drove 4 MDI tool changes (T1->T2->T3->T1, each confirmed via the existing
 no engine errors. Visual confirmation of how the rotation/animation actually
 looks still needs the user's own run via `start.ps1` -- this agent has no
 windowed session.
+
+---
+
+## RESUME HERE (session closing, 2026-11-14)
+
+**Done and user-confirmed live this session**: chuck/cut-orientation fix,
+finished parts as real pickupable `RigidBody3D` objects (F key), and the
+red-cube -> real 3-station tool turret with change-indexing animation (see
+the three status sections just above this one for full detail). Branch
+`phase0-godot-bridge-client`, not pushed anywhere (no git remote configured
+yet; user chose to skip pushing for now). 29->33 C# tests and 13 Python
+tests all green as of the last commit (`bc0ba27`).
+
+**Next, in the order the user picked ("3 ve 1'i yapalım")**:
+1. **Mill support** -- a second machine type. `IMaterialModel` was already
+   abstracted for this (`LatheRadiusProfile` implements it now; a future
+   `HeightmapMillModel` was the placeholder named back in Phase 2). Needs:
+   a mill LinuxCNC sim config (3-axis, not 2-axis lathe), the heightmap
+   material model itself, and new machine-body visuals (a mill looks
+   nothing like a lathe). Not started at all yet -- no code, no config.
+2. **Training/scenario mode** -- exercises, mistake detection (crash/wrong-
+   speed/etc.), scoring/time tracking. Not started at all yet. This is the
+   one piece of "operator training" the brief's own name promises that
+   doesn't exist yet (everything else so far is the simulator itself).
+
+**Known environment constraint, not a code gap**: this agent has no
+windowed Godot session in this environment, only `--headless` + driving
+LinuxCNC directly via its Python module for live smoke-testing. Every
+feature this session was verified live that way (no engine errors across
+real bridge traffic), but the actual *visual*/*feel* result always needs
+the user's own run via `start.ps1` -- ask for that confirmation explicitly
+rather than assuming it from a clean headless run.
 
 ---
 *Phase 0 environment approved implicitly by the user proceeding with the WSL fix; "do all phases, don't stop" given 2026-11-13.*
