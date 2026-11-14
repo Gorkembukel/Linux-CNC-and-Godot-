@@ -18,6 +18,7 @@ public partial class DebugOverlay : Control
 
     private BridgeClient _bridge;
     private JobScheduler _scheduler;
+    private (AxisId Axis, byte Joint)[] _axes;
     private Label _label;
     private Control _graph;
 
@@ -48,6 +49,7 @@ public partial class DebugOverlay : Control
     public void Configure(MachineRig rig, JobScheduler scheduler)
     {
         _bridge = rig.Bridge;
+        _axes = rig.Profile.Axes;
         _scheduler = scheduler;
     }
 
@@ -68,9 +70,9 @@ public partial class DebugOverlay : Control
         var p = _bridge.Prediction;
         _label.Text =
             $"[F3] DEBUG OVERLAY\n" +
-            $"confirmed  X={_bridge.State.Position.X,8:F3}  Z={_bridge.State.Position.Z,8:F3} mm\n" +
-            $"predicted  X={p.LastPredictedPosition.X,8:F3}  Z={p.LastPredictedPosition.Z,8:F3} mm\n" +
-            $"visual     X={p.VisualPosition.X,8:F3}  Z={p.VisualPosition.Z,8:F3} mm\n" +
+            $"confirmed  {Format(_bridge.State.Position)}mm\n" +
+            $"predicted  {Format(p.LastPredictedPosition)}mm\n" +
+            $"visual     {Format(p.VisualPosition)}mm\n" +
             $"error      {p.LastErrorMagnitudeMm,8:F3} mm  {(p.LastCorrectionWasSnap ? "(SNAP)" : "(smoothed)")}\n" +
             $"state stream jitter   {_bridge.StateStreamJitterMs,6:F2} ms\n" +
             $"last command RTT      {(double.IsNaN(_bridge.LastCommandRttMs) ? "n/a" : $"{_bridge.LastCommandRttMs:F1} ms")}\n" +
@@ -80,9 +82,19 @@ public partial class DebugOverlay : Control
         _graph.QueueRedraw();
     }
 
+    private string Format(AxisVector v)
+    {
+        string text = "";
+        foreach (var (axis, _) in _axes)
+            text += $"{axis}={v.Get(axis),8:F3}  ";
+        return text;
+    }
+
     private string SchedulerReport()
     {
         var s = _scheduler;
+        if (s == null)
+            return "";
         double fps = Engine.GetFramesPerSecond();
         var sb = new System.Text.StringBuilder();
         sb.AppendLine($"--- scheduler --- fps={fps:F0}  frame={1000.0 / System.Math.Max(fps, 0.001):F2} ms");

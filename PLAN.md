@@ -1045,3 +1045,24 @@ just above. Next:
    machine, and whether to fix the lathe `feed_rate` field.
 3. Training/scenario mode (exercises, mistake detection, scoring) -- still
    not started.
+
+### Follow-up, same day (user asks): generator plugin, per-machine 2D panel, editable console
+- **2D operator panel**: MACHINE selector at the top (`OperatorPanel.SetMachines`),
+  rows rebuild per machine (axes, default program, touch-off: lathe X/Z, mill
+  Z only). The debug overlay and status label follow the selection. This
+  closes the "2D panel is lathe-only" gap above.
+- **ConsoleStand**: `BasePosition` removed -- the node transform in the scene
+  is now what counts, so it can be moved/rotated in the editor. `PostHeight`
+  and `PanelTiltDegrees` rebuild the geometry live when edited. The demo
+  program moved to the machine root (`DemoProgram` export -> `MachineProfile`).
+  NOTE: the lathe console now really sits where the scene says (x=-0.824);
+  before, the runtime silently forced it back to x=-0.15.
+- **Generator plugin**: template dropdown lists `Scenes/Machines/*.tscn`,
+  distro/rate prefilled from the template, free port pair suggested, name and
+  port-collision validation, same-distro warning, optional "Add to the open
+  scene" (placed 1.6 m right of the last machine). INI/demo program come from
+  the template.
+- Verified by the agent: build + 43 tests, headless editor loads the plugin
+  with no errors, headless game connects both machines with no errors.
+  NOT verified (needs a real window): the dock showing up and a full
+  Generate click, switching machines in the 2D panel, console placement.

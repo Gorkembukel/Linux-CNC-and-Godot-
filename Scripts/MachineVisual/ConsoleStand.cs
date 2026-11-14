@@ -28,10 +28,29 @@ namespace CncTrainer;
 [Tool]
 public partial class ConsoleStand : Node3D
 {
-    [Export] public Vector3 BasePosition = new(-0.15f, WorldScale.FloorY, 0.5f);
-    [Export] public float PostHeight = 0.95f;
-    [Export] public float PanelTiltDegrees = -25f;
-    [Export] public string DemoProgram = "nc_files/demo_facing_turning.ngc";
+    [Export]
+    public float PostHeight
+    {
+        get => _postHeight;
+        set { _postHeight = value; RebuildIfInTree(); }
+    }
+
+    [Export]
+    public float PanelTiltDegrees
+    {
+        get => _panelTiltDegrees;
+        set { _panelTiltDegrees = value; RebuildIfInTree(); }
+    }
+
+    private float _postHeight = 0.95f;
+    private float _panelTiltDegrees = -25f;
+    private string _demoProgram = "";
+
+    private void RebuildIfInTree()
+    {
+        if (IsInsideTree())
+            RebuildGeometry();
+    }
 
     private const int ScreenPixelWidth = 420;
     private const int ScreenPixelHeight = 252;
@@ -51,7 +70,6 @@ public partial class ConsoleStand : Node3D
 
     public override void _Ready()
     {
-        Position = BasePosition;
         if (!Engine.IsEditorHint())
             AddToGroup("console_stands");
         RebuildGeometry(); // editor preview + runtime's first frame, using the placeholder axes above
@@ -66,6 +84,7 @@ public partial class ConsoleStand : Node3D
     {
         _bridge = rig.Bridge;
         _axes = rig.Profile.Axes;
+        _demoProgram = rig.Profile.DemoProgram;
         RebuildGeometry();
     }
 
@@ -228,7 +247,7 @@ public partial class ConsoleStand : Node3D
         }
         buttons.Add(("RUN", () =>
         {
-            _bridge.OpenProgram(DemoProgram);
+            _bridge.OpenProgram(_demoProgram);
             _bridge.RunProgram();
         }));
 

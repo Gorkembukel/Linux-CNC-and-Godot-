@@ -18,9 +18,11 @@ public partial class MillMachine : Node3D, IMachine
     [Export] public int CommandPort = 9203;
     [Export] public double RateHz = 100.0;
     [Export] public string IniFile = "sim_mill.ini";
+    [Export] public string DemoProgram = "nc_files/demo_mill_pocket.ngc";
     [Export] public MaterialKind StockMaterial = MaterialKind.Aluminum;
 
     public MachineRig Rig { get; private set; }
+    public Scheduling.JobScheduler Scheduler => null;
 
     private BridgeClient _bridge;
     private MillStockVisual _stock;
@@ -40,7 +42,7 @@ public partial class MillMachine : Node3D, IMachine
         _body = GetNode<MillBody>("MillBody");
         _chips = GetNode<ChipSpawner>("ChipSpawner");
 
-        var profile = new MachineProfile(MachineName, MillAxes, WslDistro, StatePort, CommandPort, RateHz, IniFile);
+        var profile = new MachineProfile(MachineName, MillAxes, WslDistro, StatePort, CommandPort, RateHz, IniFile, DemoProgram);
         Rig = new MachineRig(profile, _bridge);
         MachineProcessController.StartBackingProcess(profile);
 

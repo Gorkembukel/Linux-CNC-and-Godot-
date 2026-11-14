@@ -45,7 +45,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.15, -1.1, 1.3)
 
 [node name="Lathe" parent="." unique_id=535766212 instance=ExtResource("11")]
 
-[node name="Mill" parent="." instance=ExtResource("13")]
+[node name="Mill" parent="." unique_id=542174929 instance=ExtResource("13")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.6, 0, 0)
 
 [node name="UI" type="CanvasLayer" parent="." unique_id=1928220117]

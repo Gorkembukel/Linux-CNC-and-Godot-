@@ -27,9 +27,10 @@ public sealed class MachineProfile
     public readonly int CommandPort;
     public readonly double RateHz;
     public readonly string IniFile;
+    public readonly string DemoProgram;
 
     public MachineProfile(string name, (AxisId Axis, byte Joint)[] axes,
-        string wslDistro, int statePort, int commandPort, double rateHz, string iniFile)
+        string wslDistro, int statePort, int commandPort, double rateHz, string iniFile, string demoProgram)
     {
         Name = name;
         Axes = axes;
@@ -38,5 +39,6 @@ public sealed class MachineProfile
         CommandPort = commandPort;
         RateHz = rateHz;
         IniFile = iniFile;
+        DemoProgram = demoProgram;
     }
 }

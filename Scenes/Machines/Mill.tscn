@@ -23,8 +23,7 @@ script = ExtResource("3")
 
 [node name="ConsoleStand" type="Node3D" parent="."]
 script = ExtResource("4")
-BasePosition = Vector3(-0.6, -1.1, 0.45)
-DemoProgram = "nc_files/demo_mill_pocket.ngc"
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.6, -1.1, 0.45)
 
 [node name="ChipSpawner" type="Node3D" parent="."]
 script = ExtResource("5")

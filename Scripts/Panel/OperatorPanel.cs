@@ -22,6 +22,14 @@ public partial class OperatorPanel : Control
     // as LatheMachine's own.
     private (AxisId Axis, byte Joint)[] _axes = { (AxisId.X, (byte)0), (AxisId.Z, (byte)1) };
 
+    public event System.Action<IMachine> MachineSelected;
+
+    private System.Collections.Generic.IReadOnlyList<IMachine> _machines;
+    private VBoxContainer _layout;
+    private VBoxContainer _rows;
+    private OptionButton _machineSelect;
+    private string _demoProgram = "";
+
     private Label _modeStatusLabel;
     private Label _toolChangeLabel;
     private LineEdit _mdiInput;
@@ -47,28 +55,52 @@ public partial class OperatorPanel : Control
         AnchorRight = 0;
         AnchorBottom = 1;
         OffsetLeft = 10;
-        OffsetTop = -260;
+        OffsetTop = -290;
         OffsetRight = 560;
         OffsetBottom = -10;
 
         var panelBg = new Godot.Panel { AnchorRight = 1, AnchorBottom = 1 };
         AddChild(panelBg);
+
+        _layout = new VBoxContainer { AnchorRight = 1, AnchorBottom = 1 };
+        _layout.AddThemeConstantOverride("separation", 2);
+        AddChild(_layout);
+
+        var selectorRow = new HBoxContainer();
+        selectorRow.AddChild(new Label { Text = "MACHINE" });
+        _machineSelect = new OptionButton();
+        _machineSelect.ItemSelected += index => Select((int)index);
+        selectorRow.AddChild(_machineSelect);
+        _layout.AddChild(selectorRow);
         // Row-building needs _bridge/_axes, not available until Configure()
         // runs (called from Main._Ready, after this control's own _Ready) --
         // see this class's Configure method.
     }
 
-    /// <summary>Called by Main._Ready once this rig's BridgeClient exists --
-    /// replaces the old self-lookup via the fixed "/root/BridgeClient"
-    /// autoload path, which a second live machine (Phase B) can't support.</summary>
-    public void Configure(MachineRig rig)
+    /// <summary>Called by Main._Ready with every machine in the workshop;
+    /// the MACHINE selector then rebuilds the rows below it for whichever
+    /// one is picked (axes, demo program and touch-off differ per machine).</summary>
+    public void SetMachines(System.Collections.Generic.IReadOnlyList<IMachine> machines)
     {
-        _bridge = rig.Bridge;
-        _axes = rig.Profile.Axes;
+        _machines = machines;
+        _machineSelect.Clear();
+        foreach (var machine in machines)
+            _machineSelect.AddItem(machine.Rig.Profile.Name);
+        Select(0);
+    }
 
-        var root = new VBoxContainer { AnchorRight = 1, AnchorBottom = 1 };
+    private void Select(int index)
+    {
+        var machine = _machines[index];
+        _bridge = machine.Rig.Bridge;
+        _axes = machine.Rig.Profile.Axes;
+        _demoProgram = machine.Rig.Profile.DemoProgram;
+
+        _rows?.QueueFree();
+        var root = _rows = new VBoxContainer();
         root.AddThemeConstantOverride("separation", 2);
-        AddChild(root);
+        _layout.AddChild(root);
+        MachineSelected?.Invoke(machine);
 
         _modeStatusLabel = new Label { Text = "MODE: MANUAL" };
         root.AddChild(_modeStatusLabel);
@@ -87,6 +119,8 @@ public partial class OperatorPanel : Control
 
     public override void _Process(double delta)
     {
+        if (_bridge == null)
+            return;
         var s = _bridge.State;
         _modeStatusLabel.Text = $"MODE: {s.TaskMode}   INTERP: {s.InterpState}   ESTOP: {(s.Estop ? "YES" : "no")}   ON: {s.MachineOn}";
         _toolChangeLabel.Text = s.InterpState == InterpState.Waiting
@@ -188,7 +222,7 @@ public partial class OperatorPanel : Control
         var row = new HBoxContainer();
         var pathInput = new LineEdit
         {
-            Text = "nc_files/demo_facing_turning.ngc", // relative to the bridge's config dir (its cwd)
+            Text = _demoProgram, // relative to the bridge's config dir (its cwd)
             CustomMinimumSize = new Vector2(150, 0),
         };
         row.AddChild(pathInput);
@@ -252,6 +286,8 @@ public partial class OperatorPanel : Control
         // MDI line LinuxCNC expects -- the same mechanism a real pendant's
         // "touch off" soft-key drives, just without a graphical wizard.
         var row = new HBoxContainer();
+        if (System.Array.Exists(_axes, a => a.Axis == AxisId.Y))
+            return BuildToolLengthRow(row);
         var knownDiameterInput = new LineEdit { PlaceholderText = "known diameter (mm)", CustomMinimumSize = new Vector2(100, 0) };
         row.AddChild(knownDiameterInput);
         row.AddChild(MakeButton("TOUCH OFF X", () =>
@@ -271,6 +307,21 @@ public partial class OperatorPanel : Control
             {
                 float measuredZ = _bridge.State.Position.Z;
                 _bridge.SendMdi($"G10 L1 P{_bridge.State.ToolNumber} Z{measuredZ - knownZ:F4}");
+            }
+        }));
+        return row;
+    }
+
+    private Control BuildToolLengthRow(HBoxContainer row)
+    {
+        var knownZInput = new LineEdit { PlaceholderText = "known surface Z (mm)", CustomMinimumSize = new Vector2(120, 0) };
+        row.AddChild(knownZInput);
+        row.AddChild(MakeButton("TOUCH OFF Z", () =>
+        {
+            if (float.TryParse(knownZInput.Text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float knownZ))
+            {
+                float measuredZ = _bridge.State.Position.Z;
+                _bridge.SendMdi(System.FormattableString.Invariant($"G10 L1 P{_bridge.State.ToolNumber} Z{measuredZ - knownZ:F4}"));
             }
         }));
         return row;
