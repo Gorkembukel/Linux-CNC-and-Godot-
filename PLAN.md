@@ -1120,7 +1120,7 @@ MDI sequence removed 393 mm3 on the top face, +394 on a side face at A90,
 +997 for a 20 mm slot there (analytic 393 / 393 / 1000). Workshop run with
 the hand-written lathe + a generated mill connected both and refused a third
 machine on a taken distro; the original `Main.tscn` still connects both
-machines. 59 C# tests green. Bodies were checked on screenshots from a
+machines. 56 C# tests green. Bodies were checked on screenshots from a
 windowed run (so a windowed Godot DOES work from the agent session).
 
 **NOT verified (needs the user in the editor)**: the dock itself (preview
