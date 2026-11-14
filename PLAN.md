@@ -732,20 +732,17 @@ is built. Not solved in Phase A; flagged so it isn't a surprise in Phase B.
 
 ## RESUME HERE (session closing, 2026-11-14)
 
-**Done this session, Phase A only -- not yet user-confirmed live** (see the
-"Phase A" status section just above for full detail): the entire bridge/sim
-stack generalized from hardcoded-2-axis to N-axis/SOLID (new wire protocol,
-`AxisId`/`AxisVector`, de-singletoned `BridgeClient`, `MachineRig`/
-`MachineProfile`), with the existing lathe migrated through it. Verified
-live by this agent (headless Godot + real bridge, same tool-change/parting
-sequence as the previous session, zero engine errors, same masses/bucket
-counts as the pre-refactor baseline) -- but the user has NOT yet run this
-themselves via `start.ps1`. **Ask for that confirmation before building
-anything further on top of this** (especially before Phase B, which builds
-directly on this architecture). Branch `phase0-godot-bridge-client`, not
-pushed (no remote configured; user's choice to skip pushing for now).
-36 C# tests + 13 Python tests all green as of the last commit before this
-note.
+**Phase A done and user-confirmed live** (see the "Phase A" status section
+just above for full detail): the entire bridge/sim stack generalized from
+hardcoded-2-axis to N-axis/SOLID (new wire protocol, `AxisId`/`AxisVector`,
+de-singletoned `BridgeClient`, `MachineRig`/`MachineProfile`), with the
+existing lathe migrated through it. Verified live by this agent (headless
+Godot + real bridge, zero engine errors, same masses/bucket counts as the
+pre-refactor baseline) AND by the user themselves via `start.ps1`
+("start.ps1 ile açıp kontrol ettim iyi", 2026-11-14) -- clear to build
+Phase B on top of this. Branch `phase0-godot-bridge-client`, not pushed (no
+remote configured; user's choice to skip pushing for now). 36 C# tests +
+13 Python tests all green as of the last commit before this note.
 
 **Next, in the order the user picked ("3 ve 1'i yapalım"), now that Phase A
 exists**:
