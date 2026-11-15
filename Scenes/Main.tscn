@@ -4,11 +4,11 @@
 [ext_resource type="Script" uid="uid://b1btw2qphahrp" path="res://Scripts/DebugOverlay.cs" id="2"]
 [ext_resource type="Script" uid="uid://c3xkg6fhxc810" path="res://Scripts/Panel/OperatorPanel.cs" id="5"]
 [ext_resource type="Script" uid="uid://b0e3etxia5dtm" path="res://Scripts/CameraController.cs" id="6"]
-[ext_resource type="PackedScene" uid="uid://b25netjmaly0d" path="res://Scenes/Machines/Trunnion5Axis.tscn" id="7_grg3l"]
+[ext_resource type="PackedScene" path="res://Scenes/Machines/BenchMill.tscn" id="9_vy5pj"]
 [ext_resource type="PackedScene" uid="uid://ct7xvxnqqr4e5" path="res://Scenes/Machines/Lathe.tscn" id="11"]
 [ext_resource type="PackedScene" uid="uid://ddlr61u8q7x3p" path="res://Scenes/Player.tscn" id="12"]
-[ext_resource type="Script" path="res://Scripts/Workshop/StockStation.cs" id="20"]
-[ext_resource type="Script" path="res://Scripts/Workshop/ToolBench.cs" id="21"]
+[ext_resource type="Script" uid="uid://53li01uqalvl" path="res://Scripts/Workshop/StockStation.cs" id="20"]
+[ext_resource type="Script" uid="uid://lg52xrfc4l52" path="res://Scripts/Workshop/ToolBench.cs" id="21"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_floor"]
 size = Vector3(12, 0.1, 10)
@@ -75,13 +75,13 @@ layout_mode = 3
 anchors_preset = 0
 script = ExtResource("5")
 
-[node name="Trunnion5Axis" parent="." unique_id=308650766 instance=ExtResource("7_grg3l")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.4787047, -1.0999994, -0.10822201)
-
-[node name="StockStation" type="Node3D" parent="."]
+[node name="StockStation" type="Node3D" parent="." unique_id=604508160]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.4, -1.1, 0.6)
 script = ExtResource("20")
 
-[node name="ToolBench" type="Node3D" parent="."]
+[node name="ToolBench" type="Node3D" parent="." unique_id=1770567236]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, -1.1, 3.4)
 script = ExtResource("21")
+
+[node name="BenchMill" parent="." unique_id=415818930 instance=ExtResource("9_vy5pj")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.7815591, -1.0999999, -0.02312994)

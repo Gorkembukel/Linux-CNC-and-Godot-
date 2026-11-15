@@ -1282,3 +1282,41 @@ switched the machine off, as intended. 58 C# + 11 pytest green.
 NOT verified: all of this through the real keyboard/mouse and panel buttons.
 Open: phase 4 (lathe chuck, caliper), phase 5 (clamps, centring plate,
 4th-axis chuck, vise tramming).
+
+## RESUME HERE (2026-11-15, state saved at the user's request)
+
+Branch `workholding-setup` (on top of `demo-programs` -> `machine-spec-generator`
+-> `phase0-godot-bridge-client`; nothing merged, no remote). Approved plan:
+`~/.claude/plans/vectorized-stargazing-dragonfly.md`.
+
+Done and committed: hands-on setup phases 1-3 (see the three sections above),
+plus fixes from the user's first play session:
+- `BenchMill.tscn` lacked T9 (generated before the edge finder existed).
+- LinuxCNC operator messages are forwarded as EVENT packets and shown on the
+  HUD (`StatePublisher` error channel -> `Main` -> `PlayerController.Notify`).
+  NOT yet seen working live.
+- A carried object no longer collides with the player.
+- 2D operator panel: sized to its rows and moved to the top-left. The user
+  runs the game EMBEDDED in the editor at 1:1 (1920x1080), where the bottom
+  ~70 px of the view are off-screen -- keep HUD elements away from the
+  bottom edge.
+- `Main.tscn` now holds Lathe (hand-written) + BenchMill (manual setup);
+  the 5-axis trunnion was taken out of the scene by the user.
+
+Next, in order:
+1. User feedback on feel: carrying, placing by aim, wheel-turning bolts and
+   the vise screw, the prompts. None of the keyboard/mouse paths has been
+   exercised by the agent -- only the methods behind them.
+2. Phase 4: generated lathe replaces `Lathe.tscn`; 3-jaw chuck with key and
+   jaws, bar stick-out, forgotten-key accident, caliper reading, hidden
+   per-tool tip error so measuring matters.
+3. Phase 5: step clamps, centring plate for the trunnion (the statue
+   program needs it), 4th-axis chuck, vise tramming with the dial indicator.
+4. Still pending from before: the eleven demo programs were never run live
+   (only the statue was simulated offline and parsed by `rs274`).
+
+Agent-side verification that works on this machine: windowed Godot runs
+that save viewport PNGs; headless scenes driving the real code against
+LinuxCNC; `tmp_verify/` (untracked) holds those throwaway scenes. Check
+`pgrep -x linuxcncsvr` in both distros first -- the user is often running
+the game, and a test would kill their session.
