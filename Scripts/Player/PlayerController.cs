@@ -80,8 +80,31 @@ public partial class PlayerController : CharacterBody3D
     /// <summary>Puts an object straight into the player's hands.</summary>
     public void Give(RigidBody3D body)
     {
+        Hold(body);
+    }
+
+    // A carried object sits right in front of the player; without the
+    // exception it shoves the player around whenever the two touch.
+    private void Hold(RigidBody3D body)
+    {
         _heldPart = body;
         body.Freeze = true;
+        body.LinearVelocity = Vector3.Zero;
+        body.AngularVelocity = Vector3.Zero;
+        AddCollisionExceptionWith(body);
+        body.AddCollisionExceptionWith(this);
+    }
+
+    private RigidBody3D LetGo()
+    {
+        var held = _heldPart;
+        _heldPart = null;
+        if (held != null)
+        {
+            RemoveCollisionExceptionWith(held);
+            held.RemoveCollisionExceptionWith(this);
+        }
+        return held;
     }
 
     /// <summary>What the player is carrying, or null.</summary>
@@ -92,9 +115,7 @@ public partial class PlayerController : CharacterBody3D
     /// dropping it (it has just been fitted somewhere).</summary>
     public RigidBody3D ReleaseHeld()
     {
-        var held = _heldPart;
-        _heldPart = null;
-        return held;
+        return LetGo();
     }
 
     public override void _Ready()
@@ -295,8 +316,7 @@ public partial class PlayerController : CharacterBody3D
     {
         if (_heldPart != null)
         {
-            _heldPart.Freeze = false;
-            _heldPart = null;
+            LetGo().Freeze = false;
             return;
         }
 
@@ -312,10 +332,7 @@ public partial class PlayerController : CharacterBody3D
             && ((body as Carryable)?.CanPickUp ?? true))
         {
             (body as Carryable)?.OnPickedUp();
-            _heldPart = body;
-            _heldPart.Freeze = true; // kinematic while held -- carried by direct transform, not physics forces
-            _heldPart.LinearVelocity = Vector3.Zero;
-            _heldPart.AngularVelocity = Vector3.Zero;
+            Hold(body); // frozen while held -- carried by direct transform, not physics forces
         }
     }
 
