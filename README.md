@@ -1,234 +1,207 @@
 # CNC Operator Training Simulator (Godot + LinuxCNC)
 
-A 2-axis lathe operator training simulator. LinuxCNC (running in WSL2 Ubuntu)
-is the machine's "brain" — it's authoritative for every axis position, mode,
-and alarm. Godot 4 (C#) is the visual/interactive layer: it never changes
-machine state on its own, only sends commands and renders what it's told.
+A first-person CNC training simulator. A real **LinuxCNC** instance (running
+in WSL2) is each machine's brain: it interprets the G-code, plans the motion,
+enforces limits and raises the alarms. **Godot 4 (C#)** is the workshop around
+it: the machines, the material being cut, the tools in your hands.
 
-See `PLAN.md` for the full architecture, phase-by-phase status, and every
-non-obvious environment issue found and fixed along the way (read this if
-something here doesn't work and matches a symptom described there — it's
-almost certainly already diagnosed). See `PERF.md` for benchmark numbers and
-`ASSETS.md` for what's a real model vs. a placeholder primitive.
+The goal is to train operators on what they actually do at a machine — pick
+the stock, bolt the fixture down, clamp the part, find the work zero, run the
+program — and to show what happens when a step is skipped.
 
-## One-time setup (per machine)
+| | |
+|---|---|
+| ![Statue carved on the 5-axis machine](docs/screenshots/statue_closeup.png) | ![Vise bolted to the table with stock on parallels](docs/screenshots/vise_setup.png) |
+| A part carved by a 38,000-line 3+2 program on the 5-axis trunnion | A vise bolted down by hand, stock on parallels, one bolt still missing |
+| ![Stock station](docs/screenshots/stock_station_panel.png) | ![Tool bench](docs/screenshots/tool_bench.png) |
+| Stock station: shape, size, material, live preview | The hand tools every setup step asks for |
 
-This project only runs on **Windows with WSL2** — LinuxCNC has no Windows
-port, even its non-realtime "uspace" mode needs a real Linux kernel.
+More in [`docs/screenshots/`](docs/screenshots/).
 
-1. **WSL2 + Ubuntu.** If `wsl -l -v` doesn't show a working `Ubuntu` entry:
-   ```
-   wsl --update
-   wsl --install -d Ubuntu
-   ```
-   (If an existing `Ubuntu` entry is broken/orphaned -- e.g. `wsl --status`
-   complains the kernel file is missing, or starting it fails with a disk/vhdx
-   error -- `wsl --unregister Ubuntu` first, then install fresh. Nothing is
-   lost: a broken registration like that has no working data to lose.)
+## What is in it
 
-2. **Install LinuxCNC inside Ubuntu:**
+- **Live machines.** Each machine runs its own LinuxCNC in WSL; Godot only
+  sends commands and draws what LinuxCNC reports. Positions are predicted
+  between packets for smooth motion; material is only ever removed from
+  confirmed positions.
+- **Material removal.** Lathes cut a radius profile; mills cut a voxel stock
+  that works in any tool orientation, so 4- and 5-axis parts come out right.
+  Parted-off lathe parts become objects you can pick up.
+- **Machine generator** (editor plugin). Describe a machine — axes, travels,
+  tools, table, frame, chuck, turret — and get its scene and its LinuxCNC
+  configuration. Nine presets from a benchtop mill to a 5-axis trunnion.
+- **Hands-on setup.** A stock station makes the blank you ask for; you carry
+  it to the machine, bolt the vise to the T-slots one bolt at a time, set
+  parallels, clamp, seat the part with a mallet, then find the work zero with
+  an edge finder and a slip of paper. The stock is cut where it really sits.
+- **Consequences.** Cut a loosely clamped part and it is thrown out and the
+  machine stops. Skip the parallels and the cutter runs into the jaw. Push
+  the edge finder too far and it breaks.
+- **Operator controls.** A 3D console at each machine and a 2D panel: modes,
+  jog, MDI, program load, cycle start/hold/stop, overrides, tool change
+  confirm, tool touch-off, work-zero buttons, work and machine coordinates.
+
+| | | |
+|---|---|---|
+| ![VMC](docs/screenshots/machine_vmc.png) | ![Router](docs/screenshots/machine_router.png) | ![4-axis](docs/screenshots/machine_4axis_indexer.png) |
+| ![5-axis](docs/screenshots/machine_5axis_trunnion.png) | ![Flat-bed lathe](docs/screenshots/machine_flatbed_lathe.png) | ![Slant-bed lathe](docs/screenshots/machine_slantbed_lathe.png) |
+
+Machines are built from primitives by code; there are no imported models.
+
+## Setup (once per computer)
+
+Windows with WSL2 only: LinuxCNC has no Windows port.
+
+1. **WSL2 + Ubuntu 26.04.** `wsl --update`, then `wsl --install -d Ubuntu`.
+   (Ubuntu 24.04 does not carry the LinuxCNC package.)
+2. **LinuxCNC inside it:**
    ```
    wsl -d Ubuntu -- sudo apt-get update
-   wsl -d Ubuntu -- sudo apt-get install -y linuxcnc-uspace linuxcnc-uspace-dev python3-pip git build-essential
+   wsl -d Ubuntu -- sudo apt-get install -y linuxcnc-uspace linuxcnc-uspace-dev python3-pip
    ```
+3. **A second distro for a second machine.** LinuxCNC allows one running
+   instance per distro, so every machine that runs at the same time needs its
+   own (`wsl --install -d Ubuntu-26.04`, then step 2 in it). Each machine's
+   distro and ports are set in its scene.
+4. **.NET SDK 8+** and **Godot 4.7+ (.NET build)** on Windows. Point
+   `$GodotExe` at the top of `start.ps1` at your Godot executable.
 
-3. **Windows Firewall rule** (optional fallback — the state stream now
-   arrives as replies to Godot's own outbound SUBSCRIBE packets, which a
-   stateful firewall lets through without any inbound rule; see the
-   networking section below). Only needed if a firewall on your machine
-   does not track UDP replies. In an **elevated** PowerShell:
-   ```
-   New-NetFirewallRule -DisplayName "Godot CNC Bridge" -Direction Inbound -Protocol UDP -LocalPort 9200,9201 -Action Allow -Profile Any
-   ```
+No firewall rule or fixed IP is needed; see "Networking" below.
 
-4. **.NET SDK 8 or newer** on Windows (for building the Godot C# project) —
-   check with `dotnet --version`.
-
-5. **Godot 4.7+ with Mono/C# support**, anywhere on Windows. Edit
-   `$GodotExe` at the top of `start.ps1` to point at your
-   `Godot_*_mono_win64_console.exe`.
-
-You do **not** need to install anything for the Godot↔WSL networking itself —
-the bridge auto-discovers both sides' addresses at runtime (see "How the
-networking works" below); nothing is hardcoded to a specific IP.
-
-## Running it
+## Running
 
 ```
 .\start.ps1
 ```
 
-That's it — just launches Godot. Godot itself starts each machine's backing
-LinuxCNC/bridge process in WSL on its own (`Scripts/Machines/
-MachineProcessController.cs`) and stops it cleanly when you close the game
-window; there's no separate bridge window to watch or close by hand anymore.
-**First cold start of LinuxCNC can take up to ~90 seconds** — this is normal
-(see PLAN.md's Phase 0 notes on why), not a hang; the status label just
-reads "BRIDGE DISCONNECTED" until it connects on its own.
+or open the project in the Godot editor and press Play. Godot starts each
+machine's LinuxCNC and bridge in WSL itself and stops them when the window
+closes. The first start can take up to 90 seconds before a machine reports
+CONNECTED.
 
-If you want to watch the bridge's own live output while debugging (instead
-of its log file, `bridge/bridge_session_<MachineName>.log`) or pass different bridge
-flags, see "Manual startup" below — but don't also run `start.ps1`/Godot at
-the same time: Godot will start (and the cleanup step it runs first will
-disrupt) its own copy regardless, which isn't what you want while watching
-a hand-started one.
+### Controls
 
-### Operator panel walkthrough
+| Key | Action |
+|---|---|
+| W A S D, Shift, Space | walk, run, jump |
+| Mouse | look |
+| V | first / third person |
+| F | pick up / drop what you are looking at |
+| Left click | use, place, press a console button |
+| Mouse wheel | turn a bolt or the vise screw (with the right tool in hand) |
+| E | at a console: 2D operator panel; at the stock station: its panel |
+| Esc | free / capture the mouse |
+| F3 | debug overlay |
 
-Once Godot is open, the on-screen Operator Panel (bottom-left):
+### Running a program
 
-1. **MACHINE ON** — resets e-stop and turns the machine on.
-2. **HOME ALL** (or HOME X / HOME Z individually) — references both axes.
-   Takes a few seconds.
-3. **LOAD PROGRAM** — the text field defaults to the bundled demo program
-   (`nc_files/demo_facing_turning.ngc`, a facing + 4-pass rough turn + finish
-   + part-off on a 50mm bar). Edit the path for a different program, relative
-   to `linuxcnc-config/`.
-4. **CYCLE START** — runs it. **FEED HOLD** pauses, **STOP** aborts,
-   **SINGLE BLOCK STEP** single-steps.
-5. When a tool change comes up, an orange **"TOOL CHANGE PENDING"** banner
-   appears — press **CONFIRM TOOL CHANGE** to let the program continue (there
-   is no physical turret to simulate a real swap, so this just acknowledges
-   it).
-6. **Jog**: pick CONTINUOUS or an increment size, then hold/click X±/Z±.
-7. **MDI**: type a line, Enter or EXECUTE.
-8. **Touch off**: jog the tool to a known reference surface, enter its known
-   dimension, press the matching TOUCH OFF button to set that tool's offset.
+At a machine's console press **E**, then on the panel: **ON**, **HOME ALL**,
+**LOAD PROGRAM**, **CYCLE START**. Every tool change waits for
+**CONFIRM TC**. Jogging needs **MANUAL** mode. LinuxCNC's own error messages
+appear in red in the middle of the screen.
 
-**Camera**: right-click-drag to orbit, scroll to zoom — it starts at a fixed
-angle, you'll want to zoom in to actually see the cut and chips.
+### Setting up a part on the mill
 
-**F3** toggles the debug overlay (predicted vs. confirmed position, error
-graph, stream jitter, command latency, frame time, scheduler budgets/queues).
+A setup sheet on the right of the screen ticks each step off.
 
-### Manual startup (debugging only -- `start.ps1` no longer needs this)
+1. Stock station: **E**, choose shape, size and material, **ÜRET**. Pick the
+   blank up with **F**.
+2. Take the vise from the cart beside the machine and click the table.
+3. Bring the four bolts one by one and click each hole; then, holding the
+   T-handle hex key, turn each with the mouse wheel until tight.
+4. Parallels: pick them up, click the vise.
+5. With the vise handle, open the jaws wide enough; click the vise with the
+   blank in hand; tighten with the wheel to 3/3; tap with the mallet.
+6. Work zero: MDI `T9 M6` (edge finder), **MANUAL**, jog in small steps to
+   the left edge until it kicks, type the X of that spot (`-5` for zero on
+   the edge), **SET X**. Same for Y. Then `T1 M6`, hold the paper gauge, step
+   down until the paper drags, type `0.05`, **SET Z**.
 
-```
-# 1. Clean stale state (always safe to run, even if nothing is running):
-wsl -d Ubuntu -- bash /mnt/c/<path-to-repo>/bridge/clear_stale_shm.sh
+## Generating a machine
 
-# 2. Start the bridge (blocks; leave this window open -- don't also run
-#    start.ps1/Godot at the same time, see "Running it" above):
-wsl -d Ubuntu -- python3 -u /mnt/c/<path-to-repo>/bridge/main.py --rate-hz 100
-# wait for the line: "[bridge] publishing state to ...:9200 at 100.0 Hz, ..."
+**Project > Tools > CNC Machine Generator** opens a dock: pick a preset, edit
+it in the embedded inspector while the 3D preview follows, fix what the
+problem list reports, **Generate Machine Scene**. This writes
+`Scenes/Machines/<Name>.tscn`; its LinuxCNC files
+(`linuxcnc-config/gen_<Name>.ini/.tbl`) are rewritten from the spec at every
+start. A placed machine stays editable through its `Spec` in the Inspector.
 
-# 3. In a separate terminal, build and run Godot:
-dotnet build Linux.csproj
-& "<path-to-godot>\Godot_..._console.exe" --path "<path-to-repo>"
-```
+- **Axes**: letter, limits, speed, home, and whether the axis carries the
+  tool or the workpiece. For mills the list order is the kinematic chain.
+- **Tools**: number, kind, diameter, corner/nose radius, length.
+- **Structure**: frame, table, workholding, stock (mill); bed, slide angle,
+  chuck, turret, tailstock, stock (lathe).
+- **Manual Setup**: the machine starts empty and the player sets it up.
 
-## How the networking works (read this before debugging connection issues)
+## Programs
 
-- **Bridge → Godot** (position/state stream): once a second Godot sends a
-  SUBSCRIBE packet from its state socket to the bridge's command port, and
-  the bridge sends the state stream back to that packet's source address,
-  out of the command socket. To a stateful firewall the stream is a reply
-  to Godot's own traffic, so it passes with no inbound rule — unsolicited
-  WSL → Windows UDP was found blocked by a third-party firewall (Kaspersky)
-  that ignores Windows Firewall rules entirely. Until the first SUBSCRIBE
-  arrives the bridge falls back to sending to the Windows host's address
-  (`ip route`'s default gateway) on the state port.
-- **Ports per machine**: all WSL distros share one network address, so each
-  machine needs its own pair — lathe 9200/9201, mill 9202/9203.
-- **Godot → bridge** (commands, 9201/udp): WSL2's usual "a socket in the VM is
-  reachable from Windows at `127.0.0.1`" **does not work for UDP** on at least
-  some WSL2 builds (confirmed the hard way during development). So instead,
-  the bridge writes its own real address to `bridge/.bridge_endpoint` on every
-  start, and `BridgeClient.cs` reads that file at startup instead of assuming
-  `127.0.0.1`. If you ever see the panel's buttons have no effect on the
-  machine, check that this file exists and was written by the *currently
-  running* bridge (its WSL IP changes across `wsl --shutdown` cycles, though
-  not across ordinary bridge restarts within one WSL session).
+Programs live in `linuxcnc-config/nc_files/` and are loaded by path
+(`nc_files/name.ngc`). A file saved while the game runs can be loaded
+without restarting. Eleven demo programs cover turning, milling, a multi-tool
+VMC part, a 4-axis and a 5-axis part; `tools/statue_cam.py` generates the
+statue program.
+
+When writing your own: tool numbers must exist in the machine's tool list;
+moves must stay inside the axis limits; on 4/5-axis machines there is no
+tool-centre-point control, so coordinates are plain machine axes.
+
+## Networking
+
+- **State, bridge -> Godot.** Godot sends a SUBSCRIBE packet once a second;
+  the bridge streams state back to that packet's source. To a firewall the
+  stream is a reply to Godot's own traffic, so no inbound rule is needed.
+- **Commands, Godot -> bridge.** WSL2's `127.0.0.1` forwarding does not work
+  for UDP on at least some builds, so the bridge writes its own address to
+  `bridge/.bridge_endpoint` and Godot reads it.
+- All distros share one address: each machine needs its own port pair.
 
 ## Tests
 
 ```
-# C# (xUnit) -- pure logic, no LinuxCNC/bridge needed:
-cd Tests
-dotnet test
-
-# Python (pytest) -- most need linuxcnc-uspace, so run inside WSL2:
+dotnet test tests/Tests.csproj
 wsl -d Ubuntu -- python3 -m pytest /mnt/c/<path-to-repo>/tests/bridge/ -v
 ```
-`tests/bridge/test_record_replay.py` and `test_protocol.py` need no LinuxCNC
-and also run fine on Windows directly if you `pip install pytest` there.
 
-**Don't run the Python LinuxCNC-lifecycle tests (`test_linuxcnc_process.py`,
-`test_preview.py`) while a bridge/Godot session is already running** — they
-start and stop their own LinuxCNC instance and will conflict with a live one.
+Do not run the Python LinuxCNC tests (`test_linuxcnc_process.py`,
+`test_preview.py`) while the game is running: they start their own LinuxCNC
+and stop the game's.
 
-## Record/replay (develop without LinuxCNC running at all)
+## Layout
 
 ```
-# While the real bridge is running and Godot is NOT:
-python tools\record_replay.py record capture.bin
-
-# Later, with Godot running and the bridge stopped:
-python tools\record_replay.py replay capture.bin
-python tools\record_replay.py replay capture.bin --jitter-ms 15 --loss-pct 5 --loop
+bridge/                  Python bridge: LinuxCNC lifecycle, protocol, state, commands
+linuxcnc-config/         hand-written sim configs, demo programs (nc_files/)
+addons/cnc_machine_generator/   the editor plugin
+Scripts/
+  Bridge/                UDP client, protocol mirror, machine state
+  Machines/              machine roots, cutting logic, Spec/ (machine description, presets,
+                         LinuxCNC config writer, kinematics)
+  MachineVisual/         console, procedural mill and lathe bodies, tool meshes
+  Material/              lathe radius profile, voxel stock and mesher
+  Fixtures/              vise, bolts, table, mill setup
+  Workshop/              stock station, stock items, tool bench
+  Interaction/           what the player can look at, carry and use
+  Player/, Panel/, Chips/, Sim/, Scheduling/
+Scenes/                  Main.tscn (workshop), Machines/
+tests/                   C# (xUnit) and Python (pytest)
+tools/                   record_replay.py, statue_cam.py
+docs/screenshots/        images used here
+PLAN.md                  development log: every decision and every problem found
 ```
 
-## Project layout
+## Status and limits
 
-```
-bridge/              Python bridge: LinuxCNC process lifecycle, wire protocol,
-                      state publisher, command server, G-code preview parsing
-linuxcnc-config/      LinuxCNC sim lathe INI/tool-table/demo NC program
-Scripts/              Godot C# source
-  Bridge/              BridgeClient (networking), wire protocol mirror
-  Sim/                 PredictionModel (client-side prediction/reconciliation)
-  Material/            LatheRadiusProfile + chunked mesh building
-  Chips/               Chip classification + pooled spawner
-  Scheduling/          Priority job scheduler, adaptive budget, benchmark
-  Panel/               Operator panel UI
-Scenes/Main.tscn       The one scene
-tests/                 C# (xUnit) + Python (pytest) tests
-tools/                 record_replay.py
-PLAN.md, PERF.md, ASSETS.md   Architecture/decisions, benchmarks, asset status
-```
+Working: everything above. In progress: the lathe chuck (key, jaws, caliper
+measuring), step clamps and a centring plate for the 5-axis machine, vise
+tramming with a dial indicator.
 
-## Generating a machine (editor plugin)
+- One LinuxCNC per WSL distro, so machines sharing a distro cannot run in
+  the same scene.
+- Kinematics are plain trivkins; tool length offsets are not modelled (the
+  tip is always where LinuxCNC reports it); lathes are X/Z only.
+- No holder or spindle collision detection; only the cutter against the vise
+  jaws is checked.
+- The cut state lives in Godot's memory and is lost when the game closes.
+- Chips are simple pooled boxes, sized up to be visible.
 
-The **Machine Generator** dock (Project > Tools > CNC Machine Generator)
-builds a machine scene and its LinuxCNC configuration from a description of
-the machine, so a real machine can be modelled without writing code:
-
-1. Pick the preset closest to the machine (3-axis VMC, gantry router, 4-axis
-   indexer, 5-axis trunnion or swivel head, flat-bed or slant-bed lathe).
-2. Edit it in the dock's inspector; the preview updates as you type.
-   - **Axes**: letter, travel limits, speed, home position, and whether the
-     axis moves the tool or the workpiece. For mills the list order is the
-     kinematic chain (first = closest to the base). Rotary axes take a pivot
-     point in machine X/Y/Z mm from work zero.
-   - **Tools**: number, type, diameter, corner/nose radius, length.
-   - **Structure**: frame type, table, workholding, stock, magazine (mill);
-     bed, slide angle, chuck, turret, tailstock, stock (lathe).
-   - **LinuxCNC**: WSL distro, ports, demo program.
-3. Fix whatever the problem list under the inspector reports, then
-   **Generate Machine Scene**. This writes `Scenes/Machines/<Name>.tscn` and
-   can add it to the open scene. "Save as preset" keeps the spec in
-   `res://Machines/Specs/` for reuse.
-
-A placed machine stays editable: select it, open its `Spec` in the Inspector,
-and the body rebuilds in the viewport. `linuxcnc-config/gen_<Name>.ini/.tbl`
-are regenerated from the spec every time the machine starts.
-
-Limits: one running LinuxCNC per WSL distro, so machines sharing a distro
-cannot run in the same scene; work zero is the centre of the stock's top face
-(mill) or the free end on the centreline (lathe); kinematics are plain
-trivkins (no tool-centre-point control); tool-length offsets are not
-modelled; lathes are X/Z only.
-
-## Known limitations (also see PLAN.md's "non-obvious things" list)
-
-- The cut-profile visual state (which parts of the stock have been removed)
-  lives only in Godot's memory — closing/reopening Godot resets the visible
-  workpiece to full uncut stock even though the real LinuxCNC machine's
-  actual position/program state is untouched. There's no mechanism yet to
-  resync the visual history from the real machine.
-- No 3D models for the machine body, chuck, tool holder, or shop environment
-  — see `ASSETS.md` for the full list of what's a placeholder primitive.
-- Chip visuals use one pooled stretched-box mesh for every chip type
-  (distinguished by size/elongation/spin/color), not true per-type curled
-  ribbon geometry — a deliberate scope cut for a training-visualization tool,
-  not an oversight (see `Scripts/Chips/ChipSpawner.cs`'s own doc comment).
+`PLAN.md` is the full, dated development log.
