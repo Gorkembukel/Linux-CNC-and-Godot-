@@ -7,7 +7,7 @@ from __future__ import annotations
 import socket
 import time
 
-from protocol import AXIS_CAPACITY, AXIS_X, AXIS_Z, StateSample, TaskMode, InterpState
+from protocol import AXIS_CAPACITY, AXIS_X, AXIS_Z, EventKind, StateSample, TaskMode, InterpState, pack_event
 
 # stat.actual_position is ALWAYS axis-letter indexed (a 9-tuple X,Y,Z,A,B,C,
 # U,V,W) regardless of kinematics -- same order as protocol.py's AXIS_*
@@ -24,7 +24,7 @@ DEFAULT_LATHE_JOINT_AXIS_MAP = ((0, AXIS_X), (1, AXIS_Z))
 class StatePublisher:
     def __init__(self, stat, sock: socket.socket, dest_addr: tuple[str, int], rate_hz: float = 250.0,
                  joint_axis_map: tuple[tuple[int, int], ...] = DEFAULT_LATHE_JOINT_AXIS_MAP,
-                 tool_change_pending=lambda: False):
+                 tool_change_pending=lambda: False, error_channel=None):
         self.stat = stat
         self.sock = sock
         self.dest_addr = dest_addr
@@ -32,6 +32,7 @@ class StatePublisher:
         self.seq = 0
         self.joint_axis_map = joint_axis_map
         self.tool_change_pending = tool_change_pending
+        self.error_channel = error_channel
         self.active_axis_mask = 0
         for _joint, axis in joint_axis_map:
             self.active_axis_mask |= 1 << axis
@@ -92,6 +93,12 @@ class StatePublisher:
         packet = sample.pack(seq=self.seq)
         self.seq += 1
         self.sock.sendto(packet, self.dest_addr)
+
+        # LinuxCNC's own operator messages ("tool not found", "would exceed
+        # limit"...) are the only explanation a rejected command ever gets.
+        error = self.error_channel.poll() if self.error_channel else None
+        if error:
+            self.sock.sendto(pack_event(self.seq, EventKind.ALARM, error[1].strip()[:400]), self.dest_addr)
 
     def run_forever(self, should_stop) -> None:
         next_tick = time.monotonic()

@@ -27,6 +27,12 @@ public partial class Main : Node3D
         _statusLabel = GetNode<Label>("UI/StatusLabel");
         _debugOverlay = GetNode<DebugOverlay>("UI/DebugOverlay");
 
+        foreach (var machine in _machines)
+        {
+            string name = machine.Rig.Profile.Name;
+            machine.Rig.Bridge.EventReceived += (kind, text) => Player.PlayerController.Notify(this, $"{name}: {text}");
+        }
+
         var panel = GetNode<OperatorPanel>("UI/OperatorPanel");
         panel.MachineSelected += OnMachineSelected;
         panel.SetMachines(_machines);

@@ -42,6 +42,14 @@ Number = 2
 Description = "6mm flat end mill"
 DiameterMm = 6.0
 
+[sub_resource type="Resource" id="Resource_edge9"]
+script = ExtResource("4_0vsjv")
+Number = 9
+Kind = 8
+Description = "10mm edge finder"
+LengthMm = 40.0
+Color = Color(0.8, 0.8, 0.85, 1)
+
 [sub_resource type="Resource" id="Resource_ng8rj"]
 script = ExtResource("5_8ygoh")
 MachineName = "BenchMill"
@@ -50,7 +58,7 @@ StatePort = 9206
 CommandPort = 9207
 DemoProgram = "nc_files/demo_mill_pocket.ngc"
 Axes = Array[ExtResource("2_mg2mi")]([SubResource("Resource_qf80f"), SubResource("Resource_feiaf"), SubResource("Resource_0b2y4")])
-Tools = Array[ExtResource("4_0vsjv")]([SubResource("Resource_qlkn3"), SubResource("Resource_8qxfn")])
+Tools = Array[ExtResource("4_0vsjv")]([SubResource("Resource_qlkn3"), SubResource("Resource_8qxfn"), SubResource("Resource_edge9")])
 ManualSetup = true
 Mill = SubResource("Resource_aheyw")
 

@@ -89,7 +89,8 @@ def main() -> int:
         # only the destination until the first SUBSCRIBE arrives.
         publisher = StatePublisher(stat, command_sock, (dest_ip, args.state_port), rate_hz=args.rate_hz,
                                    joint_axis_map=joint_axis_map,
-                                   tool_change_pending=lambda: hal.get_value("iocontrol.0.tool-change"))
+                                   tool_change_pending=lambda: hal.get_value("iocontrol.0.tool-change"),
+                                   error_channel=linuxcnc.error_channel())
 
         def retarget(addr):
             publisher.dest_addr = addr
