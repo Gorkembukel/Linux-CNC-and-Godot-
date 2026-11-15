@@ -1,4 +1,6 @@
 using Godot;
+using CncTrainer.Interaction;
+using CncTrainer.Workshop;
 
 namespace CncTrainer.Player;
 
@@ -48,6 +50,22 @@ public partial class PlayerController : CharacterBody3D
 
     private Node3D _carryPoint;
     private RigidBody3D _heldPart;
+    private StockStation _station;
+    private bool _atStation;
+    private Label _heldLabel;
+
+    /// <summary>What the player is carrying, or null.</summary>
+    public RigidBody3D Held => _heldPart;
+    public HandTool HeldTool => _heldPart as HandTool;
+
+    /// <summary>Takes the carried object out of the player's hands without
+    /// dropping it (it has just been fitted somewhere).</summary>
+    public RigidBody3D ReleaseHeld()
+    {
+        var held = _heldPart;
+        _heldPart = null;
+        return held;
+    }
 
     public override void _Ready()
     {
@@ -91,6 +109,11 @@ public partial class PlayerController : CharacterBody3D
         _interactPrompt.AnchorLeft = _interactPrompt.AnchorRight = 0.5f;
         _interactPrompt.AnchorTop = _interactPrompt.AnchorBottom = 0.85f;
 
+        _heldLabel = new Label();
+        ui.AddChild(_heldLabel);
+        _heldLabel.AnchorLeft = _heldLabel.AnchorRight = 0.5f;
+        _heldLabel.AnchorTop = _heldLabel.AnchorBottom = 0.92f;
+
         var crosshair = new Label { Text = "+", HorizontalAlignment = HorizontalAlignment.Center };
         ui.AddChild(crosshair);
         crosshair.AnchorLeft = crosshair.AnchorRight = crosshair.AnchorTop = crosshair.AnchorBottom = 0.5f;
@@ -132,6 +155,10 @@ public partial class PlayerController : CharacterBody3D
                         ? Input.MouseModeEnum.Visible
                         : Input.MouseModeEnum.Captured;
                     break;
+                case Key.E when _atStation:
+                    _station.SetPanelOpen(!_station.PanelOpen);
+                    Input.MouseMode = _station.PanelOpen ? Input.MouseModeEnum.Visible : Input.MouseModeEnum.Captured;
+                    break;
                 case Key.E when _atConsole:
                     ToggleConsoleUse();
                     break;
@@ -140,11 +167,21 @@ public partial class PlayerController : CharacterBody3D
                     break;
             }
         }
+        else if (@event is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.WheelUp or MouseButton.WheelDown } wheel
+                 && Input.MouseMode == Input.MouseModeEnum.Captured)
+        {
+            LookedAtInteractable()?.Turn(this, wheel.ButtonIndex == MouseButton.WheelUp ? 1 : -1);
+        }
         else if (@event is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left } mb)
         {
             if (Input.MouseMode == Input.MouseModeEnum.Captured)
-                TryPressConsoleButton(); // crosshair raycast -- see that method's doc comment
-            else if (!_atConsole)
+            {
+                if (LookedAtInteractable() is IInteractable target)
+                    target.Use(this);
+                else
+                    TryPressConsoleButton(); // crosshair raycast -- see that method's doc comment
+            }
+            else if (!_atConsole && !_atStation)
             {
                 // Safety net for a focus-timing edge case: clicking back into
                 // the game window re-captures the mouse for looking around,
@@ -155,6 +192,23 @@ public partial class PlayerController : CharacterBody3D
             }
         }
     }
+
+    private Node3D LookedAt(float range)
+    {
+        var camera = GetViewport().GetCamera3D();
+        if (camera == null)
+            return null;
+        var from = camera.GlobalPosition;
+        var query = PhysicsRayQueryParameters3D.Create(from, from - camera.GlobalTransform.Basis.Z * range);
+        var exclude = new Godot.Collections.Array<Rid> { GetRid() };
+        if (_heldPart != null)
+            exclude.Add(_heldPart.GetRid());
+        query.Exclude = exclude;
+        var result = GetWorld3D().DirectSpaceState.IntersectRay(query);
+        return result.Count > 0 ? result["collider"].As<Node3D>() : null;
+    }
+
+    private IInteractable LookedAtInteractable() => IInteractable.Find(LookedAt(PickupRange));
 
     /// <summary>Crosshair-style interaction (standard FPS pattern, since the
     /// mouse cursor is invisible/locked in Captured mode -- there's nothing
@@ -270,6 +324,7 @@ public partial class PlayerController : CharacterBody3D
         MoveAndSlide();
 
         UpdateConsoleProximity();
+        UpdateStationProximity();
         UpdateCarriedPart();
         UpdatePickupPrompt();
     }
@@ -292,6 +347,22 @@ public partial class PlayerController : CharacterBody3D
         }
     }
 
+    private void UpdateStationProximity()
+    {
+        _station = null;
+        foreach (var node in GetTree().GetNodesInGroup("stock_stations"))
+            if (node is StockStation station && (_station == null ||
+                GlobalPosition.DistanceTo(station.GlobalPosition) < GlobalPosition.DistanceTo(_station.GlobalPosition)))
+                _station = station;
+        bool inRange = _station != null && GlobalPosition.DistanceTo(_station.GlobalPosition) <= InteractRange + 0.4f;
+        if (_atStation && !inRange && _station != null && _station.PanelOpen)
+        {
+            _station.SetPanelOpen(false);
+            Input.MouseMode = Input.MouseModeEnum.Captured;
+        }
+        _atStation = inRange;
+    }
+
     private void UpdateCarriedPart()
     {
         if (_heldPart != null)
@@ -304,6 +375,15 @@ public partial class PlayerController : CharacterBody3D
     /// check above (one ray per physics frame).</summary>
     private void UpdatePickupPrompt()
     {
+        _heldLabel.Text = _heldPart == null ? "" : "Elde: " + ((_heldPart as Carryable)?.DisplayName ?? "parça");
+
+        if (_atStation)
+        {
+            _interactPrompt.Text = "[E] Kütük istasyonu";
+            _interactPrompt.Visible = true;
+            return;
+        }
+
         if (_atConsole)
         {
             _interactPrompt.Text = "[E] 2D panel   [Click] press a button";
@@ -311,9 +391,16 @@ public partial class PlayerController : CharacterBody3D
             return;
         }
 
+        if (LookedAtInteractable()?.Prompt(this) is string hint)
+        {
+            _interactPrompt.Text = hint;
+            _interactPrompt.Visible = true;
+            return;
+        }
+
         if (_heldPart != null)
         {
-            _interactPrompt.Text = "[F] Drop part";
+            _interactPrompt.Text = "[F] Bırak";
             _interactPrompt.Visible = true;
             return;
         }
@@ -328,7 +415,7 @@ public partial class PlayerController : CharacterBody3D
             var result = GetWorld3D().DirectSpaceState.IntersectRay(query);
             if (result.Count > 0 && result["collider"].As<Node3D>() is RigidBody3D body && body.IsInGroup("pickupable"))
             {
-                _interactPrompt.Text = "[F] Pick up part";
+                _interactPrompt.Text = "[F] Al: " + ((body as Carryable)?.DisplayName ?? "parça");
                 _interactPrompt.Visible = true;
                 return;
             }
