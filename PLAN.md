@@ -1162,3 +1162,17 @@ Also on this branch, NOT yet run against LinuxCNC (the run was stopped by the
 host for low memory after ~60 s): eleven demo programs in
 `linuxcnc-config/nc_files/` and the nc_files re-sync on LOAD PROGRAM. The
 throwaway live harness is in the untracked `tmp_verify/`.
+
+### Follow-up, same day: pending indicator was wrong (user report on the 5-axis machine)
+
+"TOOL CHANGE PENDING" lit up while the machine was cutting. Cause: the panels
+keyed it on `InterpState.Waiting`, which LinuxCNC also reports during ordinary
+program motion (interpreter waiting on the motion queue) -- so the previous
+note's "report WAITING while pending" was the wrong carrier. Replaced by a
+dedicated `tool_change_pending` u8 appended to the STATE packet (160 bytes
+now, both sides + fixture updated). The user's own 5-axis program had no
+`T1 M6`, so LinuxCNC ran it with an empty spindle (T0: no tool drawn, nothing
+cut) -- added the line. Found by inspecting the user's RUNNING instance
+read-only; nothing was restarted. 56 C# + 11 non-LinuxCNC pytest green.
+NOT verified live (both distros were in use by the user's session): the new
+flag end to end, and the eleven demo programs.
