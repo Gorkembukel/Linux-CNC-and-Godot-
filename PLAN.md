@@ -386,6 +386,14 @@ status sections above; this is just the index)
     mill's own LinuxCNC instance; empirically verified two concurrent
     instances across the two distros don't interfere with each other at
     all. See the "Phase A" status section above for the full trail.
+    **Superseded 2026-11-15**: a second distro is not needed.
+    `bridge/run_isolated.sh` gives each machine its own mount (private
+    `/tmp`, private native config copy), IPC and PID namespace inside one
+    distro. One more collision only showed up once those were in place:
+    `rtapi_app`'s control socket lives at `$HOME/.rtapi_fifo`, so a second
+    instance's startup told the first one's `rtapi_app` to exit; fixed with
+    a per-run `RTAPI_FIFO_PATH`. Verified with lathe and mill running
+    concurrently in "Ubuntu", each homed and moved to its own position.
 
 ## Phase 4 (operator panel) -- confirmed working live, end to end (2026-11-13)
 

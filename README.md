@@ -20,7 +20,8 @@ More in [`docs/screenshots/`](docs/screenshots/).
 
 ## What is in it
 
-- **Live machines.** Each machine runs its own LinuxCNC in WSL; Godot only
+- **Live machines.** Each machine runs its own LinuxCNC in WSL, all in one
+  distro (isolated from each other by Linux namespaces); Godot only
   sends commands and draws what LinuxCNC reports. Positions are predicted
   between packets for smooth motion; material is only ever removed from
   confirmed positions.
@@ -59,11 +60,7 @@ Windows with WSL2 only: LinuxCNC has no Windows port.
    wsl -d Ubuntu -- sudo apt-get update
    wsl -d Ubuntu -- sudo apt-get install -y linuxcnc-uspace linuxcnc-uspace-dev python3-pip
    ```
-3. **A second distro for a second machine.** LinuxCNC allows one running
-   instance per distro, so every machine that runs at the same time needs its
-   own (`wsl --install -d Ubuntu-26.04`, then step 2 in it). Each machine's
-   distro and ports are set in its scene.
-4. **.NET SDK 8+** and **Godot 4.7+ (.NET build)** on Windows. Point
+3. **.NET SDK 8+** and **Godot 4.7+ (.NET build)** on Windows. Point
    `$GodotExe` at the top of `start.ps1` at your Godot executable.
 
 No firewall rule or fixed IP is needed; see "Networking" below.
@@ -195,8 +192,6 @@ Working: everything above. In progress: the lathe chuck (key, jaws, caliper
 measuring), step clamps and a centring plate for the 5-axis machine, vise
 tramming with a dial indicator.
 
-- One LinuxCNC per WSL distro, so machines sharing a distro cannot run in
-  the same scene.
 - Kinematics are plain trivkins; tool length offsets are not modelled (the
   tip is always where LinuxCNC reports it); lathes are X/Z only.
 - No holder or spindle collision detection; only the cutter against the vise

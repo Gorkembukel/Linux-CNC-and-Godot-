@@ -250,10 +250,6 @@ public partial class CncMachineGeneratorPlugin : EditorPlugin
     private List<string> Warnings()
     {
         var warnings = new List<string>();
-        var sameDistro = _existing.Where(m => m.Distro == _draft.WslDistro).Select(m => m.File).ToArray();
-        if (sameDistro.Length > 0)
-            warnings.Add($"{string.Join(", ", sameDistro)} also runs in '{_draft.WslDistro}'. LinuxCNC allows one instance " +
-                         "per distro: of the machines in one scene sharing a distro, only the first one starts.");
         if (_draft.DemoProgram.Length > 0 && !FileAccess.FileExists("res://linuxcnc-config/" + _draft.DemoProgram))
             warnings.Add($"Demo program linuxcnc-config/{_draft.DemoProgram} does not exist.");
         return warnings;

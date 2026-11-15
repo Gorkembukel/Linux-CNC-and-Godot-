@@ -13,7 +13,7 @@ namespace CncTrainer;
 public partial class MillMachine : Node3D, IMachine
 {
     [Export] public string MachineName = "Mill";
-    [Export] public string WslDistro = "Ubuntu-26.04";
+    [Export] public string WslDistro = "Ubuntu";
     [Export] public int StatePort = 9202;
     [Export] public int CommandPort = 9203;
     [Export] public double RateHz = 100.0;
