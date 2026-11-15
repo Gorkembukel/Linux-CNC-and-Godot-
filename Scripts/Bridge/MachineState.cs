@@ -27,6 +27,11 @@ public class MachineState
     public byte ActiveAxisMask, HomedMask;
     public bool InCycle;
     public bool ToolChangePending;
+    /// <summary>Active work offset (G5x + G92 + tool offset) per axis.</summary>
+    public AxisVector WorkOffset;
+    /// <summary>Position in the active work coordinate system, what a
+    /// program's X/Y/Z words refer to.</summary>
+    public AxisVector WorkPosition => Position - WorkOffset;
 
     public ulong LastSeq;
     public long LastTMonoNs;
@@ -59,6 +64,7 @@ public class MachineState
         HomedMask = s.HomedMask;
         InCycle = s.InCycle;
         ToolChangePending = s.ToolChangePending;
+        WorkOffset = s.WorkOffset;
 
         LastSeq = header.Seq;
         LastTMonoNs = header.TMonoNs;

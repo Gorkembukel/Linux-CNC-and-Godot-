@@ -32,6 +32,7 @@ public partial class OperatorPanel : Control
 
     private Label _modeStatusLabel;
     private Label _toolChangeLabel;
+    private Label _positionLabel;
     private LineEdit _mdiInput;
     private HSlider _feedOverrideSlider;
     private HSlider _spindleOverrideSlider;
@@ -120,6 +121,9 @@ public partial class OperatorPanel : Control
         _toolChangeLabel = new Label { Text = "", Modulate = new Color(1f, 0.6f, 0.1f) };
         root.AddChild(_toolChangeLabel);
 
+        _positionLabel = new Label();
+        root.AddChild(_positionLabel);
+
         root.AddChild(BuildModeRow());
         root.AddChild(BuildJogRow());
         root.AddChild(BuildMdiRow());
@@ -127,6 +131,8 @@ public partial class OperatorPanel : Control
         root.AddChild(BuildCycleRow());
         root.AddChild(BuildOverridesRow());
         root.AddChild(BuildToolRow());
+        if (System.Array.Exists(_axes, a => a.Axis == AxisId.Y))
+            root.AddChild(BuildWorkZeroRow());
     }
 
     public override void _Process(double delta)
@@ -135,6 +141,13 @@ public partial class OperatorPanel : Control
             return;
         var s = _bridge.State;
         _modeStatusLabel.Text = $"MODE: {s.TaskMode}   INTERP: {s.InterpState}   ESTOP: {(s.Estop ? "YES" : "no")}   ON: {s.MachineOn}";
+        string work = "WORK", machine = "MACH";
+        foreach (var (axis, _) in _axes)
+        {
+            work += $"  {axis}{s.WorkPosition.Get(axis):F3}";
+            machine += $"  {axis}{s.Position.Get(axis):F3}";
+        }
+        _positionLabel.Text = work + "\n" + machine;
         _toolChangeLabel.Text = s.ToolChangePending
             ? "TOOL CHANGE PENDING -- press CONFIRM TC"
             : "";
@@ -321,6 +334,24 @@ public partial class OperatorPanel : Control
                 _bridge.SendMdi($"G10 L1 P{_bridge.State.ToolNumber} Z{measuredZ - knownZ:F4}");
             }
         }));
+        return row;
+    }
+
+    /// <summary>Work zero: with the tool (or edge finder) at a known spot
+    /// of the part, type that spot's coordinate and SET writes the G54
+    /// offset so the current position reads as that value.</summary>
+    private Control BuildWorkZeroRow()
+    {
+        var row = new HBoxContainer();
+        row.AddChild(new Label { Text = "WORK ZERO G54" });
+        var valueInput = new LineEdit { Text = "0", TooltipText = "Coordinate of the spot the tool is at now", CustomMinimumSize = new Vector2(70, 0) };
+        row.AddChild(valueInput);
+        foreach (string axis in new[] { "X", "Y", "Z" })
+            row.AddChild(MakeButton("SET " + axis, () =>
+            {
+                if (float.TryParse(valueInput.Text.Replace(',', '.'), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float value))
+                    _bridge.SendMdi(System.FormattableString.Invariant($"G10 L20 P1 {axis}{value:F4}"));
+            }));
         return row;
     }
 

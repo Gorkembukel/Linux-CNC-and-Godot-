@@ -394,7 +394,7 @@ public partial class ConsoleStand : Node3D
     {
         string text = "";
         foreach (var (axis, _) in _axes)
-            text += $"{axis}  {s.Position.Get(axis),10:F4}\n";
+            text += $"{axis} {s.WorkPosition.Get(axis),9:F3}  M{s.Position.Get(axis),9:F3}\n";
         return text;
     }
 

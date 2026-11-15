@@ -1,5 +1,6 @@
 using Godot;
 using CncTrainer.Bridge;
+using CncTrainer.Interaction;
 using CncTrainer.Material;
 using CncTrainer.Player;
 using CncTrainer.Procedural;
@@ -14,7 +15,7 @@ namespace CncTrainer.Fixtures;
 /// machined exactly where it sits; cutting it while it is not held firmly
 /// throws it out and stops the machine. Child of the machine root.
 /// </summary>
-public partial class MillWorkholding : Node3D
+public partial class MillWorkholding : Node3D, ISetupSheet
 {
     public MillTable Table { get; private set; }
 
@@ -25,6 +26,10 @@ public partial class MillWorkholding : Node3D
     private Transform3D _mountedAt;
     private double _removedAtMount;
     private bool _crashed;
+    private bool _edgeTouching, _edgeBroken;
+    private AxisVector _offsetAtPlacement;
+
+    public Vector3 SheetPosition => GlobalPosition;
 
     public void Setup(MachineSpec spec, ProceduralMillBody body, MillCutting cutting, BridgeClient bridge)
     {
@@ -40,6 +45,7 @@ public partial class MillWorkholding : Node3D
         cutting.IsSecure = () => Table.Vise is Vise vise && vise.BoltsTight && vise.StockClamped;
         cutting.CutWhileLoose = ThrowPart;
 
+        AddToGroup("setup_sheets");
         BuildCart(new Vector3(spec.Mill.BaseWidthMm * WorldScale.MmToM / 2f + 0.7f, 0f, 0.9f));
     }
 
@@ -79,6 +85,7 @@ public partial class MillWorkholding : Node3D
             vise.ShowMachined(visual);
             _removedAtMount = _cutting.RemovedMm3;
             _mountedAt = default;
+            _offsetAtPlacement = _bridge.State.WorkOffset;
         }
 
         if (stock != null)
@@ -99,6 +106,81 @@ public partial class MillWorkholding : Node3D
             _cutting.ClearStock();
 
         CheckJawCrash(vise);
+        CheckEdgeFinder();
+        ShowPaperGap();
+    }
+
+    /// <summary>The edge finder kicks sideways the moment it reaches the
+    /// stock; pushed half a millimetre further it snaps.</summary>
+    private void CheckEdgeFinder()
+    {
+        float overtravel = _cutting.EdgeFinderOvertravelMm;
+        bool touching = overtravel >= 0f;
+        _body.SetToolKick(touching);
+        if (touching && !_edgeTouching && _spec.FindTool(_bridge.State.ToolNumber) is ToolSpec finder)
+            PlayerController.Notify(this, System.FormattableString.Invariant(
+                $"Kenar bulucu attı: uç kenarda. İş mili ekseni kenardan {finder.DiameterMm / 2f:0.###} mm uzakta"));
+        _edgeTouching = touching;
+
+        if (overtravel > 0.5f && !_edgeBroken)
+        {
+            _edgeBroken = true;
+            StopMachine("KENAR BULUCU KIRILDI: kenara fazla bastırıldı (ince adımla yanaş)");
+        }
+        else if (!touching)
+            _edgeBroken = false;
+    }
+
+    /// <summary>Z touch-off by feel: with the paper gauge in hand, the HUD
+    /// says whether the paper still slides under the tool.</summary>
+    private void ShowPaperGap()
+    {
+        if (GetTree().GetFirstNodeInGroup("player") is not PlayerController player
+            || player.HeldTool?.Kind != HandToolKind.PaperGauge || player.GlobalPosition.DistanceTo(GlobalPosition) > 4f)
+            return;
+        var tool = _spec.FindTool(_bridge.State.ToolNumber);
+        if (tool == null || tool.Kind == ToolKind.EdgeFinder)
+            player.ToolStatus = "Kağıt mastar: iş milinde kesici takım yok";
+        else if (_cutting.TipGapMm() is not float gap)
+            player.ToolStatus = "Kağıt mastar: takım yüzeyden uzak";
+        else if (gap < 0.03f)
+            player.ToolStatus = "Kağıt mastar: KAĞIT YIRTILDI, takım yüzeye bastı (yukarı çık)";
+        else if (gap <= 0.08f)
+            player.ToolStatus = "Kağıt mastar: kağıt sıkışıyor  ->  takım ucu yüzeyin 0,05 mm üstünde";
+        else
+            player.ToolStatus = "Kağıt mastar: kağıt serbest kayıyor (daha in)";
+    }
+
+    public string SheetText
+    {
+        get
+        {
+            var vise = Table.Vise;
+            var state = _bridge.State;
+            static string Mark(bool done) => done ? "[x] " : "[ ] ";
+            string text = $"AYAR FÖYÜ - {_spec.MachineName}\n";
+            text += Mark(vise != null) + "Mengene tablada" + (vise != null && vise.Rotation.X != 0f ? "  (TALAŞ ÜSTÜNE OTURDU)" : "") + "\n";
+            if (vise == null)
+                return text + "    Mengeneyi arabadan al, tablaya koy";
+            int tight = 0;
+            foreach (var bolt in vise.Bolts)
+                if (bolt.IsTight) tight++;
+            text += Mark(vise.BoltsTight) + $"Cıvatalar tam sıkı  {tight}/{vise.Bolts.Count}\n";
+            text += Mark(vise.HasParallels) + "Paraleller\n";
+            text += Mark(vise.Stock != null) + "Kütük mengenede\n";
+            text += Mark(vise.Torque >= 3) + $"Mengene sıkıldı  {vise.Torque}/3\n";
+            text += Mark(vise.Seated) + "Çekiçle oturtuldu\n";
+            if (vise.Stock != null)
+            {
+                var delta = state.WorkOffset - _offsetAtPlacement;
+                text += Mark(Mathf.Abs(delta.X) > 1e-4f) + "X sıfırı (kenar bulucu)\n";
+                text += Mark(Mathf.Abs(delta.Y) > 1e-4f) + "Y sıfırı (kenar bulucu)\n";
+                text += Mark(Mathf.Abs(delta.Z) > 1e-4f) + "Z sıfırı (kağıt mastar)\n";
+            }
+            if (Table.Dirty)
+                text += "    Tabla talaşlı: fırçayla temizle\n";
+            return text;
+        }
     }
 
     private void ThrowPart()

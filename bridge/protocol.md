@@ -60,6 +60,7 @@ applies work offsets itself if it wants a work-relative view (keeps the bridge d
 | homed_x, homed_z | u8, u8 (bool) | |
 | in_cycle | u8 (bool) | program running (not paused/idle) |
 | tool_change_pending | u8 (bool) | an M6 is waiting for TOOL_CHANGE_CONFIRM (`iocontrol.0.tool-change`) |
+| work_offset | f64 x 6 | G5x offset + G92 + tool offset per axis; machine position minus this is the work position |
 | pad | u8[1] | alignment pad, reserved, must be 0 |
 
 Total body after the 18-byte common header: 4+4+8+8+8+8+8+4+4+1+4+4+1+1+1+4+1+1+1+1+1 = 76 bytes (see

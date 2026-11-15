@@ -20,8 +20,10 @@ _JOG_STOP = linuxcnc.JOG_STOP
 
 
 class CommandServer:
-    def __init__(self, stat, cmd, sock: socket.socket, on_subscribe=None, before_program_open=None):
+    def __init__(self, stat, cmd, sock: socket.socket, on_subscribe=None, before_program_open=None,
+                 joint_axis_map=()):
         self.stat = stat
+        self.joint_to_axis = dict(joint_axis_map)
         self.cmd = cmd
         self.sock = sock
         self.on_subscribe = on_subscribe
@@ -61,14 +63,16 @@ class CommandServer:
         args = command.args
 
         if kind == CommandKind.JOG_START:
-            axis, vel = struct.unpack("<Bf", args)
-            self.cmd.jog(_JOG_CONTINUOUS, True, axis, vel)
+            joint, vel = struct.unpack("<Bf", args)
+            self.cmd.jog(_JOG_CONTINUOUS, *self._jog_target(joint), vel)
         elif kind == CommandKind.JOG_STOP:
-            (axis,) = struct.unpack("<B", args)
-            self.cmd.jog(_JOG_STOP, True, axis)
+            (joint,) = struct.unpack("<B", args)
+            self.cmd.jog(_JOG_STOP, *self._jog_target(joint))
         elif kind == CommandKind.JOG_INCREMENTAL:
-            axis, vel, inc = struct.unpack("<Bff", args)
-            self.cmd.jog(_JOG_INCREMENT, True, axis, vel, inc)
+            joint, vel, inc = struct.unpack("<Bff", args)
+            # LinuxCNC takes the direction from the velocity's sign alone; a
+            # negative distance on top of that would flip it back.
+            self.cmd.jog(_JOG_INCREMENT, *self._jog_target(joint), vel, abs(inc))
         elif kind == CommandKind.SET_MODE:
             (mode,) = struct.unpack("<B", args)
             self.cmd.mode({0: linuxcnc.MODE_MANUAL, 1: linuxcnc.MODE_AUTO, 2: linuxcnc.MODE_MDI}[mode])
@@ -115,6 +119,14 @@ class CommandServer:
             self.cmd.state(linuxcnc.STATE_OFF)
         else:
             raise ValueError(f"unknown command_kind {kind}")
+
+    def _jog_target(self, joint: int) -> tuple[bool, int]:
+        """(joint mode?, index) for a jog of this joint. Once homed, LinuxCNC
+        runs in teleop mode and rejects joint jogs ("cannot jog joint"); it
+        wants the axis (X=0, Y=1, Z=2, A=3...) instead."""
+        if self.stat.motion_mode == linuxcnc.TRAJ_MODE_TELEOP:
+            return False, self.joint_to_axis.get(joint, joint)
+        return True, joint
 
     @staticmethod
     def _confirm_tool_change() -> None:

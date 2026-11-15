@@ -340,6 +340,12 @@ public partial class ProceduralMillBody : Node3D
         }
     }
 
+    /// <summary>Shows the edge finder's tip jumping sideways on contact.</summary>
+    public void SetToolKick(bool kicked)
+    {
+        _toolNode.Position = new Vector3(kicked ? 0.002f : 0f, 0f, 0f);
+    }
+
     public void SetPose(AxisVector position)
     {
         foreach (var (axis, node) in _links)

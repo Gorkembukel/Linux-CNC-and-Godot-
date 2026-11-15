@@ -31,6 +31,9 @@ public static class MachinePresets
             : cornerRadius > 0f ? Invariant($"{diameter:0.#}mm bull nose R{cornerRadius:0.#}") : Invariant($"{diameter:0.#}mm flat end mill"),
             diameter, cornerRadius, length);
 
+    private static ToolSpec EdgeFinder(int number) =>
+        new(number, ToolKind.EdgeFinder, "10mm edge finder", 10f, lengthMm: 40f, color: new Color(0.8f, 0.8f, 0.85f));
+
     private static ToolSpec Drill(int number, float diameter, float length = 80f) =>
         new(number, ToolKind.Drill, Invariant($"{diameter:0.#}mm drill"), diameter, lengthMm: length, tipAngleDeg: 118f, color: new Color(0.6f, 0.6f, 0.65f));
 
@@ -56,7 +59,7 @@ public static class MachinePresets
             new AxisSpec(AxisId.Y, Tool, -100f, 100f),
             new AxisSpec(AxisId.X, Tool, -150f, 150f),
             new AxisSpec(AxisId.Z, Tool, -40f, 120f, home: 50f, homeSequence: 0)),
-        Tools = List(EndMill(1, 10f), EndMill(2, 6f)),
+        Tools = List(EndMill(1, 10f), EndMill(2, 6f), EdgeFinder(9)),
         Mill = new MillStructure
         {
             Frame = MillFrame.Gantry, BaseWidthMm = 600f, BaseDepthMm = 500f,
@@ -93,7 +96,7 @@ public static class MachinePresets
             new AxisSpec(AxisId.Y, Workpiece, -203f, 203f, maxVelocity: 400f, maxAcceleration: 2000f),
             new AxisSpec(AxisId.X, Workpiece, -381f, 381f, maxVelocity: 400f, maxAcceleration: 2000f),
             new AxisSpec(AxisId.Z, Tool, -60f, 448f, home: 400f, homeSequence: 0, maxVelocity: 400f, maxAcceleration: 2000f)),
-        Tools = List(EndMill(1, 12f, length: 60f), EndMill(2, 6f), EndMill(3, 10f, 5f), Drill(4, 8.5f), FaceMill(5, 50f), Chamfer(6, 10f)),
+        Tools = List(EndMill(1, 12f, length: 60f), EndMill(2, 6f), EndMill(3, 10f, 5f), Drill(4, 8.5f), FaceMill(5, 50f), Chamfer(6, 10f), EdgeFinder(9)),
         Mill = new MillStructure
         {
             Frame = MillFrame.CFrame, BaseWidthMm = 1500f, BaseDepthMm = 1300f, ColumnWidthMm = 450f,

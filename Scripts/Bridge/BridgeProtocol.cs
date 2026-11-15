@@ -101,6 +101,7 @@ public struct StateSample
     public bool Estop, MachineOn, InCycle;
     public byte ActiveAxisMask, HomedMask;
     public bool ToolChangePending;
+    public AxisVector WorkOffset;
 
     public bool IsHomed(AxisId axis) => (HomedMask & (1 << (int)axis)) != 0;
     public bool HasAxis(AxisId axis) => (ActiveAxisMask & (1 << (int)axis)) != 0;
@@ -130,6 +131,7 @@ public struct StateSample
             ActiveAxisMask = r.ReadByte(),
             HomedMask = r.ReadByte(),
             ToolChangePending = r.ReadByte() != 0,
+            WorkOffset = ReadAxes(r),
         };
     }
 

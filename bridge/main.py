@@ -95,7 +95,8 @@ def main() -> int:
             publisher.dest_addr = addr
 
         server = CommandServer(stat, cmd, command_sock, on_subscribe=retarget,
-                               before_program_open=lambda: sync_nc_files(str(REPO_CONFIG_DIR)))
+                               before_program_open=lambda: sync_nc_files(str(REPO_CONFIG_DIR)),
+                               joint_axis_map=joint_axis_map)
 
         command_thread = threading.Thread(target=server.run_forever, args=(stop_event.is_set,), daemon=True)
         command_thread.start()

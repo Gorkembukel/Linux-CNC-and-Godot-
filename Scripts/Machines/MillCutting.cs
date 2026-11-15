@@ -27,6 +27,10 @@ public sealed class MillCutting
     public double RemovedMm3 { get; private set; }
     public bool HasStock => _stock != null;
 
+    /// <summary>How far the edge finder has gone into the stock: negative =
+    /// clear of it, 0 = just touching, positive = pushed in (mm).</summary>
+    public float EdgeFinderOvertravelMm { get; private set; } = -1f;
+
     /// <summary>Asked on every cut: is the stock held firmly? Null = always.</summary>
     public System.Func<bool> IsSecure;
     /// <summary>Raised once when a cut is taken on stock that is not secure.</summary>
@@ -73,6 +77,22 @@ public sealed class MillCutting
         var pose = new Transform3D(inStock.Basis, inStock.Origin / WorldScale.MmToM);
         var tool = _spec.FindTool(s.ToolNumber);
 
+        if (tool?.Kind == ToolKind.EdgeFinder)
+        {
+            // A ring around the tip, 2 mm up: the deepest point of it inside the stock.
+            float radius = tool.DiameterMm / 2f, deepest = -1f;
+            for (int i = 0; i < 16; i++)
+            {
+                float angle = Mathf.Tau * i / 16f;
+                var local = new Vector3(Mathf.Cos(angle) * radius, 2f, Mathf.Sin(angle) * radius);
+                deepest = Mathf.Max(deepest, _stock.Stock.SampleDistance(pose * local));
+            }
+            EdgeFinderOvertravelMm = deepest;
+            _lastPose = pose;
+            return;
+        }
+        EdgeFinderOvertravelMm = -1f;
+
         if (_lastPose is Transform3D previous && tool != null)
         {
             var cutter = tool.Cutter();
@@ -106,6 +126,19 @@ public sealed class MillCutting
             }
         }
         _lastPose = pose;
+    }
+
+    /// <summary>Gap between the tool tip and the stock straight below it
+    /// (mm), or null when there is nothing within 2 mm.</summary>
+    public float? TipGapMm()
+    {
+        if (_stock == null || _lastPose is not Transform3D pose)
+            return null;
+        var axis = pose.Basis.Y.Normalized();
+        for (float gap = 0f; gap <= 2f; gap += 0.01f)
+            if (_stock.Stock.SampleDistance(pose.Origin - axis * gap) >= 0f)
+                return gap;
+        return null;
     }
 
     public void Process(double delta)

@@ -83,6 +83,8 @@ class StatePublisher:
             in_cycle=self.stat.interp_state != 1,  # not INTERP_IDLE
             active_axis_mask=self.active_axis_mask, homed_mask=homed_mask,
             tool_change_pending=bool(self.tool_change_pending()),
+            work_offset=tuple(self.stat.g5x_offset[i] + self.stat.g92_offset[i] + self.stat.tool_offset[i]
+                              for i in range(AXIS_CAPACITY)),
         )
 
     def publish_once(self) -> None:

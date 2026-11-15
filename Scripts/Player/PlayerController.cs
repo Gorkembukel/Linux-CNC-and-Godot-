@@ -58,6 +58,12 @@ public partial class PlayerController : CharacterBody3D
     public Vector3 LookPoint { get; private set; }
 
     private Label _noticeLabel;
+    private Label _statusLabel;
+    private Label _sheetLabel;
+
+    /// <summary>A live reading from whatever the player is measuring with;
+    /// set every frame by its source, shown under the crosshair.</summary>
+    public string ToolStatus;
     private double _noticeTime;
 
     /// <summary>Shows a warning in the middle of the player's screen.</summary>
@@ -141,6 +147,20 @@ public partial class PlayerController : CharacterBody3D
         _noticeLabel.AnchorLeft = 0f;
         _noticeLabel.AnchorRight = 1f;
         _noticeLabel.AnchorTop = _noticeLabel.AnchorBottom = 0.3f;
+
+        _statusLabel = new Label { HorizontalAlignment = HorizontalAlignment.Center };
+        _statusLabel.AddThemeColorOverride("font_color", new Color(0.5f, 1f, 0.6f));
+        ui.AddChild(_statusLabel);
+        _statusLabel.AnchorLeft = 0f;
+        _statusLabel.AnchorRight = 1f;
+        _statusLabel.AnchorTop = _statusLabel.AnchorBottom = 0.6f;
+
+        _sheetLabel = new Label();
+        _sheetLabel.AddThemeFontSizeOverride("font_size", 13);
+        ui.AddChild(_sheetLabel);
+        _sheetLabel.AnchorLeft = _sheetLabel.AnchorRight = 1f;
+        _sheetLabel.AnchorTop = _sheetLabel.AnchorBottom = 0.32f;
+        _sheetLabel.OffsetLeft = -330f;
 
         _heldLabel = new Label();
         ui.AddChild(_heldLabel);
@@ -413,6 +433,14 @@ public partial class PlayerController : CharacterBody3D
     /// check above (one ray per physics frame).</summary>
     private void UpdatePickupPrompt()
     {
+        _statusLabel.Text = ToolStatus ?? "";
+        ToolStatus = null;
+        ISetupSheet nearest = null;
+        foreach (var node in GetTree().GetNodesInGroup("setup_sheets"))
+            if (node is ISetupSheet sheet && GlobalPosition.DistanceTo(sheet.SheetPosition) < 4f
+                && (nearest == null || GlobalPosition.DistanceTo(sheet.SheetPosition) < GlobalPosition.DistanceTo(nearest.SheetPosition)))
+                nearest = sheet;
+        _sheetLabel.Text = nearest?.SheetText ?? "";
         _noticeTime -= GetPhysicsProcessDeltaTime();
         if (_noticeTime <= 0.0)
             _noticeLabel.Text = "";

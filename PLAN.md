@@ -1250,3 +1250,35 @@ prompts. These were only exercised through the methods they call.
 Open: phases 3 (work-offset packet, WORK/MACHINE readout, edge finder,
 paper Z touch, SET buttons, setup sheet), 4 (lathe chuck), 5 (clamps,
 centring plate for the trunnion, 4th-axis chuck, vise tramming).
+
+## Hands-on setup, phase 3: real zeroing + jog fix (2026-11-15)
+
+- STATE packet carries `work_offset` (G5x + G92 + tool offset, 6 x f64;
+  packet is 208 bytes). `MachineState.WorkPosition`. Console POSITION page
+  and the 2D panel show WORK and MACHINE coordinates.
+- Edge finder: `ToolKind.EdgeFinder` (T9 in the vise-mill presets), never
+  cuts; `MillCutting.EdgeFinderOvertravelMm` from the interpolated voxel
+  distance field (`VoxelStock.SampleDistance`); HUD notice on contact, tip
+  kicks sideways, 0.5 mm overtravel = "KENAR BULUCU KIRILDI" + machine off.
+- Z by feel: with the paper gauge in hand the HUD says free / dragging
+  (0.03-0.08 mm) / torn (`MillCutting.TipGapMm`).
+- 2D panel row "WORK ZERO G54": value + SET X / SET Y / SET Z -> `G10 L20 P1`.
+- Setup sheet on the HUD near a hands-on machine (`ISetupSheet`).
+
+**Two old jog bugs found by the live test and fixed in the bridge**
+(`CommandServer._jog_target`): after homing LinuxCNC is in TELEOP mode and
+rejects joint jogs ("cannot jog joint"), so the jog buttons were dead once
+the machine was homed -- now it jogs the axis in teleop, the joint before
+homing; and incremental jogs went the wrong way for the minus buttons
+(direction comes from the velocity sign alone, the negative distance
+flipped it back). Jogging needs MANUAL mode, as on a real control.
+
+Verified live, operator style (jog in 0.05 mm steps until the edge finder
+kicks, `G10 L20`; paper under T1 for Z): found offset X40.000 Y45.000
+Z30.010 against a true 40 / 45 / 30, setup sheet all ticked, then
+`demo_mill_pocket` removed 22.97 cm3. Dragging the edge finder through the
+stock (a mistake in the first version of the test script) broke it and
+switched the machine off, as intended. 58 C# + 11 pytest green.
+NOT verified: all of this through the real keyboard/mouse and panel buttons.
+Open: phase 4 (lathe chuck, caliper), phase 5 (clamps, centring plate,
+4th-axis chuck, vise tramming).

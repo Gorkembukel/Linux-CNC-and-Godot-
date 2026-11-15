@@ -3,7 +3,7 @@ using CncTrainer.Material;
 
 namespace CncTrainer.Spec;
 
-public enum ToolKind { EndMill, FaceMill, Drill, ChamferMill, Turning, Parting, Boring, Threading }
+public enum ToolKind { EndMill, FaceMill, Drill, ChamferMill, Turning, Parting, Boring, Threading, EdgeFinder }
 
 [Tool, GlobalClass]
 public partial class ToolSpec : Resource
@@ -42,7 +42,7 @@ public partial class ToolSpec : Resource
         Color = color ?? Color;
     }
 
-    public bool IsLatheTool => Kind >= ToolKind.Turning;
+    public bool IsLatheTool => Kind is ToolKind.Turning or ToolKind.Parting or ToolKind.Boring or ToolKind.Threading;
     public bool HasPoint => Kind is ToolKind.Drill or ToolKind.ChamferMill;
 
     public CutterShape Cutter() => new(DiameterMm / 2f,

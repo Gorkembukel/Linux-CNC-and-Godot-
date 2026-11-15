@@ -98,6 +98,19 @@ public class VoxelStock
 
     public float DistanceAt(int ix, int iy, int iz) => _distance[Index(ix, iy, iz)];
 
+    /// <summary>Signed distance to the surface at any point (positive
+    /// inside the material), interpolated between grid nodes.</summary>
+    public float SampleDistance(Vector3 pointMm)
+    {
+        var g = (pointMm - Origin) / StepMm;
+        int ix = Mathf.FloorToInt(g.X), iy = Mathf.FloorToInt(g.Y), iz = Mathf.FloorToInt(g.Z);
+        if (ix < 0 || iy < 0 || iz < 0 || ix >= CountX - 1 || iy >= CountY - 1 || iz >= CountZ - 1)
+            return -StepMm;
+        float fx = g.X - ix, fy = g.Y - iy, fz = g.Z - iz;
+        float Along(int y, int z) => Mathf.Lerp(DistanceAt(ix, y, z), DistanceAt(ix + 1, y, z), fx);
+        return Mathf.Lerp(Mathf.Lerp(Along(iy, iz), Along(iy + 1, iz), fy), Mathf.Lerp(Along(iy, iz + 1), Along(iy + 1, iz + 1), fy), fz);
+    }
+
     public bool IsMaterialAt(Vector3 pointMm)
     {
         var g = (pointMm - Origin) / StepMm;
