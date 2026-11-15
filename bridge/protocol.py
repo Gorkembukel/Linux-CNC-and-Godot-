@@ -85,8 +85,8 @@ class CommandKind(IntEnum):
 # position velocity (f64 x AXIS_CAPACITY*2) | feed_rate spindle_rpm (f64 x2)
 # | feed_ovr spindle_ovr (f32 x2) | tool_nr (i32) | tool_nose_radius (f32)
 # | spindle_enabled task_mode interp_state exec_state (u8 x4) | motion_line (i32)
-# | estop machine_on in_cycle active_axis_mask homed_mask (u8 x5)
-_STATE_BODY = struct.Struct("<" + "d" * (AXIS_CAPACITY * 2) + "ddffifBBBBiBBBBB")
+# | estop machine_on in_cycle active_axis_mask homed_mask tool_change_pending (u8 x6)
+_STATE_BODY = struct.Struct("<" + "d" * (AXIS_CAPACITY * 2) + "ddffifBBBBiBBBBBB")
 
 
 @dataclass
@@ -109,6 +109,7 @@ class StateSample:
     in_cycle: bool
     active_axis_mask: int  # bit i set => this machine actually uses axis i
     homed_mask: int        # bit i set => axis i is homed
+    tool_change_pending: bool = False  # an M6 is waiting for the operator's confirm
 
     def pack(self, seq: int, t_mono_ns: int | None = None) -> bytes:
         header = _HEADER.pack(MAGIC, PacketType.STATE, seq, t_mono_ns or mono_ns())
@@ -118,7 +119,7 @@ class StateSample:
             self.tool_number, self.tool_nose_radius, int(self.spindle_enabled),
             self.task_mode, self.interp_state, self.exec_state, self.motion_line,
             int(self.estop), int(self.machine_on), int(self.in_cycle),
-            self.active_axis_mask, self.homed_mask,
+            self.active_axis_mask, self.homed_mask, int(self.tool_change_pending),
         )
         return header + body
 
@@ -128,7 +129,7 @@ class StateSample:
         position, velocity = fields[0:AXIS_CAPACITY], fields[AXIS_CAPACITY:AXIS_CAPACITY * 2]
         (feed_rate, spindle_rpm, feed_ovr, spindle_ovr, tool_nr, tool_radius, spindle_en,
          task_mode, interp_state, exec_state, motion_line, estop, machine_on, in_cycle,
-         active_axis_mask, homed_mask) = fields[AXIS_CAPACITY * 2:]
+         active_axis_mask, homed_mask, tool_change_pending) = fields[AXIS_CAPACITY * 2:]
         return StateSample(
             position=position, velocity=velocity, feed_rate=feed_rate,
             spindle_rpm=spindle_rpm, feed_override=feed_ovr, spindle_override=spindle_ovr,
@@ -136,6 +137,7 @@ class StateSample:
             task_mode=task_mode, interp_state=interp_state, exec_state=exec_state,
             motion_line=motion_line, estop=bool(estop), machine_on=bool(machine_on),
             in_cycle=bool(in_cycle), active_axis_mask=active_axis_mask, homed_mask=homed_mask,
+            tool_change_pending=bool(tool_change_pending),
         )
 
 

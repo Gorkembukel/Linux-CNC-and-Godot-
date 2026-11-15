@@ -371,7 +371,7 @@ public partial class ConsoleStand : Node3D
                 $"MODE   {s.TaskMode}\n" +
                 $"INTERP {s.InterpState}\n" +
                 $"LINE   {s.MotionLine}\n\n" +
-                (s.InterpState == InterpState.Waiting
+                (s.ToolChangePending
                     ? "TOOL CHANGE PENDING\nPress T.CHG to confirm"
                     : s.InCycle ? "PROGRAM RUNNING" : "PROGRAM IDLE"),
             2 => // TOOL / OFFSET -- active tool + its nose radius, as reported by LinuxCNC's tool table

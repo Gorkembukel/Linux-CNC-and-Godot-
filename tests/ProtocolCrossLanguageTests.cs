@@ -17,13 +17,13 @@ public class ProtocolCrossLanguageTests
     // spindle_rpm=800.0 feed_override=1.0 spindle_override=1.0 tool_number=2
     // tool_nose_radius=0.4 spindle_enabled=True task_mode=1 interp_state=0
     // exec_state=2 motion_line=42 estop=False machine_on=True in_cycle=True
-    // active_axis_mask=0b101 (X|Z) homed_mask=0b101 (X|Z)
+    // active_axis_mask=0b101 (X|Z) homed_mask=0b101 (X|Z) tool_change_pending=True
     private const string PythonEncodedStatePacketHex =
         "c001090300000000000015cd5b0700000000000000000000294000000000000000000000000000" +
         "403ec0000000000000000000000000000000000000000000000000000000000000f03f00000000" +
         "0000000000000000000000c0000000000000000000000000000000000000000000000000000000" +
         "0000c0624000000000000089400000803f0000803f02000000cdcccc3e010100022a0000000001" +
-        "010505";
+        "01050501";
 
     [Fact]
     public void Decodes_PythonEncodedStatePacket_Correctly()
@@ -62,6 +62,7 @@ public class ProtocolCrossLanguageTests
         Assert.True(s.HasAxis(AxisId.Z));
         Assert.False(s.HasAxis(AxisId.Y));
         Assert.True(s.InCycle);
+        Assert.True(s.ToolChangePending);
     }
 
     [Fact]

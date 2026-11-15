@@ -69,10 +69,6 @@ class StatePublisher:
         # linuxcnc INTERP_IDLE=1 INTERP_READING=2 INTERP_PAUSED=3 INTERP_WAITING=4 -- remap to 0-based
         interp_map = {1: InterpState.IDLE, 2: InterpState.READING, 3: InterpState.PAUSED, 4: InterpState.WAITING}
         interp_state = interp_map.get(self.stat.interp_state, InterpState.IDLE)
-        # LinuxCNC itself keeps reporting READING while an M6 waits for the
-        # operator; WAITING is what the panels show as "tool change pending".
-        if self.tool_change_pending():
-            interp_state = InterpState.WAITING
 
         spindle0 = self.stat.spindle[0]
         return StateSample(
@@ -86,6 +82,7 @@ class StatePublisher:
             machine_on=bool(self.stat.enabled),
             in_cycle=self.stat.interp_state != 1,  # not INTERP_IDLE
             active_axis_mask=self.active_axis_mask, homed_mask=homed_mask,
+            tool_change_pending=bool(self.tool_change_pending()),
         )
 
     def publish_once(self) -> None:

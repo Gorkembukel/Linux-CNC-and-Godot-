@@ -26,6 +26,7 @@ public class MachineState
     public bool MachineOn;
     public byte ActiveAxisMask, HomedMask;
     public bool InCycle;
+    public bool ToolChangePending;
 
     public ulong LastSeq;
     public long LastTMonoNs;
@@ -57,6 +58,7 @@ public class MachineState
         ActiveAxisMask = s.ActiveAxisMask;
         HomedMask = s.HomedMask;
         InCycle = s.InCycle;
+        ToolChangePending = s.ToolChangePending;
 
         LastSeq = header.Seq;
         LastTMonoNs = header.TMonoNs;

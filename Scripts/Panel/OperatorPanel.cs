@@ -123,8 +123,8 @@ public partial class OperatorPanel : Control
             return;
         var s = _bridge.State;
         _modeStatusLabel.Text = $"MODE: {s.TaskMode}   INTERP: {s.InterpState}   ESTOP: {(s.Estop ? "YES" : "no")}   ON: {s.MachineOn}";
-        _toolChangeLabel.Text = s.InterpState == InterpState.Waiting
-            ? $"TOOL CHANGE PENDING (T{s.ToolNumber}) -- jog to clear, then press CONFIRM"
+        _toolChangeLabel.Text = s.ToolChangePending
+            ? "TOOL CHANGE PENDING -- press CONFIRM TC"
             : "";
     }
 
