@@ -51,14 +51,16 @@ public partial class OperatorPanel : Control
         // default font uniformly instead of hand-tuning each one.
         Theme = new Theme { DefaultFontSize = 12 };
 
+        // Top-left, under the status text: the game often runs embedded in
+        // the editor at 1:1, where the bottom of the view is off-screen.
         AnchorLeft = 0;
-        AnchorTop = 1;
+        AnchorTop = 0;
         AnchorRight = 0;
-        AnchorBottom = 1;
+        AnchorBottom = 0;
         OffsetLeft = 10;
-        OffsetTop = -290;
+        OffsetTop = 130;
         OffsetRight = 560;
-        OffsetBottom = -10;
+        OffsetBottom = 400;
 
         var panelBg = new Godot.Panel { AnchorRight = 1, AnchorBottom = 1 };
         AddChild(panelBg);
@@ -139,10 +141,10 @@ public partial class OperatorPanel : Control
     {
         if (_bridge == null)
             return;
-        // The rows differ per machine; grow upward from the bottom edge to fit them.
-        float top = OffsetBottom - _layout.GetCombinedMinimumSize().Y - 6f;
-        if (!Mathf.IsEqualApprox(OffsetTop, top))
-            OffsetTop = top;
+        // The rows differ per machine; size the panel to fit them.
+        float bottom = OffsetTop + _layout.GetCombinedMinimumSize().Y + 6f;
+        if (!Mathf.IsEqualApprox(OffsetBottom, bottom))
+            OffsetBottom = bottom;
 
         var s = _bridge.State;
         _modeStatusLabel.Text = $"MODE: {s.TaskMode}   INTERP: {s.InterpState}   ESTOP: {(s.Estop ? "YES" : "no")}   ON: {s.MachineOn}";
