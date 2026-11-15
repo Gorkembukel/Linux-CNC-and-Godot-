@@ -1176,3 +1176,18 @@ cut) -- added the line. Found by inspecting the user's RUNNING instance
 read-only; nothing was restarted. 56 C# + 11 non-LinuxCNC pytest green.
 NOT verified live (both distros were in use by the user's session): the new
 flag end to end, and the eleven demo programs.
+
+## Statue of Liberty program for Trunnion5Axis (2026-11-15)
+
+`tools/statue_cam.py` generates `nc_files/trunnion5_ozgurluk_heykeli.ngc`
+(38.7k lines, G0/G1 only): the statue is a set of simple solids, every pass is
+3+2 at A90 following the height map seen from that side (rough: T1 12 mm flat,
+4 sides, 15 mm levels, 1 mm allowance; finish: T2 4 mm ball, 6 sides, 1.5 mm
+rows; plus one pass from above). `Trunnion5Axis.tscn` now carries what it
+needs: 80 x 80 x 170 block (top 140 carved, bottom 30 left for clamping),
+A pivot 120 mm below the top face, Z min -200, T1/T2 as above, tool change
+position Z300. Verified OFFLINE: the whole program run through the game's own
+`MachineKinematics` + `VoxelStock` (no limit hits, no rapid into material,
+760 cm3 removed, 112 m of feed moves) and looked at on screenshots; parsed to
+PROGRAM_END by LinuxCNC's standalone `rs274`. NOT run on a live LinuxCNC
+instance or seen in the game. No holder/spindle collision check exists.

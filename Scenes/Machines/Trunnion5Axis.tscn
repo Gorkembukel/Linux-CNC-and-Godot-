@@ -23,7 +23,7 @@ MaxVelocity = 400.0
 [sub_resource type="Resource" id="Resource_bkdml"]
 script = ExtResource("2_tqfha")
 Letter = 2
-MinLimit = -80.0
+MinLimit = -200.0
 MaxLimit = 420.0
 MaxVelocity = 400.0
 Home = 380.0
@@ -36,7 +36,7 @@ Carrier = 1
 MinLimit = -35.0
 MaxLimit = 110.0
 MaxVelocity = 90.0
-PivotMm = Vector3(0, 0, -20)
+PivotMm = Vector3(0, 0, -120)
 
 [sub_resource type="Resource" id="Resource_q6r3d"]
 script = ExtResource("2_tqfha")
@@ -56,22 +56,23 @@ MagazinePockets = 24
 TableSizeXMm = 350.0
 TableSizeYMm = 350.0
 Workholding = 2
-StockSizeXMm = 100.0
-StockSizeYMm = 100.0
-StockHeightMm = 60.0
+StockSizeXMm = 80.0
+StockSizeYMm = 80.0
+StockHeightMm = 170.0
 
 [sub_resource type="Resource" id="Resource_jv65k"]
 script = ExtResource("4_uwo1e")
-Description = "10mm flat end mill"
-LengthMm = 70.0
+Description = "12mm flat end mill, roughing"
+DiameterMm = 12.0
+LengthMm = 110.0
 
 [sub_resource type="Resource" id="Resource_6en0d"]
 script = ExtResource("4_uwo1e")
 Number = 2
-Description = "8mm ball nose"
-DiameterMm = 8.0
-TipRadiusMm = 4.0
-LengthMm = 70.0
+Description = "4mm ball nose, finishing"
+DiameterMm = 4.0
+TipRadiusMm = 2.0
+LengthMm = 90.0
 
 [sub_resource type="Resource" id="Resource_qh0k3"]
 script = ExtResource("4_uwo1e")
@@ -102,8 +103,10 @@ Color = Color(0.7, 0.5, 0.3, 1)
 [sub_resource type="Resource" id="Resource_6u518"]
 script = ExtResource("5_hionk")
 MachineName = "Trunnion5Axis"
-DemoProgram = "demo_facing_turning2.ngc"
+WslDistro = "Ubuntu-26.04"
+DemoProgram = "nc_files/trunnion5_ozgurluk_heykeli.ngc"
 UseToolChangePosition = true
+ToolChangePosition = Vector3(0, 0, 300)
 Axes = Array[ExtResource("2_tqfha")]([SubResource("Resource_py651"), SubResource("Resource_4idlm"), SubResource("Resource_bkdml"), SubResource("Resource_4eyl4"), SubResource("Resource_q6r3d")])
 Tools = Array[ExtResource("4_uwo1e")]([SubResource("Resource_jv65k"), SubResource("Resource_6en0d"), SubResource("Resource_qh0k3"), SubResource("Resource_vpfx5"), SubResource("Resource_bqqsg")])
 WorkHeightMm = 1050.0
@@ -116,5 +119,5 @@ script = ExtResource("1_lgagi")
 Spec = SubResource("Resource_6u518")
 
 [node name="ConsoleStand" type="Node3D" parent="." unique_id=1744271922]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.1, 0, 1.0170892)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.1, 0, 1.1169235)
 script = ExtResource("6_s87vo")
