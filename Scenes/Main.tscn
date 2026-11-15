@@ -5,13 +5,8 @@
 [ext_resource type="Script" uid="uid://c3xkg6fhxc810" path="res://Scripts/Panel/OperatorPanel.cs" id="5"]
 [ext_resource type="Script" uid="uid://b0e3etxia5dtm" path="res://Scripts/CameraController.cs" id="6"]
 [ext_resource type="PackedScene" uid="uid://b25netjmaly0d" path="res://Scenes/Machines/Trunnion5Axis.tscn" id="7_grg3l"]
-[ext_resource type="Script" uid="uid://b85ahmu1t6com" path="res://Scripts/Machines/ProceduralMachine.cs" id="8_frkhe"]
-[ext_resource type="Script" uid="uid://dxs4voavg7lkd" path="res://Scripts/Machines/Spec/AxisSpec.cs" id="9_1p5hy"]
-[ext_resource type="Script" uid="uid://oefcfuwvd3hn" path="res://Scripts/Machines/Spec/MillStructure.cs" id="10_h1m7h"]
 [ext_resource type="PackedScene" uid="uid://ct7xvxnqqr4e5" path="res://Scenes/Machines/Lathe.tscn" id="11"]
-[ext_resource type="Script" uid="uid://cm82lwoqeh5ky" path="res://Scripts/Machines/Spec/ToolSpec.cs" id="11_erwvk"]
 [ext_resource type="PackedScene" uid="uid://ddlr61u8q7x3p" path="res://Scenes/Player.tscn" id="12"]
-[ext_resource type="Script" uid="uid://do382wrytnimu" path="res://Scripts/Machines/Spec/MachineSpec.cs" id="12_2w5on"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_floor"]
 size = Vector3(6, 0.1, 6)
@@ -23,110 +18,6 @@ roughness = 0.9
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(6, 0.1, 6)
-
-[sub_resource type="Resource" id="Resource_py651"]
-script = ExtResource("9_1p5hy")
-MinLimit = -380.0
-MaxLimit = 380.0
-MaxVelocity = 400.0
-
-[sub_resource type="Resource" id="Resource_4idlm"]
-script = ExtResource("9_1p5hy")
-Letter = 1
-MinLimit = -250.0
-MaxLimit = 250.0
-MaxVelocity = 400.0
-
-[sub_resource type="Resource" id="Resource_bkdml"]
-script = ExtResource("9_1p5hy")
-Letter = 2
-MinLimit = -80.0
-MaxLimit = 420.0
-MaxVelocity = 400.0
-Home = 380.0
-HomeSequence = 0
-
-[sub_resource type="Resource" id="Resource_4eyl4"]
-script = ExtResource("9_1p5hy")
-Letter = 3
-Carrier = 1
-MinLimit = -35.0
-MaxLimit = 110.0
-MaxVelocity = 90.0
-PivotMm = Vector3(0, 0, -20)
-
-[sub_resource type="Resource" id="Resource_q6r3d"]
-script = ExtResource("9_1p5hy")
-Letter = 5
-Carrier = 1
-MinLimit = -360.0
-MaxLimit = 360.0
-MaxVelocity = 150.0
-
-[sub_resource type="Resource" id="Resource_1tr06"]
-script = ExtResource("10_h1m7h")
-BaseWidthMm = 1500.0
-BaseDepthMm = 1400.0
-ColumnWidthMm = 450.0
-SpindleHousingDiameterMm = 130.0
-MagazinePockets = 24
-TableSizeXMm = 350.0
-TableSizeYMm = 350.0
-Workholding = 2
-StockSizeXMm = 100.0
-StockSizeYMm = 100.0
-StockHeightMm = 60.0
-
-[sub_resource type="Resource" id="Resource_jv65k"]
-script = ExtResource("11_erwvk")
-Description = "10mm flat end mill"
-LengthMm = 70.0
-
-[sub_resource type="Resource" id="Resource_6en0d"]
-script = ExtResource("11_erwvk")
-Number = 2
-Description = "8mm ball nose"
-DiameterMm = 8.0
-TipRadiusMm = 4.0
-LengthMm = 70.0
-
-[sub_resource type="Resource" id="Resource_qh0k3"]
-script = ExtResource("11_erwvk")
-Number = 3
-Description = "6mm bull nose R0.5"
-DiameterMm = 6.0
-TipRadiusMm = 0.5
-LengthMm = 60.0
-
-[sub_resource type="Resource" id="Resource_vpfx5"]
-script = ExtResource("11_erwvk")
-Number = 4
-Kind = 2
-Description = "6.8mm drill"
-DiameterMm = 6.8
-LengthMm = 80.0
-Color = Color(0.6, 0.6, 0.65, 1)
-
-[sub_resource type="Resource" id="Resource_bqqsg"]
-script = ExtResource("11_erwvk")
-Number = 5
-Kind = 3
-Description = "90deg chamfer mill"
-LengthMm = 40.0
-TipAngleDeg = 90.0
-Color = Color(0.7, 0.5, 0.3, 1)
-
-[sub_resource type="Resource" id="Resource_6u518"]
-script = ExtResource("12_2w5on")
-MachineName = "Trunnion5Axis"
-DemoProgram = "demo_facing_turning2.ngc"
-UseToolChangePosition = true
-Axes = Array[ExtResource("9_1p5hy")]([SubResource("Resource_py651"), SubResource("Resource_4idlm"), SubResource("Resource_bkdml"), SubResource("Resource_4eyl4"), SubResource("Resource_q6r3d")])
-Tools = Array[ExtResource("11_erwvk")]([SubResource("Resource_jv65k"), SubResource("Resource_6en0d"), SubResource("Resource_qh0k3"), SubResource("Resource_vpfx5"), SubResource("Resource_bqqsg")])
-WorkHeightMm = 1050.0
-Enclosure = true
-BodyColor = Color(0.82, 0.82, 0.8, 1)
-Mill = SubResource("Resource_1tr06")
 
 [node name="Main" type="Node3D" unique_id=933770483]
 script = ExtResource("1")
@@ -182,7 +73,5 @@ layout_mode = 3
 anchors_preset = 0
 script = ExtResource("5")
 
-[node name="Trunnion5Axis" type="Node3D" parent="." unique_id=697169260 instance=ExtResource("7_grg3l")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.2583306, -1.1, 0)
-script = ExtResource("8_frkhe")
-Spec = SubResource("Resource_6u518")
+[node name="Trunnion5Axis" parent="." unique_id=308650766 instance=ExtResource("7_grg3l")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.4787047, -1.0999994, -0.10822201)
