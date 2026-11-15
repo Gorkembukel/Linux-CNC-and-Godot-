@@ -9,10 +9,12 @@ from __future__ import annotations
 import argparse
 import signal
 import socket
+import subprocess
 import sys
 import threading
 from pathlib import Path
 
+import hal
 import linuxcnc
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -65,6 +67,14 @@ def main() -> int:
 
     with LinuxCNCProcess(ini_path) as proc:
         print("[bridge] LinuxCNC is up.")
+
+        # basic_sim.tcl loops iocontrol's tool-change straight back into
+        # tool-changed, which completes every M6 instantly. Cutting that loop
+        # makes M6 wait for the operator's confirm (CommandServer sets the pin).
+        subprocess.run(["halcmd", "unlinkp", "iocontrol.0.tool-changed"], check=True)
+        # hal.get_value only works in a process that owns a HAL component.
+        hal_component = hal.component(f"godot-bridge-{args.command_port}")
+        hal_component.ready()
         stat = linuxcnc.stat()
         cmd = linuxcnc.command()
         stat.poll()
@@ -78,7 +88,8 @@ def main() -> int:
         # and lets it through with no inbound rule. The gateway address is
         # only the destination until the first SUBSCRIBE arrives.
         publisher = StatePublisher(stat, command_sock, (dest_ip, args.state_port), rate_hz=args.rate_hz,
-                                   joint_axis_map=joint_axis_map)
+                                   joint_axis_map=joint_axis_map,
+                                   tool_change_pending=lambda: hal.get_value("iocontrol.0.tool-change"))
 
         def retarget(addr):
             publisher.dest_addr = addr

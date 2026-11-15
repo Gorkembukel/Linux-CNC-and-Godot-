@@ -23,13 +23,15 @@ DEFAULT_LATHE_JOINT_AXIS_MAP = ((0, AXIS_X), (1, AXIS_Z))
 
 class StatePublisher:
     def __init__(self, stat, sock: socket.socket, dest_addr: tuple[str, int], rate_hz: float = 250.0,
-                 joint_axis_map: tuple[tuple[int, int], ...] = DEFAULT_LATHE_JOINT_AXIS_MAP):
+                 joint_axis_map: tuple[tuple[int, int], ...] = DEFAULT_LATHE_JOINT_AXIS_MAP,
+                 tool_change_pending=lambda: False):
         self.stat = stat
         self.sock = sock
         self.dest_addr = dest_addr
         self.period = 1.0 / rate_hz
         self.seq = 0
         self.joint_axis_map = joint_axis_map
+        self.tool_change_pending = tool_change_pending
         self.active_axis_mask = 0
         for _joint, axis in joint_axis_map:
             self.active_axis_mask |= 1 << axis
@@ -67,6 +69,10 @@ class StatePublisher:
         # linuxcnc INTERP_IDLE=1 INTERP_READING=2 INTERP_PAUSED=3 INTERP_WAITING=4 -- remap to 0-based
         interp_map = {1: InterpState.IDLE, 2: InterpState.READING, 3: InterpState.PAUSED, 4: InterpState.WAITING}
         interp_state = interp_map.get(self.stat.interp_state, InterpState.IDLE)
+        # LinuxCNC itself keeps reporting READING while an M6 waits for the
+        # operator; WAITING is what the panels show as "tool change pending".
+        if self.tool_change_pending():
+            interp_state = InterpState.WAITING
 
         spindle0 = self.stat.spindle[0]
         return StateSample(

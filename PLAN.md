@@ -1132,3 +1132,33 @@ on a generated machine in a real play session.
 tool-length offsets (the tool tip is always at the reported position, a
 longer tool lifts the head), collision of holder/head with the part, G-code
 preview beyond X/Z. Pytest bridge suite not re-run (no bridge file changed).
+
+## Tool change confirm fixed (2026-11-15, branch `demo-programs`)
+
+User report: "Confirm tool change" does not work. Root cause, found on a live
+instance: `basic_sim.tcl -no_use_hal_manualtoolchange` does NOT leave
+`iocontrol.0.tool-changed` unwired (the old comment was wrong) -- it nets
+`tool-change` straight back into `tool-changed`. So every M6 completed on its
+own, and the confirm command's `halcmd setp` failed every time with "pin is
+connected to a signal". This also explains the older open note "the mill tool
+change completed without a T.CHG confirm".
+
+- `bridge/main.py` unlinks `iocontrol.0.tool-changed` once LinuxCNC is up, so
+  M6 now WAITS for the operator (program and MDI alike).
+- `CommandServer._confirm_tool_change` holds `tool-changed` until iocontrol
+  drops `tool-change` (iocontrol samples every 100 ms; a quick pulse can be
+  missed) and does nothing when no change is pending.
+- LinuxCNC reports INTERP_READING during the wait, so the panels' "TOOL
+  CHANGE PENDING" text (keyed on `InterpState.Waiting`) never showed. The
+  state publisher now reports WAITING while the `tool-change` pin is TRUE.
+  No wire-format change.
+
+Verified live through the real UDP command path: M6 in a program and in MDI
+stays pending (tool unchanged after 4 s), a confirm completes it, an early
+confirm does not pre-confirm, the state stream shows WAITING only while
+pending. 14 pytest green. NOT verified: the buttons in a real game window.
+
+Also on this branch, NOT yet run against LinuxCNC (the run was stopped by the
+host for low memory after ~60 s): eleven demo programs in
+`linuxcnc-config/nc_files/` and the nc_files re-sync on LOAD PROGRAM. The
+throwaway live harness is in the untracked `tmp_verify/`.

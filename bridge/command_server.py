@@ -8,6 +8,7 @@ from __future__ import annotations
 import socket
 import subprocess
 import threading
+import time
 
 import linuxcnc
 
@@ -102,13 +103,7 @@ class CommandServer:
         elif kind == CommandKind.SPINDLE_OFF:
             self.cmd.spindle(linuxcnc.SPINDLE_OFF)
         elif kind == CommandKind.TOOL_CHANGE_CONFIRM:
-            # iocontrol.0.tool-changed is left unwired by -no_use_hal_manualtoolchange
-            # (see sim_lathe.ini) so our own panel (Phase 4) is responsible for pulsing
-            # it, the same role LinuxCNC's own Tk tool-change dialog would otherwise
-            # play. A real panel also watches iocontrol.0.tool-change to know when to
-            # ask the operator in the first place -- not implemented yet here.
-            subprocess.run(["halcmd", "setp", "iocontrol.0.tool-changed", "1"], check=True)
-            subprocess.run(["halcmd", "setp", "iocontrol.0.tool-changed", "0"], check=True)
+            self._confirm_tool_change()
         elif kind == CommandKind.HOME_AXIS:
             (axis,) = struct.unpack("<B", args)
             self.cmd.home(-1 if axis == 0xFF else axis)
@@ -120,6 +115,26 @@ class CommandServer:
             self.cmd.state(linuxcnc.STATE_OFF)
         else:
             raise ValueError(f"unknown command_kind {kind}")
+
+    @staticmethod
+    def _confirm_tool_change() -> None:
+        """Completes a pending M6: the operator's "the tool is in" signal.
+        iocontrol only samples its pins every [EMCIO] CYCLE_TIME (100 ms), so
+        tool-changed is held until iocontrol drops tool-change rather than
+        pulsed. Without a pending request this does nothing, so an early
+        press cannot pre-confirm the next change."""
+        def pending() -> bool:
+            out = subprocess.run(["halcmd", "getp", "iocontrol.0.tool-change"], check=True,
+                                 capture_output=True, text=True).stdout
+            return out.strip() == "TRUE"
+
+        if not pending():
+            return
+        subprocess.run(["halcmd", "setp", "iocontrol.0.tool-changed", "1"], check=True)
+        deadline = time.monotonic() + 2.0
+        while pending() and time.monotonic() < deadline:
+            time.sleep(0.02)
+        subprocess.run(["halcmd", "setp", "iocontrol.0.tool-changed", "0"], check=True)
 
     def run_forever(self, should_stop) -> None:
         self.sock.settimeout(0.5)
