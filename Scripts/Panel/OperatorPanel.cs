@@ -139,6 +139,11 @@ public partial class OperatorPanel : Control
     {
         if (_bridge == null)
             return;
+        // The rows differ per machine; grow upward from the bottom edge to fit them.
+        float top = OffsetBottom - _layout.GetCombinedMinimumSize().Y - 6f;
+        if (!Mathf.IsEqualApprox(OffsetTop, top))
+            OffsetTop = top;
+
         var s = _bridge.State;
         _modeStatusLabel.Text = $"MODE: {s.TaskMode}   INTERP: {s.InterpState}   ESTOP: {(s.Estop ? "YES" : "no")}   ON: {s.MachineOn}";
         string work = "WORK", machine = "MACH";
