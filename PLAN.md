@@ -1191,3 +1191,18 @@ position Z300. Verified OFFLINE: the whole program run through the game's own
 760 cm3 removed, 112 m of feed moves) and looked at on screenshots; parsed to
 PROGRAM_END by LinuxCNC's standalone `rs274`. NOT run on a live LinuxCNC
 instance or seen in the game. No holder/spindle collision check exists.
+
+### "Cannot home / cycle start" on the 5-axis machine (2026-11-15)
+
+Not the G-code and not the machine: the same config homed, ran the statue
+program and changed tools through (a) raw UDP commands, (b) the real
+`Trunnion5Axis.tscn` driven via `BridgeClient`, (c) the real `Main.tscn` with
+the real `OperatorPanel` buttons pressed programmatically. Most likely cause:
+the 2D panel acts on the machine picked in its MACHINE selector, which starts
+on the first machine (Lathe), and pressing E at a console only toggled the
+mouse -- so at the 5-axis console the panel was still driving the lathe.
+Fixed: E at a console now selects that console's machine in the panel
+(`ConsoleStand.Rig`, `OperatorPanel.SelectMachine`). The user's actual
+failing session could not be reproduced, so this is the probable cause, not a
+proven one. Side finding, not touched: `BridgeClient.LastCommandRttMs` stays
+NaN in these runs (ACKs apparently never matched).

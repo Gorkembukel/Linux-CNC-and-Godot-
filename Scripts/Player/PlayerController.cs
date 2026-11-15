@@ -244,6 +244,8 @@ public partial class PlayerController : CharacterBody3D
     {
         bool usingConsole = Input.MouseMode == Input.MouseModeEnum.Visible;
         Input.MouseMode = usingConsole ? Input.MouseModeEnum.Captured : Input.MouseModeEnum.Visible;
+        if (!usingConsole && _consoleStand.Rig != null)
+            (_operatorPanel as Panel.OperatorPanel)?.SelectMachine(_consoleStand.Rig);
     }
 
     public override void _PhysicsProcess(double delta)

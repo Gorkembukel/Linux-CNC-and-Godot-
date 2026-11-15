@@ -89,6 +89,18 @@ public partial class OperatorPanel : Control
         Select(0);
     }
 
+    /// <summary>Points the panel at the machine whose console the player
+    /// is standing at.</summary>
+    public void SelectMachine(MachineRig rig)
+    {
+        for (int i = 0; i < _machines.Count; i++)
+            if (_machines[i].Rig == rig && _machineSelect.Selected != i)
+            {
+                _machineSelect.Select(i);
+                Select(i);
+            }
+    }
+
     private void Select(int index)
     {
         var machine = _machines[index];

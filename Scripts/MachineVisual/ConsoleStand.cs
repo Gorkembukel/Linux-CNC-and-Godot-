@@ -57,6 +57,8 @@ public partial class ConsoleStand : Node3D
 
     private static readonly string[] PageNames = { "POSITION", "PROGRAM", "TOOL / OFFSET", "STATUS / ALARM" };
 
+    public MachineRig Rig { get; private set; }
+
     private BridgeClient _bridge;
     // Placeholder until Configure() runs (editor preview + the first runtime
     // frame); matches a lathe's real axes, same as LatheMachine's own.
@@ -82,6 +84,7 @@ public partial class ConsoleStand : Node3D
     /// placeholder default.</summary>
     public void Configure(MachineRig rig)
     {
+        Rig = rig;
         _bridge = rig.Bridge;
         _axes = rig.Profile.Axes;
         _demoProgram = rig.Profile.DemoProgram;
