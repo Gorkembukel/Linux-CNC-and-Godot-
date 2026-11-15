@@ -5,6 +5,7 @@ using CncTrainer.Chips;
 using CncTrainer.Material;
 using CncTrainer.Procedural;
 using CncTrainer.Spec;
+using CncTrainer.Fixtures;
 
 namespace CncTrainer;
 
@@ -67,9 +68,12 @@ public partial class ProceduralMachine : Node3D, IMachine
             _millBody = new ProceduralMillBody { Name = "Body" };
             _work.AddChild(_millBody);
             _millBody.Build(Spec);
-            _voxelStock = new VoxelStockVisual { Name = "Stock" };
-            _millBody.WorkEnd.AddChild(_voxelStock);
-            _voxelStock.Build(NewStock(Engine.IsEditorHint() ? EditorPreviewNodes : RuntimeNodes));
+            if (!HandsOnMill)
+            {
+                _voxelStock = new VoxelStockVisual { Name = "Stock" };
+                _millBody.WorkEnd.AddChild(_voxelStock);
+                _voxelStock.Build(NewStock(Engine.IsEditorHint() ? EditorPreviewNodes : RuntimeNodes));
+            }
         }
         else
         {
@@ -87,6 +91,8 @@ public partial class ProceduralMachine : Node3D, IMachine
             _latheBody.Build(Spec);
         }
     }
+
+    private bool HandsOnMill => Spec.ManualSetup && Spec.Mill.Workholding == Workholding.Vise;
 
     private VoxelStock NewStock(int maxNodes)
     {
@@ -117,7 +123,15 @@ public partial class ProceduralMachine : Node3D, IMachine
         {
             chips.FloorWorldY = -Spec.Mill.StockHeight * WorldScale.MmToM;
             _work.AddChild(chips);
-            _mill = new MillCutting(Spec, bridge, _millBody, _voxelStock, chips);
+            _mill = new MillCutting(Spec, bridge, _millBody, chips);
+            if (HandsOnMill)
+            {
+                var workholding = new MillWorkholding { Name = "Workholding" };
+                AddChild(workholding);
+                workholding.Setup(Spec, _millBody, _mill, bridge);
+            }
+            else
+                _mill.MountStock(_voxelStock);
             bridge.Connect(BridgeClient.SignalName.StateUpdated, Callable.From(_mill.OnConfirmedState));
         }
         else

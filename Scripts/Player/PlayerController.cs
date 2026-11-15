@@ -54,6 +54,30 @@ public partial class PlayerController : CharacterBody3D
     private bool _atStation;
     private Label _heldLabel;
 
+    /// <summary>Where the crosshair ray last hit something (global).</summary>
+    public Vector3 LookPoint { get; private set; }
+
+    private Label _noticeLabel;
+    private double _noticeTime;
+
+    /// <summary>Shows a warning in the middle of the player's screen.</summary>
+    public static void Notify(Node from, string text)
+    {
+        GD.Print("[UYARI] " + text);
+        if (from.GetTree().GetFirstNodeInGroup("player") is PlayerController player)
+        {
+            player._noticeLabel.Text = text;
+            player._noticeTime = 8.0;
+        }
+    }
+
+    /// <summary>Puts an object straight into the player's hands.</summary>
+    public void Give(RigidBody3D body)
+    {
+        _heldPart = body;
+        body.Freeze = true;
+    }
+
     /// <summary>What the player is carrying, or null.</summary>
     public RigidBody3D Held => _heldPart;
     public HandTool HeldTool => _heldPart as HandTool;
@@ -108,6 +132,15 @@ public partial class PlayerController : CharacterBody3D
         ui.AddChild(_interactPrompt);
         _interactPrompt.AnchorLeft = _interactPrompt.AnchorRight = 0.5f;
         _interactPrompt.AnchorTop = _interactPrompt.AnchorBottom = 0.85f;
+
+        AddToGroup("player");
+        _noticeLabel = new Label { HorizontalAlignment = HorizontalAlignment.Center };
+        _noticeLabel.AddThemeColorOverride("font_color", new Color(1f, 0.3f, 0.25f));
+        _noticeLabel.AddThemeFontSizeOverride("font_size", 22);
+        ui.AddChild(_noticeLabel);
+        _noticeLabel.AnchorLeft = 0f;
+        _noticeLabel.AnchorRight = 1f;
+        _noticeLabel.AnchorTop = _noticeLabel.AnchorBottom = 0.3f;
 
         _heldLabel = new Label();
         ui.AddChild(_heldLabel);
@@ -205,7 +238,10 @@ public partial class PlayerController : CharacterBody3D
             exclude.Add(_heldPart.GetRid());
         query.Exclude = exclude;
         var result = GetWorld3D().DirectSpaceState.IntersectRay(query);
-        return result.Count > 0 ? result["collider"].As<Node3D>() : null;
+        if (result.Count == 0)
+            return null;
+        LookPoint = result["position"].AsVector3();
+        return result["collider"].As<Node3D>();
     }
 
     private IInteractable LookedAtInteractable() => IInteractable.Find(LookedAt(PickupRange));
@@ -252,8 +288,10 @@ public partial class PlayerController : CharacterBody3D
         var query = PhysicsRayQueryParameters3D.Create(from, to);
         query.Exclude = new Godot.Collections.Array<Rid> { GetRid() };
         var result = GetWorld3D().DirectSpaceState.IntersectRay(query);
-        if (result.Count > 0 && result["collider"].As<Node3D>() is RigidBody3D body && body.IsInGroup("pickupable"))
+        if (result.Count > 0 && result["collider"].As<Node3D>() is RigidBody3D body && body.IsInGroup("pickupable")
+            && ((body as Carryable)?.CanPickUp ?? true))
         {
+            (body as Carryable)?.OnPickedUp();
             _heldPart = body;
             _heldPart.Freeze = true; // kinematic while held -- carried by direct transform, not physics forces
             _heldPart.LinearVelocity = Vector3.Zero;
@@ -375,6 +413,9 @@ public partial class PlayerController : CharacterBody3D
     /// check above (one ray per physics frame).</summary>
     private void UpdatePickupPrompt()
     {
+        _noticeTime -= GetPhysicsProcessDeltaTime();
+        if (_noticeTime <= 0.0)
+            _noticeLabel.Text = "";
         _heldLabel.Text = _heldPart == null ? "" : "Elde: " + ((_heldPart as Carryable)?.DisplayName ?? "parça");
 
         if (_atStation)
@@ -413,7 +454,8 @@ public partial class PlayerController : CharacterBody3D
             var query = PhysicsRayQueryParameters3D.Create(from, to);
             query.Exclude = new Godot.Collections.Array<Rid> { GetRid() };
             var result = GetWorld3D().DirectSpaceState.IntersectRay(query);
-            if (result.Count > 0 && result["collider"].As<Node3D>() is RigidBody3D body && body.IsInGroup("pickupable"))
+            if (result.Count > 0 && result["collider"].As<Node3D>() is RigidBody3D body && body.IsInGroup("pickupable")
+                && ((body as Carryable)?.CanPickUp ?? true))
             {
                 _interactPrompt.Text = "[F] Al: " + ((body as Carryable)?.DisplayName ?? "parça");
                 _interactPrompt.Visible = true;

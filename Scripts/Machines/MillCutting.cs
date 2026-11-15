@@ -7,37 +7,70 @@ using CncTrainer.Spec;
 namespace CncTrainer;
 
 /// <summary>Runtime behaviour of a procedural mill: moves the body with the
-/// predicted position and cuts the voxel stock with confirmed ones.</summary>
+/// predicted position and cuts whatever stock is mounted with confirmed
+/// ones. With no stock mounted the tool cuts nothing.</summary>
 public sealed class MillCutting
 {
     private readonly MachineSpec _spec;
     private readonly BridgeClient _bridge;
     private readonly ProceduralMillBody _body;
-    private readonly VoxelStockVisual _stock;
     private readonly ChipSpawner _chips;
     private readonly MachineKinematics _kinematics;
 
+    private VoxelStockVisual _stock;
+    private Transform3D _workToStock;
     private Transform3D? _lastPose;
     private ChipFormation? _chipFormation;
     private double _timeSinceLastCut = 999.0;
+    private float _removedWhileLoose;
 
     public double RemovedMm3 { get; private set; }
+    public bool HasStock => _stock != null;
 
-    public MillCutting(MachineSpec spec, BridgeClient bridge, ProceduralMillBody body, VoxelStockVisual stock, ChipSpawner chips)
+    /// <summary>Asked on every cut: is the stock held firmly? Null = always.</summary>
+    public System.Func<bool> IsSecure;
+    /// <summary>Raised once when a cut is taken on stock that is not secure.</summary>
+    public System.Action CutWhileLoose;
+
+    public MillCutting(MachineSpec spec, BridgeClient bridge, ProceduralMillBody body, ChipSpawner chips)
     {
         _spec = spec;
         _bridge = bridge;
         _body = body;
-        _stock = stock;
         _chips = chips;
         _kinematics = new MachineKinematics(spec.AxisDefs());
     }
 
+    /// <summary>Tool tip position in the body's frame (metres).</summary>
+    public Vector3 TipInBody(AxisVector position) => _kinematics.ToolTransform(position).Origin;
+
+    /// <summary>Tool tip pose relative to the part of the machine that
+    /// carries the workpiece (metres).</summary>
+    public Transform3D ToolInWork(AxisVector position) => _kinematics.ToolInWork(position);
+
+    /// <summary>Starts cutting this stock where it now sits. It must already
+    /// be parented under the body's WorkEnd.</summary>
+    public void MountStock(VoxelStockVisual stock)
+    {
+        _stock = stock;
+        _workToStock = stock.GlobalTransform.AffineInverse() * _body.WorkEnd.GlobalTransform;
+        _lastPose = null;
+        _removedWhileLoose = 0f;
+    }
+
+    public void ClearStock()
+    {
+        _stock = null;
+        _lastPose = null;
+    }
+
     public void OnConfirmedState()
     {
+        if (_stock == null)
+            return;
         var s = _bridge.State;
-        var inWork = _kinematics.ToolInWork(s.Position);
-        var pose = new Transform3D(inWork.Basis, inWork.Origin / WorldScale.MmToM);
+        var inStock = _workToStock * _kinematics.ToolInWork(s.Position);
+        var pose = new Transform3D(inStock.Basis, inStock.Origin / WorldScale.MmToM);
         var tool = _spec.FindTool(s.ToolNumber);
 
         if (_lastPose is Transform3D previous && tool != null)
@@ -58,6 +91,18 @@ public sealed class MillCutting
                 float surfaceSpeed = 2f * Mathf.Pi * cutter.RadiusMm * rpm / 60f;
                 _chipFormation = ChipClassifier.Classify(MaterialPreset.Get(_spec.StockMaterial), depth, feedPerRev, surfaceSpeed);
                 _timeSinceLastCut = 0.0;
+
+                if (IsSecure != null && !IsSecure())
+                {
+                    _removedWhileLoose += result.VolumeMm3;
+                    // A light touch only rattles the part; a real cut throws it.
+                    if (_removedWhileLoose > 20f)
+                    {
+                        _removedWhileLoose = 0f;
+                        CutWhileLoose?.Invoke();
+                        return;
+                    }
+                }
             }
         }
         _lastPose = pose;
@@ -73,7 +118,7 @@ public sealed class MillCutting
         if (_timeSinceLastCut > 0.2)
             _chipFormation = null;
 
-        _stock.RebuildDirtyChunks();
+        _stock?.RebuildDirtyChunks();
         _chips.Tick(delta, _chipFormation, _kinematics.ToolTransform(position).Origin);
     }
 }

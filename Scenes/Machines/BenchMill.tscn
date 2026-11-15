@@ -1,0 +1,63 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://Scripts/Machines/ProceduralMachine.cs" id="1_5gu6g"]
+[ext_resource type="Script" path="res://Scripts/Machines/Spec/AxisSpec.cs" id="2_mg2mi"]
+[ext_resource type="Script" path="res://Scripts/Machines/Spec/MillStructure.cs" id="3_80i6n"]
+[ext_resource type="Script" path="res://Scripts/Machines/Spec/ToolSpec.cs" id="4_0vsjv"]
+[ext_resource type="Script" path="res://Scripts/Machines/Spec/MachineSpec.cs" id="5_8ygoh"]
+[ext_resource type="Script" path="res://Scripts/MachineVisual/ConsoleStand.cs" id="6_v004i"]
+
+[sub_resource type="Resource" id="Resource_qf80f"]
+script = ExtResource("2_mg2mi")
+Letter = 1
+
+[sub_resource type="Resource" id="Resource_feiaf"]
+script = ExtResource("2_mg2mi")
+MinLimit = -150.0
+MaxLimit = 150.0
+
+[sub_resource type="Resource" id="Resource_0b2y4"]
+script = ExtResource("2_mg2mi")
+Letter = 2
+MinLimit = -40.0
+MaxLimit = 120.0
+Home = 50.0
+HomeSequence = 0
+
+[sub_resource type="Resource" id="Resource_aheyw"]
+script = ExtResource("3_80i6n")
+Frame = 1
+BaseWidthMm = 600.0
+BaseDepthMm = 500.0
+TableSizeYMm = 360.0
+TableThicknessMm = 40.0
+
+[sub_resource type="Resource" id="Resource_qlkn3"]
+script = ExtResource("4_0vsjv")
+Description = "10mm flat end mill"
+
+[sub_resource type="Resource" id="Resource_8qxfn"]
+script = ExtResource("4_0vsjv")
+Number = 2
+Description = "6mm flat end mill"
+DiameterMm = 6.0
+
+[sub_resource type="Resource" id="Resource_ng8rj"]
+script = ExtResource("5_8ygoh")
+MachineName = "BenchMill"
+WslDistro = "Ubuntu-26.04"
+StatePort = 9206
+CommandPort = 9207
+DemoProgram = "nc_files/demo_mill_pocket.ngc"
+Axes = Array[ExtResource("2_mg2mi")]([SubResource("Resource_qf80f"), SubResource("Resource_feiaf"), SubResource("Resource_0b2y4")])
+Tools = Array[ExtResource("4_0vsjv")]([SubResource("Resource_qlkn3"), SubResource("Resource_8qxfn")])
+ManualSetup = true
+Mill = SubResource("Resource_aheyw")
+
+[node name="BenchMill" type="Node3D" unique_id=415818930]
+script = ExtResource("1_5gu6g")
+Spec = SubResource("Resource_ng8rj")
+
+[node name="ConsoleStand" type="Node3D" parent="." unique_id=1370843824]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.65000004, 0, 0.48000002)
+script = ExtResource("6_v004i")

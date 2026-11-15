@@ -46,6 +46,10 @@ public partial class MachineSpec : Resource
     [Export] public Color BodyColor = new(0.16f, 0.27f, 0.42f);
     [Export] public Color AccentColor = new(0.22f, 0.23f, 0.25f);
     [Export] public MaterialKind StockMaterial = MaterialKind.Aluminum;
+    /// <summary>The machine starts empty: the player brings the fixture
+    /// and the stock, bolts and clamps them, and sets the work zero. Off =
+    /// the nominal stock is already in place at machine zero.</summary>
+    [Export] public bool ManualSetup;
 
     [ExportGroup("Structure")]
     [Export] public MillStructure Mill;

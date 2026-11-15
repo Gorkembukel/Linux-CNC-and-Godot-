@@ -29,6 +29,13 @@ public partial class ProceduralMillBody : Node3D
     /// <summary>Moves with the workpiece: parent for the stock.</summary>
     public Node3D WorkEnd { get; private set; }
 
+    /// <summary>Table top in WorkEnd's frame, its size, and where its
+    /// T-slots run (along X, at these Z).</summary>
+    public float TableTopY { get; private set; }
+    public float TableSizeX { get; private set; }
+    public float TableSizeZ { get; private set; }
+    public float[] SlotZ { get; private set; }
+
     public void Build(MachineSpec spec)
     {
         _spec = spec;
@@ -52,7 +59,9 @@ public partial class ProceduralMillBody : Node3D
 
         // ---- workpiece side, from the stock downward ----
         float cursor = -stockH;
-        switch (m.Workholding)
+        // With manual setup the fixture is a real object the player brings;
+        // only the height it will take up is kept so the table stays put.
+        switch (spec.ManualSetup ? Workholding.None : m.Workholding)
         {
             case Workholding.Vise:
                 float jawH = Mathf.Min(stockH * 0.6f, 0.04f);
@@ -75,6 +84,13 @@ public partial class ProceduralMillBody : Node3D
                     new Vector3(-stockX / 2f - 0.015f, -stockH / 2f, 0f), Vector3.Right, Steel);
                 break;
         }
+
+        if (spec.ManualSetup && m.Workholding == Workholding.Vise)
+            cursor -= 0.05f;
+        TableTopY = cursor;
+        TableSizeX = tableX;
+        TableSizeZ = tableZ;
+        SlotZ = Enumerable.Range(0, m.TSlotCount).Select(i => -tableZ / 2f + tableZ * (i + 1) / (m.TSlotCount + 1)).ToArray();
 
         bool tableMade = false;
         float footX = tableX, footZ = tableZ;

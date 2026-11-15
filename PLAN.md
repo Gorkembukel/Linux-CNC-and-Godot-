@@ -1206,3 +1206,47 @@ Fixed: E at a console now selects that console's machine in the panel
 failing session could not be reproduced, so this is the probable cause, not a
 proven one. Side finding, not touched: `BridgeClient.LastCommandRttMs` stays
 NaN in these runs (ACKs apparently never matched).
+
+## Hands-on setup, phases 1-2 (2026-11-15, branch `workholding-setup`)
+
+Approved plan: `~/.claude/plans/vectorized-stargazing-dragonfly.md` (stock
+station, bolt-by-bolt workholding, real zeroing, consequences; 5 phases).
+
+**Phase 1 -- interaction + stock station.** `Scripts/Interaction/`
+(`IInteractable`: Prompt / Use = left click / Turn = mouse wheel;
+`Carryable`; `HandTool` with nine tool kinds). `PlayerController`: crosshair
+ray finds the nearest `IInteractable` ancestor, F picks up/drops, E opens
+the station panel, `Notify` shows a warning, `Give`/`ReleaseHeld`.
+`Scripts/Workshop/`: `StockBlank` (shape/size/material -> volume, mass),
+`StockItem` (carryable stock), `StockStation` (HUD panel + preview monitor
+from one SubViewport, "ÜRET" spawns the stock on the tray), `ToolBench`.
+Both are in `Main.tscn`; the floor is 12 x 10 m now.
+
+**Phase 2 -- mill vise.** `Scripts/Fixtures/` (the namespace cannot be
+`Workholding`: that is an enum in `CncTrainer.Spec`): `Vise` (carry to the
+table, 4 `Fastener` holes over the nearest T-slots, parallels, stock placed
+where the player aims along the jaws, screw via wheel with the vise handle,
+mallet seating), `BoltItem`, `MillTable`, `MillWorkholding` (fixture cart
+next to the machine; turns the stock in the jaws into the `VoxelStock` being
+cut AT ITS REAL POSITION; throws the part and switches the machine off if it
+is cut while the vise or its bolts are not tight; "ÇARPMA" when the cutter
+enters a jaw). `MachineSpec.ManualSetup` turns this on (vise mills only so
+far); off = old behaviour, stock pre-placed at machine zero. `MillCutting`
+no longer owns a fixed stock (`MountStock` / `ClearStock`). New scene
+`Scenes/Machines/BenchMill.tscn` (manual setup, distro Ubuntu-26.04, ports
+9206/9207) -- NOT placed in `Main.tscn`: both distros are taken there.
+
+Verified live on LinuxCNC with a scripted setup (vise at X+30, stock at
++10 along the jaws, G54 set with `G10 L2`): correct setup ->
+`demo_mill_pocket` removes 23.07 cm3 with no alarm; vise torque 1/3 -> part
+thrown after 20 mm3, machine off; no parallels -> jaw crash alarm on the
+first approach. 58 C# tests green. Looked at on screenshots: station,
+panel, bench, vise on the table.
+
+NOT verified (needs the user playing): every keyboard/mouse path -- picking
+up, carrying, placing by aiming, wheel-turning bolts and the screw, the
+prompts. These were only exercised through the methods they call.
+
+Open: phases 3 (work-offset packet, WORK/MACHINE readout, edge finder,
+paper Z touch, SET buttons, setup sheet), 4 (lathe chuck), 5 (clamps,
+centring plate for the trunnion, 4th-axis chuck, vise tramming).

@@ -11,6 +11,10 @@ public partial class StockItem : Carryable
 {
     public StockBlank Blank { get; private set; }
 
+    /// <summary>Held by a fixture: not free to pick up.</summary>
+    public bool Fixed;
+    public override bool CanPickUp => !Fixed;
+
     public static StockItem Create(StockBlank blank)
     {
         var item = new StockItem

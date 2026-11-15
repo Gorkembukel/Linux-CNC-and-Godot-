@@ -50,6 +50,7 @@ public static class MachinePresets
     {
         Kind = MachineKind.Mill,
         MachineName = "BenchMill",
+        ManualSetup = true,
         DemoProgram = "nc_files/demo_mill_pocket.ngc",
         Axes = List(
             new AxisSpec(AxisId.Y, Tool, -100f, 100f),
@@ -83,6 +84,7 @@ public static class MachinePresets
     {
         Kind = MachineKind.Mill,
         MachineName = "Vmc",
+        ManualSetup = true,
         DemoProgram = "nc_files/vmc_cok_takimli.ngc",
         WorkHeightMm = 950f,
         Enclosure = true,
