@@ -6,6 +6,7 @@ using CncTrainer.Machining;
 using CncTrainer.Material;
 using CncTrainer.Procedural;
 using CncTrainer.Spec;
+using CncTrainer.Workshop;
 
 namespace CncTrainer.Fixtures;
 
@@ -98,38 +99,34 @@ public partial class LatheWorkholding : MachineSetup
     {
         var profile = _workpiece.Profile;
         var radii = profile.LiveRadii();
-        var part = new Carryable { Name = "TurnedPart", DisplayName = "Tornalanmış parça" };
-        float centreZ = profile.ZMin;
-        if (WorkpiecePartBuilder.Build(radii, profile.StepMm, profile.ZMin, MaterialPreset.Get(_cutting.Material).DensityKgPerM3)
-            is WorkpiecePartBuilder.BuiltPart built)
-        {
-            part.Mass = Mathf.Max(0.01f, built.MassKg);
-            part.AddChild(new MeshInstance3D { Mesh = built.Mesh, MaterialOverride = _workpiece.StockVisualMaterial.Duplicate() as Godot.Material });
-            part.AddChild(new CollisionShape3D { Shape = built.Collision });
-            centreZ = built.CentroidZmm;
-        }
-        else
+        Carryable part = TurnedPart.Build(radii, profile.StepMm, profile.ZMin, MaterialPreset.Get(_cutting.Material).DensityKgPerM3,
+            _workpiece.StockVisualMaterial.Duplicate() as Godot.Material, out float centreZ);
+        if (part == null)
         {
             // Too short a stub to revolve: a plain disc.
             float radius = Mathf.Max(0.003f, (radii.Length > 0 ? radii[0] : 5f) * M);
-            part.Mass = 0.02f;
+            part = new Carryable { Name = "Stub", DisplayName = "Artık parça", Mass = 0.02f };
             BodyParts.Cylinder(part, "Stub", radius, 0.003f, Vector3.Zero, Vector3.Right, BodyParts.Steel);
             part.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = new Vector3(0.003f, radius * 2f, radius * 2f) } });
         }
+        else
+            part.DisplayName += _cutting.SurfaceNote();
+        _cutting.PartFinished?.Invoke();
         GetTree().CurrentScene.AddChild(part);
         part.GlobalTransform = _body.GlobalTransform * new Transform3D(Basis.Identity, new Vector3(centreZ * M, 0f, 0f));
         return part;
     }
 
-    private string Measure(Vector3 globalPoint)
+    private string Measure(HandToolKind gauge, Vector3 globalPoint)
     {
+        if (Gauges.Diameter(gauge, 0f) == null)
+            return null;
         if (System.Math.Abs(Bridge.State.SpindleRpm) > 1.0)
-            return "Kumpas: iş mili dönerken ölçülmez";
+            return "İş mili dönerken ölçülmez";
         var profile = _workpiece.Profile;
         float z = _body.ToLocal(globalPoint).X / M;
-        float diameter = Mathf.Round(DiameterAt(z) / 0.02f) * 0.02f;
         float fromTip = profile.ZMin + LiveLengthMm() - z;
-        return System.FormattableString.Invariant($"Kumpas: Ø{diameter:0.00} mm   (uçtan {Mathf.Max(0f, fromTip):0} mm içeride)");
+        return Gauges.Diameter(gauge, DiameterAt(z)) + System.FormattableString.Invariant($"   (uçtan {Mathf.Max(0f, fromTip):0} mm içeride)");
     }
 
     /// <summary>True diameter of the bar at a machine Z (mm).</summary>

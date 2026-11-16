@@ -87,6 +87,7 @@ public partial class MillWorkholding : MachineSetup
             visual.Build(block ? VoxelStock.Block(size.X, size.Y, size.Z, step) : VoxelStock.CylinderAlongX(size.X, size.Y, step));
             seat.ShowMachined(visual);
             _cutting.Material = blank.Material;
+            _cutting.PartFinished?.Invoke();
             _removedAtMount = _cutting.RemovedMm3;
             _mountedAt = default;
             _offsetAtPlacement = Bridge.State.WorkOffset;
@@ -102,6 +103,7 @@ public partial class MillWorkholding : MachineSetup
                 _mountedAt = at;
                 _cutting.MountStock((VoxelStockVisual)seat.MachinedPart);
             }
+            seat.SurfaceNote = _cutting.SurfaceNote();
             if (_cutting.RemovedMm3 > _removedAtMount)
             {
                 seat.WasCut = true;

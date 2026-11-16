@@ -40,6 +40,10 @@ public abstract class CuttingProcess
     public event System.Action<CutSample> CutObserved;
     /// <summary>A part of the machine that does not cut ran into the work.</summary>
     public event System.Action<string> Collided;
+    /// <summary>What the cutting so far has left on the surface, as a
+    /// suffix for the finished part's name; and the call that starts a new part.</summary>
+    public System.Func<string> SurfaceNote = () => "";
+    public System.Action PartFinished;
     /// <summary>What is really cutting when the control says tool N.</summary>
     public IToolSource Tools;
 

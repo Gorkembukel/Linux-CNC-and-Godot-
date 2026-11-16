@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Godot;
+using CncTrainer.Interaction;
 using CncTrainer.Material;
 
 namespace CncTrainer;
@@ -22,6 +23,27 @@ public partial class VoxelStockVisual : Node3D
     private bool[] _chunkDirty;
     private readonly List<Vector3> _vertices = new(), _normals = new();
     private readonly List<int> _indices = new();
+
+    /// <summary>What a gauge reads at a point (global) over the stock: the
+    /// depth gauge the depth below the stock's top face, the caliper the
+    /// sizes along the stock's X and Y -- the pocket or slot the point is
+    /// in, or the outside of the part when the point is on its top face.</summary>
+    public string Reading(HandToolKind gauge, Vector3 globalPoint)
+    {
+        if (Stock == null || gauge is not (HandToolKind.Caliper or HandToolKind.DepthGauge))
+            return null;
+        var p = ToLocal(globalPoint) / WorldScale.MmToM;
+        if (Stock.SurfaceY(p.X, p.Z) is not float surface)
+            return "Burada ölçülecek malzeme yok";
+        float depth = Mathf.Max(0f, -surface);
+        if (gauge == HandToolKind.DepthGauge)
+            return System.FormattableString.Invariant($"Derinlik mastarı: {depth:0.00} mm  (parçanın üst yüzünden)");
+
+        bool inPocket = depth > 0.1f;
+        var at = new Vector3(p.X, inPocket ? surface + 0.3f : surface - 0.5f, p.Z);
+        static string Size(float? mm) => mm is float value ? System.FormattableString.Invariant($"{Mathf.Round(value / 0.02f) * 0.02f:0.00} mm") : "açık";
+        return $"Kumpas ({(inPocket ? "iç ölçü" : "dış ölçü")}): X {Size(Stock.Span(at, Vector3.Right))}, Y {Size(Stock.Span(at, Vector3.Back))}";
+    }
 
     public void Build(VoxelStock stock)
     {

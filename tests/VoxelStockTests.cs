@@ -122,4 +122,27 @@ public class VoxelStockTests
         // 5 mm puts the slot walls exactly on grid nodes, 4.999 mm just inside them.
         Assert.InRange(Slot(4.999f) / Slot(5f), 0.99f, 1.001f);
     }
+
+    [Fact]
+    public void Gauging_ASlot_ReadsItsDepthAndWidths_AndTheBlockOutside()
+    {
+        var stock = VoxelStock.Block(120f, 30f, 80f, 0.5f);
+        var cutter = new CutterShape(5f, 0f, 30f, 0f);
+        // 10 mm cutter, 3 mm deep, from x = 0 to x = 20: a closed slot 30 x 10.
+        for (float x = 0f; x < 20f; x += 0.1f)
+            stock.Cut(new Godot.Transform3D(Godot.Basis.Identity, new Godot.Vector3(x, -3f, 0f)),
+                new Godot.Transform3D(Godot.Basis.Identity, new Godot.Vector3(x + 0.1f, -3f, 0f)), cutter);
+
+        Assert.Equal(-3f, stock.SurfaceY(10f, 0f)!.Value, 1);
+        Assert.Equal(0f, stock.SurfaceY(-40f, 20f)!.Value, 1);
+        Assert.Null(stock.SurfaceY(200f, 0f));
+
+        var inSlot = new Godot.Vector3(10f, -2.7f, 0f);
+        Assert.InRange(stock.Span(inSlot, Godot.Vector3.Right)!.Value, 29.8f, 30.2f);
+        Assert.InRange(stock.Span(inSlot, Godot.Vector3.Back)!.Value, 9.8f, 10.2f);
+
+        var inBlock = new Godot.Vector3(-40f, -0.5f, 20f);
+        Assert.InRange(stock.Span(inBlock, Godot.Vector3.Right)!.Value, 119.7f, 120.3f);
+        Assert.InRange(stock.Span(inBlock, Godot.Vector3.Back)!.Value, 79.7f, 80.3f);
+    }
 }

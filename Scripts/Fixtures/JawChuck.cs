@@ -16,7 +16,7 @@ namespace CncTrainer.Fixtures;
 /// at the front face of the jaws on the centreline.
 /// </summary>
 [Tool]
-public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture
+public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMeasurable
 {
     private const float M = WorldScale.MmToM;
     private const float JawHeight = 0.022f;
@@ -36,8 +36,12 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture
     /// <summary>What comes out of the jaws instead of the raw bar once it
     /// has been machined; null result = hand back the raw bar.</summary>
     public System.Func<RigidBody3D> TakeMachined;
-    /// <summary>Caliper reading for a point (global) on the bar.</summary>
-    public System.Func<Vector3, string> Measure;
+    /// <summary>Gauge reading for a point (global) on the bar; set by the
+    /// lathe. On an indexer the bar is measured like any milled stock.</summary>
+    public System.Func<HandToolKind, Vector3, string> Measure;
+
+    public string Reading(HandToolKind gauge, Vector3 globalPoint) =>
+        !Grip.HasBar ? null : Measure != null ? Measure(gauge, globalPoint) : Stock.Reading(gauge, globalPoint);
 
     private Node3D _rotor, _key;
     private readonly List<MeshInstance3D> _jaws = new();
@@ -196,8 +200,6 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture
     {
         var tool = player.HeldTool?.Kind;
         var g = Grip;
-        if (tool == HandToolKind.Caliper && g.HasBar)
-            return Measure?.Invoke(player.LookPoint);
         if (tool == HandToolKind.ChuckKey)
             return "[Tık] Anahtarı aynaya tak";
         if (player.Held is StockItem item)

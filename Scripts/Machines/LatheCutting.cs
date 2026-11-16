@@ -4,6 +4,7 @@ using CncTrainer.Chips;
 using CncTrainer.Material;
 using CncTrainer.Procedural;
 using CncTrainer.Spec;
+using CncTrainer.Workshop;
 
 namespace CncTrainer;
 
@@ -113,17 +114,14 @@ public sealed class LatheCutting : CuttingProcess
         var removedRadii = profile.Sever(severedIndex);
         _workpiece.MarkDirty(severedIndex, profile.BucketCount - 1);
 
-        var built = WorkpiecePartBuilder.Build(removedRadii, profile.StepMm, profile.ZAt(severedIndex + 1),
-            MaterialPreset.Get(Material).DensityKgPerM3);
-        if (built is not WorkpiecePartBuilder.BuiltPart part)
+        var part = TurnedPart.Build(removedRadii, profile.StepMm, profile.ZAt(severedIndex + 1),
+            MaterialPreset.Get(Material).DensityKgPerM3, _workpiece.StockVisualMaterial, out float centreZ);
+        if (part == null)
             return;
-
-        var body = new RigidBody3D { Mass = Mathf.Max(0.01f, part.MassKg) };
-        _parts.AddChild(body);
-        body.AddChild(new MeshInstance3D { Mesh = part.Mesh, MaterialOverride = _workpiece.StockVisualMaterial });
-        body.AddChild(new CollisionShape3D { Shape = part.Collision });
-        body.Position = new Vector3(part.CentroidZmm * WorldScale.MmToM, 0f, 0f);
-        body.AddToGroup("pickupable");
+        part.DisplayName += SurfaceNote();
+        PartFinished?.Invoke();
+        _parts.AddChild(part);
+        part.Position = new Vector3(centreZ * WorldScale.MmToM, 0f, 0f);
     }
 
     protected override Vector3 MoveBody(double delta)

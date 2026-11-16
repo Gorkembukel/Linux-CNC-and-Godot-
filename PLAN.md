@@ -1634,3 +1634,36 @@ faces 1 mm in, as an operator would.
 
 **Not modelled:** turret / tailstock / enclosure collisions, the mill head
 against the vise body sideways, boring bars and drills on the lathe.
+
+### System 4 -- measuring and quality (done)
+
+- `IMeasurable` (`Scripts/Interaction`): `Reading(gauge, globalPoint)`. With
+  a gauge in hand the player's crosshair finds the nearest measurable
+  ancestor of what it hits and the reading shows under the crosshair --
+  one place in `PlayerController`, no per-object gauge code. Implemented by
+  `StockItem` (stock in any mill fixture), `JawChuck` (bar on the lathe or
+  the indexer), `MilledPart`, `TurnedPart` (parts once they are out).
+- New hand tools on the bench: **micrometer** (0.001 mm, diameters) and
+  **depth gauge**. The caliper reads to 0.02 mm.
+- Mill: `VoxelStock.SurfaceY` / `Span` measure the cut surface itself --
+  depth gauge: depth below the stock's top face; caliper: the X and Y sizes
+  of the pocket or slot the point is in ("iç ölçü"), or of the whole part
+  when the point is on its top face ("dış ölçü"); "açık" for a side that
+  never ends. Good to roughly 0.1 mm (0.5 mm voxels, interpolated).
+- Lathe: caliper and micrometer on the bar in the chuck (spindle stopped)
+  and on finished parts. Tool wear (system 1) shows as microns on the
+  micrometer and not on the caliper.
+- Parts carry what the cutting left on them: "(yüzey temiz)" or "(yüzey
+  titreşim izli)" from `CutMonitor.ChatterMarks`, reset for each new part.
+- `TurnedPart.Build` replaces the two copies of "radii -> rigid body" in
+  `LatheCutting` and `LatheWorkholding`.
+
+Verified live: slot cut on the mill -> depth gauge 3.00, caliper inside
+30.00 x 10.00, outside 120.00 x 80.00; lathe bar caliper Ø48.00 / Ø44.00,
+micrometer Ø48.001 / Ø44.002; the parted-off piece reads Ø44.002 on the
+bench and is named "Tornalanmış parça (yüzey temiz)". 80 C# tests.
+
+**Not done here:** judging a part against a drawing (target sizes and
+tolerances) belongs to the training-scenario mode, which is not started;
+everything it needs to read is now available through `IMeasurable`,
+`MachineSafety.Incidents` and `CutMonitor`.

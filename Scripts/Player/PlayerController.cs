@@ -429,6 +429,8 @@ public partial class PlayerController : CharacterBody3D
     /// check above (one ray per physics frame).</summary>
     private void UpdatePickupPrompt()
     {
+        if (HeldTool is { } gauge && Gauges.IsGauge(gauge.Kind) && IMeasurable.Find(LookedAt(PickupRange)) is IMeasurable measured)
+            ToolStatus = measured.Reading(gauge.Kind, LookPoint) ?? $"{HandTool.NameOf(gauge.Kind)}: bu ölçü burada alınmaz";
         _statusLabel.Text = ToolStatus ?? "";
         ToolStatus = null;
         ISetupSheet nearest = null;

@@ -3,7 +3,7 @@ using CncTrainer.Procedural;
 
 namespace CncTrainer.Interaction;
 
-public enum HandToolKind { HexKey, ViseHandle, ChuckKey, Mallet, Brush, Parallels, PaperGauge, Caliper, DialIndicator }
+public enum HandToolKind { HexKey, ViseHandle, ChuckKey, Mallet, Brush, Parallels, PaperGauge, Caliper, DialIndicator, Micrometer, DepthGauge }
 
 /// <summary>A hand tool from the bench. What it does is decided by the thing
 /// it is used on (a fastener asks for a HexKey, a chuck for a ChuckKey...).</summary>
@@ -21,6 +21,8 @@ public partial class HandTool : Carryable
         HandToolKind.Parallels => "Paralel takımı",
         HandToolKind.PaperGauge => "Kağıt mastar (0,05 mm)",
         HandToolKind.Caliper => "Kumpas",
+        HandToolKind.Micrometer => "Mikrometre",
+        HandToolKind.DepthGauge => "Derinlik mastarı",
         _ => "Komparatör",
     };
 
@@ -74,6 +76,18 @@ public partial class HandTool : Carryable
                 BodyParts.Box(tool, "FixedJaw", new Vector3(0.006f, 0.004f, 0.05f), new Vector3(-0.107f, 0f, 0.03f), steel);
                 BodyParts.Box(tool, "SlidingJaw", new Vector3(0.03f, 0.006f, 0.05f), new Vector3(-0.06f, 0f, 0.025f), dark);
                 size = new Vector3(0.22f, 0.01f, 0.07f);
+                break;
+            case HandToolKind.Micrometer:
+                BodyParts.Box(tool, "Frame", new Vector3(0.08f, 0.012f, 0.05f), new Vector3(-0.02f, 0f, 0.02f), dark);
+                BodyParts.Cylinder(tool, "Spindle", 0.004f, 0.05f, new Vector3(0f, 0f, 0f), Vector3.Right, steel);
+                BodyParts.Cylinder(tool, "Thimble", 0.009f, 0.06f, new Vector3(0.07f, 0f, 0f), Vector3.Right, steel);
+                size = new Vector3(0.17f, 0.02f, 0.06f);
+                break;
+            case HandToolKind.DepthGauge:
+                BodyParts.Box(tool, "Base", new Vector3(0.1f, 0.006f, 0.016f), Vector3.Zero, steel);
+                BodyParts.Box(tool, "Rod", new Vector3(0.004f, 0.12f, 0.004f), new Vector3(0f, 0.02f, 0f), steel);
+                BodyParts.Box(tool, "Slider", new Vector3(0.03f, 0.03f, 0.008f), new Vector3(0f, 0.03f, 0f), dark);
+                size = new Vector3(0.1f, 0.12f, 0.02f);
                 break;
             default:
                 BodyParts.Box(tool, "MagBase", new Vector3(0.05f, 0.04f, 0.04f), Vector3.Zero, dark);

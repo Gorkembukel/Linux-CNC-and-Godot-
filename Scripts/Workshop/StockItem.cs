@@ -1,3 +1,4 @@
+using System.Linq;
 using Godot;
 using CncTrainer.Chips;
 using CncTrainer.Interaction;
@@ -7,13 +8,20 @@ namespace CncTrainer.Workshop;
 
 /// <summary>A piece of raw stock as a physical, carryable object. Local
 /// frame: X along the length, Y up, origin at the centre.</summary>
-public partial class StockItem : Carryable
+public partial class StockItem : Carryable, IMeasurable
 {
     public StockBlank Blank { get; private set; }
 
     /// <summary>Held by a fixture: not free to pick up.</summary>
     public bool Fixed;
     public override bool CanPickUp => !Fixed;
+
+    /// <summary>Once machining has started the cut surface is measured;
+    /// untouched stock simply has its nominal size.</summary>
+    public string Reading(HandToolKind gauge, Vector3 globalPoint) =>
+        GetChildren().OfType<VoxelStockVisual>().FirstOrDefault() is VoxelStockVisual machined ? machined.Reading(gauge, globalPoint)
+        : gauge == HandToolKind.Caliper ? "Kumpas: " + Blank.Describe()
+        : null;
 
     public static StockItem Create(StockBlank blank)
     {

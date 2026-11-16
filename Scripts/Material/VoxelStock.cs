@@ -111,6 +111,47 @@ public class VoxelStock
         return Mathf.Lerp(Mathf.Lerp(Along(iy, iz), Along(iy + 1, iz), fy), Mathf.Lerp(Along(iy, iz + 1), Along(iy + 1, iz + 1), fy), fz);
     }
 
+    /// <summary>Height of the stock's surface under (x, z), seen from
+    /// above; null where there is no material at all.</summary>
+    public float? SurfaceY(float x, float z)
+    {
+        float step = StepMm / 4f, top = Origin.Y + (CountY - 1) * StepMm;
+        float previous = SampleDistance(new Vector3(x, top, z));
+        for (float y = top - step; y >= Origin.Y; y -= step)
+        {
+            float d = SampleDistance(new Vector3(x, y, z));
+            if (d >= 0f)
+                return previous < 0f ? y + step * d / (d - previous) : y;
+            previous = d;
+        }
+        return null;
+    }
+
+    /// <summary>The size measured through a point along a direction: from a
+    /// point in the open, the gap between the walls on either side (an
+    /// inside size); from a point in the material, its thickness (an outside
+    /// size). Null when one side never ends, as in a slot open at one end.</summary>
+    public float? Span(Vector3 pointMm, Vector3 direction)
+    {
+        bool inMaterial = SampleDistance(pointMm) >= 0f;
+        float forward = Reach(pointMm, direction, inMaterial), back = Reach(pointMm, -direction, inMaterial);
+        return forward < 0f || back < 0f ? null : forward + back;
+    }
+
+    private float Reach(Vector3 from, Vector3 direction, bool inMaterial)
+    {
+        float step = StepMm / 4f, limit = (CountX + CountY + CountZ) * StepMm;
+        float previous = SampleDistance(from);
+        for (float t = step; t <= limit; t += step)
+        {
+            float d = SampleDistance(from + direction * t);
+            if ((d >= 0f) != inMaterial)
+                return t - step + step * previous / (previous - d);
+            previous = d;
+        }
+        return -1f;
+    }
+
     public bool IsMaterialAt(Vector3 pointMm)
     {
         var g = (pointMm - Origin) / StepMm;

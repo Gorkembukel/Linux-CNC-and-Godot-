@@ -31,6 +31,8 @@ public sealed class StockSeat
     public Node3D MachinedPart { get; private set; }
     /// <summary>The stock has had material removed.</summary>
     public bool WasCut;
+    /// <summary>What the cutting left on the surface, for the part's name.</summary>
+    public string SurfaceNote;
 
     public bool Occupied => Stock != null;
 
@@ -85,7 +87,7 @@ public sealed class StockSeat
         }
         else
         {
-            var part = new Carryable { Name = "Part", DisplayName = "İşlenmiş parça", Mass = stock.Mass };
+            var part = new MilledPart { Name = "Part", DisplayName = "İşlenmiş parça" + SurfaceNote, Mass = stock.Mass };
             scene.AddChild(part);
             part.GlobalTransform = stock.GlobalTransform;
             part.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = stock.Blank.BoundsM } });
