@@ -67,6 +67,7 @@ Axes = Array[ExtResource("2_6wwso")]([SubResource("Resource_mvg8x"), SubResource
 Tools = Array[ExtResource("4_cwumy")]([SubResource("Resource_2aacy"), SubResource("Resource_ox1t8"), SubResource("Resource_ci7sv")])
 BodyColor = Color(0.15, 0.35, 0.22, 1)
 StockMaterial = 0
+SpindlePowerKw = 3.0
 ManualSetup = true
 Lathe = SubResource("Resource_e3lc8")
 

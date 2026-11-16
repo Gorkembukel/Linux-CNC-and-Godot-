@@ -112,6 +112,7 @@ Tools = Array[ExtResource("4_uwo1e")]([SubResource("Resource_jv65k"), SubResourc
 WorkHeightMm = 1050.0
 Enclosure = true
 BodyColor = Color(0.82, 0.82, 0.8, 1)
+SpindlePowerKw = 15.0
 ManualSetup = true
 Mill = SubResource("Resource_1tr06")
 

@@ -9,6 +9,8 @@ public sealed class MachineRig
 {
     public readonly MachineProfile Profile;
     public readonly BridgeClient Bridge;
+    /// <summary>Load meter and tool condition; null on machines without one.</summary>
+    public Machining.CutMonitor Monitor;
 
     public MachineRig(MachineProfile profile, BridgeClient bridge)
     {

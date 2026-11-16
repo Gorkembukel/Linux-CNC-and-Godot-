@@ -149,6 +149,7 @@ public partial class ProceduralMachine : Node3D, IMachine
                 setup.Setup(Spec, _latheBody, lathe, _workpiece, bridge, Safety);
             }
         }
+        Rig.Monitor = new Machining.CutMonitor(Spec, Cutting, Safety);
         bridge.Connect(BridgeClient.SignalName.StateUpdated, Callable.From(Cutting.OnConfirmedState));
     }
 
@@ -166,6 +167,7 @@ public partial class ProceduralMachine : Node3D, IMachine
         }
 
         Cutting?.Process(delta);
+        Rig?.Monitor?.Tick(delta);
 
         if (Cutting is MillCutting mill && OS.HasEnvironment("CNC_DEBUG_PRINT"))
         {

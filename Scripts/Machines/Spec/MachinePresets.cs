@@ -54,6 +54,7 @@ public static class MachinePresets
     {
         Kind = MachineKind.Mill,
         MachineName = "BenchMill",
+        SpindlePowerKw = 1.5f,
         ManualSetup = true,
         DemoProgram = "nc_files/demo_mill_pocket.ngc",
         Axes = List(
@@ -73,6 +74,7 @@ public static class MachinePresets
     {
         Kind = MachineKind.Lathe,
         MachineName = "BenchLathe",
+        SpindlePowerKw = 3f,
         DemoProgram = "nc_files/demo_facing_turning.ngc",
         UseToolChangePosition = true,
         ToolChangePosition = new Vector3(80f, 0f, 40f),
@@ -103,6 +105,7 @@ public static class MachinePresets
     {
         Kind = MachineKind.Mill,
         MachineName = "Vmc",
+        SpindlePowerKw = 11f,
         ManualSetup = true,
         DemoProgram = "nc_files/vmc_cok_takimli.ngc",
         WorkHeightMm = 950f,
@@ -126,6 +129,7 @@ public static class MachinePresets
     {
         Kind = MachineKind.Mill,
         MachineName = "Router",
+        SpindlePowerKw = 2.2f,
         ManualSetup = true,
         WorkHeightMm = 850f,
         Axes = List(
@@ -146,6 +150,7 @@ public static class MachinePresets
     {
         Kind = MachineKind.Mill,
         MachineName = "Vmc4Axis",
+        SpindlePowerKw = 11f,
         ManualSetup = true,
         DemoProgram = "nc_files/indexer4_altigen_helis.ngc",
         WorkHeightMm = 1000f,
@@ -171,6 +176,7 @@ public static class MachinePresets
     {
         Kind = MachineKind.Mill,
         MachineName = "Trunnion5Axis",
+        SpindlePowerKw = 15f,
         ManualSetup = true,
         DemoProgram = "nc_files/trunnion5_bes_yuz.ngc",
         WorkHeightMm = 1050f,
@@ -196,6 +202,7 @@ public static class MachinePresets
     {
         Kind = MachineKind.Mill,
         MachineName = "SwivelHead5Axis",
+        SpindlePowerKw = 15f,
         ManualSetup = true,
         WorkHeightMm = 1000f,
         Enclosure = true,
@@ -220,6 +227,7 @@ public static class MachinePresets
     {
         Kind = MachineKind.Lathe,
         MachineName = "FlatBedLathe",
+        SpindlePowerKw = 7.5f,
         WorkHeightMm = 1050f,
         UseToolChangePosition = true,
         ToolChangePosition = new Vector3(120f, 0f, 60f),
@@ -241,6 +249,7 @@ public static class MachinePresets
     {
         Kind = MachineKind.Lathe,
         MachineName = "TurningCentre",
+        SpindlePowerKw = 11f,
         WorkHeightMm = 1100f,
         Enclosure = true,
         UseToolChangePosition = true,

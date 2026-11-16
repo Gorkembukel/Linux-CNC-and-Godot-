@@ -1496,3 +1496,51 @@ as before the refactor. 69 C# tests.
 `MillStockVisual` and `Lathe.tscn` / `Mill.tscn` are a second, older code
 path that no scene in `Main.tscn` uses any more. Nothing new is built on
 them; deleting them is the user's call.
+
+### System 1 -- cutting load and tool life (done)
+
+- `Scripts/Machining/CuttingLoad.cs` (engine-free): removal rate x the
+  material's specific cutting energy = spindle power; power / cutting speed =
+  cutting force; force against what the tool takes (a round cutter as a
+  cantilever, `2000 * pi * d^3 / (32 L)` N; a lathe insert 6000 N, a parting
+  blade 2500 N) = tool load; Taylor wear (`speed^4`, 20 min life at the
+  recommended speed, x3 when rubbing, more above half the tool's strength).
+- `MaterialPreset` carries the cutting data (specific energy 2.8 / 0.7 / 1.6
+  J/mm3, recommended speed 130 / 300 / 180 m/min for steel / aluminium /
+  brass, chip load, turning feed) -- one materials table, not two.
+- `ToolCrib` / `ToolState`: wear and broken per tool. A worn lathe tool cuts
+  oversize (edge recedes up to 0.15 mm), a worn end mill undersize; a broken
+  tool cuts nothing and disappears from the mill spindle.
+- `CutMonitor` (one per machine, on `MachineRig.Monitor`): averages the
+  removal rate over 0.5 s of real time, then trips `MachineSafety` for a
+  snapped tool, a stalled spindle (150 % for 0.5 s), a tool pushed into the
+  work with the spindle stopped, a worn-out tool; warns for load above
+  100 %, chatter, overspeed, rubbing. Keeps peak tool load and chatter marks
+  for the later quality report.
+- `MachineSpec.SpindlePowerKw` (presets: bench mill 1.5, bench lathe 3,
+  router 2.2, VMCs 11, 5-axis 15, lathes 7.5 / 11), `ToolSpec.Flutes`.
+- The 2D panel and the console POSITION page show `YÜK %..  T.. aşınma %..`.
+
+Verified live: mill slot in aluminium 134 W = 9 %; a 6 mm end mill at 10 mm
+depth and F1500 snaps at 849 N (its limit: 848 N); plunging without the
+spindle breaks the tool after 16 mm3; steel at 1.93x the recommended speed
+wears 13 % then 30 % in two 12 s passes (model: 28 %). Lathe, steel on the
+3 kW bench lathe: 1.2 mm deep 53 %, 2 mm deep 101 % with a warning, 5 mm
+deep 291 % -> spindle overload trip; the measured diameters of the earlier
+scenario are unchanged (48.00 / 44.00). 78 C# tests.
+
+Two real faults found by the live runs and fixed:
+1. The lathe's feed per revolution came from the bridge's `feed_rate`
+   field, which is the override scale (the gap noted back in phase B). It is
+   now taken from the tool tip's own travel. **This changes the lathe's chip
+   look** (the classifier used to see ~0.001 mm/rev) -- the item PLAN.md
+   had left for the user to decide; taken here because the load model is
+   meaningless without it.
+2. Lathe material comes off a 0.5 mm bucket at a time, so per-sample rates
+   were bursts of tens of kW; the monitor averages over real time instead.
+
+**Initiatives, system 1:** tool life is 20 min at the recommended speed
+(real inserts last longer; shortened so wear shows within a session); the
+bench lathe got 3 kW so the stock demo program's 2 mm steel passes run at
+about 100 % instead of stalling; a broken tool can only be replaced once
+system 2 (tool preparation) is in.

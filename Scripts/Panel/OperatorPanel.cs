@@ -25,6 +25,7 @@ public partial class OperatorPanel : Control
     public event System.Action<IMachine> MachineSelected;
 
     private System.Collections.Generic.IReadOnlyList<IMachine> _machines;
+    private Machining.CutMonitor _monitor;
     private VBoxContainer _layout;
     private VBoxContainer _rows;
     private OptionButton _machineSelect;
@@ -108,6 +109,7 @@ public partial class OperatorPanel : Control
     {
         var machine = _machines[index];
         _bridge = machine.Rig.Bridge;
+        _monitor = machine.Rig.Monitor;
         _axes = machine.Rig.Profile.Axes;
         _demoProgram = machine.Rig.Profile.DemoProgram;
 
@@ -154,7 +156,7 @@ public partial class OperatorPanel : Control
             work += $"  {axis}{s.WorkPosition.Get(axis):F3}";
             machine += $"  {axis}{s.Position.Get(axis):F3}";
         }
-        _positionLabel.Text = work + "\n" + machine;
+        _positionLabel.Text = work + "\n" + machine + (_monitor != null ? "\n" + _monitor.StatusLine(s.ToolNumber) : "");
         _toolChangeLabel.Text = s.ToolChangePending
             ? "TOOL CHANGE PENDING -- press CONFIRM TC"
             : "";

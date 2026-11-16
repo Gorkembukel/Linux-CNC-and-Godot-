@@ -1,4 +1,5 @@
 using Godot;
+using CncTrainer.Machining;
 using CncTrainer.Material;
 
 namespace CncTrainer.Spec;
@@ -22,6 +23,8 @@ public partial class ToolSpec : Resource
     [Export] public float TipAngleDeg = 118f;
     /// <summary>Parting / grooving insert width.</summary>
     [Export] public float WidthMm = 3f;
+    /// <summary>Cutting edges of a mill tool.</summary>
+    [Export] public int Flutes = 2;
     /// <summary>LinuxCNC tool orientation (Q), 1-9.</summary>
     [ExportGroup("Lathe tool table")]
     [Export] public int Orientation = 1;
@@ -47,6 +50,8 @@ public partial class ToolSpec : Resource
 
     public CutterShape Cutter() => new(DiameterMm / 2f,
         HasPoint ? 0f : Mathf.Min(TipRadiusMm, DiameterMm / 2f), LengthMm, HasPoint ? TipAngleDeg : 0f);
+
+    public ToolLimits Limits() => new(IsLatheTool, Kind == ToolKind.Parting, DiameterMm, LengthMm, Flutes);
 
     /// <summary>The bridge reports the table's D column as the active
     /// tool's size: cutter diameter on a mill, nose radius on a lathe.</summary>

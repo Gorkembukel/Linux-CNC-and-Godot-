@@ -59,6 +59,7 @@ CommandPort = 9207
 DemoProgram = "nc_files/demo_mill_pocket.ngc"
 Axes = Array[ExtResource("2_mg2mi")]([SubResource("Resource_qf80f"), SubResource("Resource_feiaf"), SubResource("Resource_0b2y4")])
 Tools = Array[ExtResource("4_0vsjv")]([SubResource("Resource_qlkn3"), SubResource("Resource_8qxfn"), SubResource("Resource_edge9")])
+SpindlePowerKw = 1.5
 ManualSetup = true
 Mill = SubResource("Resource_aheyw")
 

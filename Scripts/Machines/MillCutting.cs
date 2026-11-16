@@ -78,9 +78,12 @@ public sealed class MillCutting : CuttingProcess
         }
         EdgeFinderOvertravelMm = -1f;
 
-        if (_lastPose is Transform3D previous && tool != null)
+        // A broken tool cuts nothing; a worn one cuts undersize.
+        if (_lastPose is Transform3D previous && tool != null && Tools?.IsBroken(s.ToolNumber) != true)
         {
             var cutter = tool.Cutter();
+            if (Tools != null)
+                cutter = cutter with { RadiusMm = cutter.RadiusMm - Tools[s.ToolNumber].EdgeLossMm / 3f };
             var result = _stock.Stock.Cut(previous, pose, cutter);
             if (result.MaterialRemoved)
                 _stock.MarkDirty(result);
@@ -119,7 +122,8 @@ public sealed class MillCutting : CuttingProcess
     {
         var position = Bridge.Prediction.VisualPosition;
         _body.SetPose(position);
-        _body.SetTool(Bridge.State.ToolNumber);
+        int tool = Bridge.State.ToolNumber;
+        _body.SetTool(Tools?.IsBroken(tool) == true ? 0 : tool);
         _stock?.RebuildDirtyChunks();
         return _kinematics.ToolTransform(position).Origin;
     }

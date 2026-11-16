@@ -369,7 +369,8 @@ public partial class ConsoleStand : Node3D
                 AxisLines(s) + "\n" +
                 $"FEED   {s.FeedRate,8:F1} ({s.FeedOverride * 100:F0}%)\n" +
                 $"SPDL   {s.SpindleRpm,8:F0} ({s.SpindleOverride * 100:F0}%)\n" +
-                $"{(s.InCycle ? "IN CYCLE" : "IDLE")}",
+                $"{(s.InCycle ? "IN CYCLE" : "IDLE")}" +
+                (Rig?.Monitor != null ? "\n" + Rig.Monitor.StatusLine(s.ToolNumber) : ""),
             1 => // PROGRAM -- what's loaded/running, matching a real control's program page
                 $"MODE   {s.TaskMode}\n" +
                 $"INTERP {s.InterpState}\n" +

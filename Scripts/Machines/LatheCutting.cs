@@ -37,7 +37,7 @@ public sealed class LatheCutting : CuttingProcess
 
     /// <summary>Real tip position (radius, Z) for a machine position.</summary>
     public Vector2 TipAt(AxisVector v, int toolNumber) =>
-        new Vector2(v.X, v.Z) + (TipError?.Invoke(toolNumber) ?? Vector2.Zero);
+        new Vector2(v.X + (Tools?[toolNumber].EdgeLossMm ?? 0f), v.Z) + (TipError?.Invoke(toolNumber) ?? Vector2.Zero);
 
     /// <summary>A different bar is in the chuck now.</summary>
     public void ResetStock()
@@ -57,16 +57,19 @@ public sealed class LatheCutting : CuttingProcess
             return;
         }
 
-        if (_lastPosition is Vector2 previous)
+        if (_lastPosition is Vector2 previous && Tools?.IsBroken(s.ToolNumber) != true)
         {
             float rpm = (float)System.Math.Abs(s.SpindleRpm);
-            float feedPerRev = rpm > 1f ? (float)(s.FeedRate / rpm) : 0f;
+            // From the tip's own travel: the bridge's feed_rate field is the
+            // override scale, not a feed.
+            float tipSpeed = previous.DistanceTo(position) / Mathf.Max(seconds, 1e-3f);
+            float feedPerRev = rpm > 1f ? tipSpeed * 60f / rpm : 0f;
             var result = profile.Sweep(previous, position, s.ToolNoseRadius, feedPerRev, rpm);
             if (result.MaterialRemoved)
             {
                 HasCut = true;
                 _workpiece.MarkDirty(result.MinDirtyIndex, result.MaxDirtyIndex);
-                var sample = new CutSample(s.ToolNumber, result.VolumeMm3, seconds, rpm, previous.DistanceTo(position) / Mathf.Max(seconds, 1e-3f),
+                var sample = new CutSample(s.ToolNumber, result.VolumeMm3, seconds, rpm, tipSpeed,
                     result.DepthOfCutMm, feedPerRev, SurfaceSpeedMmPerSec: 2f * Mathf.Pi * Mathf.Abs(position.X) * rpm / 60f);
                 if (!Report(sample))
                     return;

@@ -46,6 +46,8 @@ public partial class MachineSpec : Resource
     [Export] public Color BodyColor = new(0.16f, 0.27f, 0.42f);
     [Export] public Color AccentColor = new(0.22f, 0.23f, 0.25f);
     [Export] public MaterialKind StockMaterial = MaterialKind.Aluminum;
+    /// <summary>Continuous spindle power. A cut needing 1.5 times this stalls the spindle.</summary>
+    [Export] public float SpindlePowerKw = 2.2f;
     /// <summary>The machine starts empty: the player brings the fixture
     /// and the stock, bolts and clamps them, and sets the work zero. Off =
     /// the nominal stock is already in place at machine zero.</summary>
@@ -91,6 +93,8 @@ public partial class MachineSpec : Resource
         if (StatePort == CommandPort)
             problems.Add("State port and command port must differ.");
 
+        if (SpindlePowerKw <= 0f)
+            problems.Add("Spindle power must be positive.");
         if (Kind == MachineKind.Mill && Mill == null)
             problems.Add("Mill structure is missing.");
         if (Kind == MachineKind.Lathe && Lathe == null)

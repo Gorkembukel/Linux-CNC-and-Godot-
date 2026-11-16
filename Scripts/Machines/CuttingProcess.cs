@@ -1,6 +1,7 @@
 using Godot;
 using CncTrainer.Bridge;
 using CncTrainer.Chips;
+using CncTrainer.Machining;
 using CncTrainer.Spec;
 
 namespace CncTrainer;
@@ -37,6 +38,8 @@ public abstract class CuttingProcess
     /// <summary>Raised once when a real cut is taken on stock that is not secure.</summary>
     public System.Action CutWhileLoose;
     public event System.Action<CutSample> CutObserved;
+    /// <summary>The state each tool is in; null = tools never wear or break.</summary>
+    public ToolCrib Tools;
 
     protected CuttingProcess(MachineSpec spec, BridgeClient bridge, ChipSpawner chips)
     {
