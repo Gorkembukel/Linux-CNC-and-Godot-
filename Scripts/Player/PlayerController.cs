@@ -267,6 +267,9 @@ public partial class PlayerController : CharacterBody3D
         }
     }
 
+    /// <summary>What the crosshair points at within `range`: a ray from
+    /// the active camera straight ahead, past the player's own body and
+    /// whatever they carry. Null when it hits nothing.</summary>
     private Node3D LookedAt(float range)
     {
         var camera = GetViewport().GetCamera3D();
@@ -285,33 +288,19 @@ public partial class PlayerController : CharacterBody3D
         return result["collider"].As<Node3D>();
     }
 
+    /// <summary>The loose object under the crosshair that can be picked up.</summary>
+    private RigidBody3D LookedAtPickup() =>
+        LookedAt(PickupRange) is RigidBody3D body && body.IsInGroup("pickupable") && ((body as Carryable)?.CanPickUp ?? true) ? body : null;
+
     private IInteractable LookedAtInteractable() => IInteractable.Find(LookedAt(PickupRange));
 
-    /// <summary>Crosshair-style interaction (standard FPS pattern, since the
-    /// mouse cursor is invisible/locked in Captured mode -- there's nothing
-    /// visible to literally click ON, so "what you're looking at" stands in
-    /// for the cursor): raycasts from the active camera straight ahead, and
-    /// if it hits one of the console's real buttons within reach, presses it.</summary>
+    /// <summary>Presses the console button under the crosshair, if any.</summary>
     private void TryPressConsoleButton()
     {
-        if (_consoleStand == null || !_atConsole)
-            return;
-        var camera = GetViewport().GetCamera3D();
-        if (camera == null)
-            return;
-        var from = camera.GlobalPosition;
-        var to = from - camera.GlobalTransform.Basis.Z * InteractRange; // -Z = camera forward
-        var query = PhysicsRayQueryParameters3D.Create(from, to);
-        query.Exclude = new Godot.Collections.Array<Rid> { GetRid() }; // don't hit our own capsule
-        var result = GetWorld3D().DirectSpaceState.IntersectRay(query);
-        if (result.Count > 0 && result["collider"].As<Node3D>() is Node3D hit)
+        if (_consoleStand != null && _atConsole && LookedAt(InteractRange) is Node3D hit)
             _consoleStand.TryPress(hit);
     }
 
-    /// <summary>Same crosshair-raycast pattern as TryPressConsoleButton, but
-    /// not gated to console proximity and against anything in the
-    /// "pickupable" group (see Main.ExtractFinishedPart) instead of the
-    /// console's buttons.</summary>
     private void TogglePickup()
     {
         if (_heldPart != null)
@@ -319,17 +308,7 @@ public partial class PlayerController : CharacterBody3D
             LetGo().Freeze = false;
             return;
         }
-
-        var camera = GetViewport().GetCamera3D();
-        if (camera == null)
-            return;
-        var from = camera.GlobalPosition;
-        var to = from - camera.GlobalTransform.Basis.Z * PickupRange;
-        var query = PhysicsRayQueryParameters3D.Create(from, to);
-        query.Exclude = new Godot.Collections.Array<Rid> { GetRid() };
-        var result = GetWorld3D().DirectSpaceState.IntersectRay(query);
-        if (result.Count > 0 && result["collider"].As<Node3D>() is RigidBody3D body && body.IsInGroup("pickupable")
-            && ((body as Carryable)?.CanPickUp ?? true))
+        if (LookedAtPickup() is RigidBody3D body)
         {
             (body as Carryable)?.OnPickedUp();
             Hold(body); // frozen while held -- carried by direct transform, not physics forces
@@ -491,21 +470,11 @@ public partial class PlayerController : CharacterBody3D
             return;
         }
 
-        var camera = GetViewport().GetCamera3D();
-        if (camera != null)
+        if (LookedAtPickup() is RigidBody3D body)
         {
-            var from = camera.GlobalPosition;
-            var to = from - camera.GlobalTransform.Basis.Z * PickupRange;
-            var query = PhysicsRayQueryParameters3D.Create(from, to);
-            query.Exclude = new Godot.Collections.Array<Rid> { GetRid() };
-            var result = GetWorld3D().DirectSpaceState.IntersectRay(query);
-            if (result.Count > 0 && result["collider"].As<Node3D>() is RigidBody3D body && body.IsInGroup("pickupable")
-                && ((body as Carryable)?.CanPickUp ?? true))
-            {
-                _interactPrompt.Text = "[F] Al: " + ((body as Carryable)?.DisplayName ?? "parça");
-                _interactPrompt.Visible = true;
-                return;
-            }
+            _interactPrompt.Text = "[F] Al: " + ((body as Carryable)?.DisplayName ?? "parça");
+            _interactPrompt.Visible = true;
+            return;
         }
 
         _interactPrompt.Visible = false;

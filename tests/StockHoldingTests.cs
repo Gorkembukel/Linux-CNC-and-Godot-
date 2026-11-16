@@ -7,8 +7,8 @@ public class StockHoldingTests
     [Fact]
     public void Runout_IsTheEdgeLengthTimesTheTangentOfTheAngle()
     {
-        Assert.Equal(1.126f, StockHolding.RunoutMm(0.43f, 150f), 3);
-        Assert.Equal(0f, StockHolding.RunoutMm(0f, 150f), 5);
+        Assert.Equal(1.126f, Tram.Runout(0.43f, 150f), 3);
+        Assert.Equal(0f, Tram.Runout(0f, 150f), 5);
     }
 
     [Fact]
@@ -17,18 +17,18 @@ public class StockHoldingTests
         float yaw = 0.43f;
         int taps = 0;
         while (yaw > 0.05f && taps++ < 20)
-            yaw = StockHolding.Tap(yaw, -1f, fine: false);
+            yaw = Tram.Tapped(yaw, -1f, fine: false);
         Assert.Equal(0.03f, yaw, 3);
-        while (System.Math.Abs(StockHolding.RunoutMm(yaw, 150f)) > StockHolding.AlignedWithinMm && taps++ < 40)
-            yaw = StockHolding.Tap(yaw, -1f, fine: true);
-        Assert.True(System.Math.Abs(StockHolding.RunoutMm(yaw, 150f)) <= StockHolding.AlignedWithinMm);
+        while (System.Math.Abs(Tram.Runout(yaw, 150f)) > Tram.AlignedWithinMm && taps++ < 40)
+            yaw = Tram.Tapped(yaw, -1f, fine: true);
+        Assert.True(System.Math.Abs(Tram.Runout(yaw, 150f)) <= Tram.AlignedWithinMm);
         Assert.True(taps < 10);
     }
 
     [Fact]
     public void Tap_OnTheOtherEnd_TurnsTheOtherWay()
     {
-        Assert.Equal(0.1f, StockHolding.Tap(0f, 1f, fine: false), 3);
-        Assert.Equal(-0.01f, StockHolding.Tap(0f, -1f, fine: true), 3);
+        Assert.Equal(0.1f, Tram.Tapped(0f, 1f, fine: false), 3);
+        Assert.Equal(-0.01f, Tram.Tapped(0f, -1f, fine: true), 3);
     }
 }

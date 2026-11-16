@@ -6,23 +6,17 @@ using CncTrainer.Spec;
 
 namespace CncTrainer;
 
-/// <summary>Runtime behaviour of a procedural mill: moves the body with the
-/// predicted position and cuts whatever stock is mounted with confirmed
-/// ones. With no stock mounted the tool cuts nothing.</summary>
-public sealed class MillCutting
+/// <summary>Cutting on a procedural mill: moves the body with the predicted
+/// position and cuts whatever stock is mounted with confirmed ones. With no
+/// stock mounted the tool cuts nothing.</summary>
+public sealed class MillCutting : CuttingProcess
 {
-    private readonly MachineSpec _spec;
-    private readonly BridgeClient _bridge;
     private readonly ProceduralMillBody _body;
-    private readonly ChipSpawner _chips;
     private readonly MachineKinematics _kinematics;
 
     private VoxelStockVisual _stock;
     private Transform3D _workToStock;
     private Transform3D? _lastPose;
-    private ChipFormation? _chipFormation;
-    private double _timeSinceLastCut = 999.0;
-    private float _removedWhileLoose;
 
     public double RemovedMm3 { get; private set; }
     public bool HasStock => _stock != null;
@@ -31,17 +25,9 @@ public sealed class MillCutting
     /// clear of it, 0 = just touching, positive = pushed in (mm).</summary>
     public float EdgeFinderOvertravelMm { get; private set; } = -1f;
 
-    /// <summary>Asked on every cut: is the stock held firmly? Null = always.</summary>
-    public System.Func<bool> IsSecure;
-    /// <summary>Raised once when a cut is taken on stock that is not secure.</summary>
-    public System.Action CutWhileLoose;
-
-    public MillCutting(MachineSpec spec, BridgeClient bridge, ProceduralMillBody body, ChipSpawner chips)
+    public MillCutting(MachineSpec spec, BridgeClient bridge, ProceduralMillBody body, ChipSpawner chips) : base(spec, bridge, chips)
     {
-        _spec = spec;
-        _bridge = bridge;
         _body = body;
-        _chips = chips;
         _kinematics = new MachineKinematics(spec.AxisDefs());
     }
 
@@ -59,7 +45,7 @@ public sealed class MillCutting
         _stock = stock;
         _workToStock = stock.GlobalTransform.AffineInverse() * _body.WorkEnd.GlobalTransform;
         _lastPose = null;
-        _removedWhileLoose = 0f;
+        ForgetLooseCuts();
     }
 
     public void ClearStock()
@@ -68,14 +54,13 @@ public sealed class MillCutting
         _lastPose = null;
     }
 
-    public void OnConfirmedState()
+    protected override void Cut(MachineState s, float seconds)
     {
         if (_stock == null)
             return;
-        var s = _bridge.State;
         var inStock = _workToStock * _kinematics.ToolInWork(s.Position);
         var pose = new Transform3D(inStock.Basis, inStock.Origin / WorldScale.MmToM);
-        var tool = _spec.FindTool(s.ToolNumber);
+        var tool = Spec.FindTool(s.ToolNumber);
 
         if (tool?.Kind == ToolKind.EdgeFinder)
         {
@@ -106,23 +91,12 @@ public sealed class MillCutting
                 RemovedMm3 += result.VolumeMm3;
                 float rpm = (float)s.SpindleRpm;
                 float tipSpeed = new Vector3(s.Velocity.X, s.Velocity.Y, s.Velocity.Z).Length();
-                float feedPerRev = rpm > 1f ? tipSpeed * 60f / rpm : 0f;
-                float depth = Mathf.Min(cutter.LengthMm, result.VolumeMm3 / (cutter.RadiusMm * 2f * travel));
-                float surfaceSpeed = 2f * Mathf.Pi * cutter.RadiusMm * rpm / 60f;
-                _chipFormation = ChipClassifier.Classify(MaterialPreset.Get(_spec.StockMaterial), depth, feedPerRev, surfaceSpeed);
-                _timeSinceLastCut = 0.0;
-
-                if (IsSecure != null && !IsSecure())
-                {
-                    _removedWhileLoose += result.VolumeMm3;
-                    // A light touch only rattles the part; a real cut throws it.
-                    if (_removedWhileLoose > 20f)
-                    {
-                        _removedWhileLoose = 0f;
-                        CutWhileLoose?.Invoke();
-                        return;
-                    }
-                }
+                var sample = new CutSample(s.ToolNumber, result.VolumeMm3, seconds, rpm, tipSpeed,
+                    DepthMm: Mathf.Min(cutter.LengthMm, result.VolumeMm3 / (cutter.RadiusMm * 2f * travel)),
+                    FeedPerRevMm: Mathf.Abs(rpm) > 1f ? tipSpeed * 60f / Mathf.Abs(rpm) : 0f,
+                    SurfaceSpeedMmPerSec: 2f * Mathf.Pi * cutter.RadiusMm * Mathf.Abs(rpm) / 60f);
+                if (!Report(sample))
+                    return;
             }
         }
         _lastPose = pose;
@@ -141,17 +115,12 @@ public sealed class MillCutting
         return null;
     }
 
-    public void Process(double delta)
+    protected override Vector3 MoveBody(double delta)
     {
-        var position = _bridge.Prediction.VisualPosition;
+        var position = Bridge.Prediction.VisualPosition;
         _body.SetPose(position);
-        _body.SetTool(_bridge.State.ToolNumber);
-
-        _timeSinceLastCut += delta;
-        if (_timeSinceLastCut > 0.2)
-            _chipFormation = null;
-
+        _body.SetTool(Bridge.State.ToolNumber);
         _stock?.RebuildDirtyChunks();
-        _chips.Tick(delta, _chipFormation, _kinematics.ToolTransform(position).Origin);
+        return _kinematics.ToolTransform(position).Origin;
     }
 }

@@ -17,22 +17,19 @@ namespace CncTrainer.Fixtures;
 /// </summary>
 public partial class TableClamping : Node3D, IInteractable, IStockFixture
 {
-    private const float M = WorldScale.MmToM;
-
-    public StockItem Stock { get; private set; }
-    public Node3D MachinedPart { get; private set; }
-    public bool WasCut { get; set; }
-    public float YawDeg { get; private set; }
+    public StockSeat Seat { get; } = new();
+    /// <summary>How square the stock's long edge is to machine X.</summary>
+    public Tram Tram { get; private set; }
 
     private MillTable _table;
     private Vector3 _at;
     private bool _onChips;
     private readonly List<(Node3D Node, Fastener Nut, int Side, float SlotZ)> _clamps = new();
 
-    public float RunoutMm => StockHolding.RunoutMm(YawDeg, Stock.Blank.SizeMm.X);
-    public bool Aligned => Mathf.Abs(RunoutMm) <= StockHolding.AlignedWithinMm;
     public int ClampCount => _clamps.Count;
     private bool AnyTight => _clamps.Any(c => c.Nut.IsTight);
+    private bool AnySnug => _clamps.Any(c => c.Nut.IsSnug);
+    private Vector3 Bounds => Seat.Stock.Blank.BoundsM;
 
     public bool HoldsFirmly => _clamps.Any(c => c.Side < 0 && c.Nut.IsTight) && _clamps.Any(c => c.Side > 0 && c.Nut.IsTight);
     public string LooseReason => _clamps.Count < 2
@@ -46,18 +43,14 @@ public partial class TableClamping : Node3D, IInteractable, IStockFixture
         var fixture = new TableClamping
         {
             Name = "Clamping",
-            Stock = item,
             _table = table,
             _at = new Vector3(tablePoint.X, 0f, tablePoint.Z),
             _onChips = table.Dirty,
-            YawDeg = yawDeg ?? StockHolding.HandPlacedYawDeg(1.5f),
+            Tram = new Tram(item.Blank.SizeMm.X, yawDeg, 1.5f),
         };
         table.AddChild(fixture);
         fixture.ApplyPlacement();
-        item.Fixed = true;
-        item.Freeze = true;
-        item.Reparent(fixture);
-        item.Transform = new Transform3D(Basis.Identity, new Vector3(0f, item.Blank.BoundsM.Y / 2f, 0f));
+        fixture.Seat.Put(item, fixture, new Transform3D(Basis.Identity, new Vector3(0f, item.Blank.BoundsM.Y / 2f, 0f)));
         return fixture;
     }
 
@@ -65,7 +58,7 @@ public partial class TableClamping : Node3D, IInteractable, IStockFixture
     private void ApplyPlacement()
     {
         Transform = new Transform3D(
-            new Basis(Vector3.Up, Mathf.DegToRad(YawDeg)) * new Basis(Vector3.Right, _onChips ? Mathf.DegToRad(0.15f) : 0f), _at);
+            new Basis(Vector3.Up, Mathf.DegToRad(Tram.YawDeg)) * new Basis(Vector3.Right, _onChips ? Mathf.DegToRad(0.15f) : 0f), _at);
     }
 
     /// <summary>A mallet tap on one end; the stock only moves while no
@@ -74,7 +67,7 @@ public partial class TableClamping : Node3D, IInteractable, IStockFixture
     {
         if (AnyTight)
             return;
-        YawDeg = StockHolding.Tap(YawDeg, lookLocalX, _clamps.Any(c => c.Nut.IsSnug));
+        Tram.Tap(lookLocalX, AnySnug);
         ApplyPlacement();
     }
 
@@ -82,9 +75,8 @@ public partial class TableClamping : Node3D, IInteractable, IStockFixture
     /// when no slot runs under that part of the stock.</summary>
     private float? SlotFor(Vector3 local)
     {
-        float halfZ = Stock.Blank.BoundsM.Z / 2f;
         foreach (float slot in _table.SlotsNear(_at.Z + local.Z))
-            if (Mathf.Abs(slot - _at.Z) <= halfZ - 0.005f)
+            if (Mathf.Abs(slot - _at.Z) <= Bounds.Z / 2f - 0.005f)
                 return slot;
         return null;
     }
@@ -97,7 +89,7 @@ public partial class TableClamping : Node3D, IInteractable, IStockFixture
         if (SlotFor(local) is not float slot || _clamps.Any(c => c.Side == side && c.SlotZ == slot))
             return false;
 
-        var bounds = Stock.Blank.BoundsM;
+        var bounds = Bounds;
         var node = new Node3D { Name = "StepClamp", Position = new Vector3(side * bounds.X / 2f, 0f, slot - _at.Z) };
         AddChild(node);
         BodyParts.Cylinder(node, "Stud", 0.006f, bounds.Y + 0.03f, new Vector3(side * 0.03f, (bounds.Y + 0.03f) / 2f, 0f), Vector3.Up, BodyParts.Steel);
@@ -122,14 +114,12 @@ public partial class TableClamping : Node3D, IInteractable, IStockFixture
             clamp.Nut.SetTight();
     }
 
-    /// <summary>Is a tool of this radius, with its tip here (local frame),
-    /// inside one of the clamps?</summary>
-    public bool ToolHits(Vector3 tip, float radius)
+    public string ToolCrash(Vector3 tip, float radius)
     {
-        float top = Stock.Blank.BoundsM.Y + 0.03f;
-        return tip.Y < top && _clamps.Any(c =>
+        bool hit = tip.Y < Bounds.Y + 0.03f && _clamps.Any(c =>
             Mathf.Abs(tip.X - (c.Node.Position.X + c.Side * 0.025f)) < 0.045f + radius
             && Mathf.Abs(tip.Z - c.Node.Position.Z) < 0.015f + radius);
+        return hit ? "ÇARPMA: takım pabuca girdi (pabuçları takım yolunun dışına bağla)" : null;
     }
 
     public string SheetLines
@@ -137,25 +127,16 @@ public partial class TableClamping : Node3D, IInteractable, IStockFixture
         get
         {
             int tight = _clamps.Count(c => c.Nut.IsTight);
-            string text = StockHolding.Mark(true) + "Kütük tablada" + (_onChips ? "  (TALAŞ ÜSTÜNE OTURDU)" : "") + "\n";
-            text += StockHolding.Mark(Aligned) + System.FormattableString.Invariant($"Kütük X'e paralel (komparatör)  sapma {RunoutMm:+0.00;-0.00} mm\n");
-            text += StockHolding.Mark(_clamps.Any(c => c.Side < 0) && _clamps.Any(c => c.Side > 0)) + $"İki uçta pabuç  ({_clamps.Count} pabuç)\n";
-            text += StockHolding.Mark(HoldsFirmly && tight == _clamps.Count) + $"Pabuç somunları tam sıkı  {tight}/{_clamps.Count}\n";
-            return text;
+            return Sheet.Mark(true) + "Kütük tablada" + (_onChips ? "  (TALAŞ ÜSTÜNE OTURDU)" : "") + "\n"
+                + Tram.SheetLine("Kütük X'e paralel")
+                + Sheet.Mark(_clamps.Any(c => c.Side < 0) && _clamps.Any(c => c.Side > 0)) + $"İki uçta pabuç  ({_clamps.Count} pabuç)\n"
+                + Sheet.Mark(HoldsFirmly && tight == _clamps.Count) + $"Pabuç somunları tam sıkı  {tight}/{_clamps.Count}\n";
         }
-    }
-
-    public void ShowMachined(Node3D machined)
-    {
-        MachinedPart = machined;
-        StockHolding.ShowRaw(Stock, false);
     }
 
     public RigidBody3D TakeStock()
     {
-        var body = StockHolding.Release(Stock, MachinedPart, WasCut);
-        Stock = null;
-        MachinedPart = null;
+        var body = Seat.Take();
         GetParent().RemoveChild(this);
         QueueFree();
         return body;
@@ -169,11 +150,9 @@ public partial class TableClamping : Node3D, IInteractable, IStockFixture
                 ? "Kütüğün bu kısmının altından T-kanal geçmiyor"
                 : "[Tık] Pabucu kütüğün bu ucuna bağla";
         if (tool == HandToolKind.DialIndicator)
-            return StockHolding.DialText(RunoutMm);
+            return Tram.DialText;
         if (tool == HandToolKind.Mallet)
-            return AnyTight ? "Pabuçlar tam sıkı: kütük vurarak oynamaz"
-                : System.FormattableString.Invariant($"[Tık] Kütüğün bu ucuna vur   sapma {RunoutMm:+0.00;-0.00} mm")
-                  + (_clamps.Any(c => c.Nut.IsSnug) ? "  (ince ayar)" : "  (kaba ayar; ince ayar için somunları hafif sık)");
+            return AnyTight ? "Pabuçlar tam sıkı: kütük vurarak oynamaz" : Tram.TapPrompt("Kütüğün", AnySnug, "somunları hafif sık");
         if (player.Held == null)
             return _clamps.Count == 0 ? "[Tık] Kütüğü al" : $"Kütük {_clamps.Count} pabuçla bağlı (somunları T kollu alyanla sık / sök)";
         return null;

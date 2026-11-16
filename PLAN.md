@@ -1457,3 +1457,42 @@ the agent, for any phase. Still pending from before: the eleven demo
 programs never ran live; training/scenario mode not started.
 `tmp_verify/` (untracked) holds the harnesses: `TmpLathe`, `TmpFix`,
 `TmpLook` (windowed screenshots), run with `run_scene.ps1` / `look.ps1`.
+
+## Realism systems -- IN PROGRESS (2026-11-16, branch `cutting-realism`)
+
+User's order: (1) cutting load + tool life, (2) tool preparation, (3) holder /
+body collisions, (4) measuring + quality, (5) safety + machine routine. First
+the duplicated code was folded into shared pieces everything else now builds
+on. Status of each step is appended below as it lands.
+
+### Step 0 -- shared foundation (done)
+
+| Shared piece | Replaces |
+|---|---|
+| `MachineSafety` (`Scripts/Machines`) -- `Trip(kind, text)` stops program, spindle and drives, tells the player, keeps the incident list; `Warn(text)` | the two private `StopMachine` copies and the direct `PlayerController.Notify` calls in the workholding classes |
+| `CuttingProcess` (abstract) + `CutSample` -- confirmed-sample timing, chip formation, the "cut while loose throws the part" rule, and the `CutObserved` event every later system listens to | the same code written twice in `MillCutting` and `LatheCutting` |
+| `StockSeat` -- raw stock, machined look, was-cut flag, put / take / discard | the same fields and take-out code in `Vise`, `CentringPlate`, `TableClamping`, `JawChuck` |
+| `Tram` -- hand-placed angle, indicator reading, mallet taps, sheet line | tramming written twice (`Vise`, `TableClamping`) |
+| `BoltedFixture` (abstract `Carryable`) -- mounting, bolt holes, "free to carry when empty and unbolted" | the same in `Vise` and `CentringPlate` |
+| `MachineSetup` (abstract node) -- setup sheet header, thrown part, key left in the chuck | the same in `MillWorkholding` and `LatheWorkholding` |
+| `IStockFixture.ToolCrash(tip, radius)` | fixture-specific `if (fixture is Vise) ... else if (fixture is TableClamping)` in `MillWorkholding` |
+| `PlayerController.LookedAt` / `LookedAtPickup` | four copies of the same camera ray |
+
+`ProceduralMachine` now exposes `Safety` and `Cutting` and no longer knows
+which kind of cutting it runs. Lathe sweeps carry the removed volume
+(`SweepResult.VolumeMm3`).
+
+Bug found by re-running the live scenarios: `LatheRadiusProfile.Sweep`
+clamped the tool's Z into the bar, so a tool moving anywhere beyond the end
+of the bar cut the bar's tip bucket (with the old fixed stock the tool
+always started inside it, which hid this). Fixed + unit test.
+
+All live scenarios (`TmpLathe`: ok / keyin / loose, `TmpFix`: tram / clamps /
+clampsloose / clampscrash / plate / chuck / chuckkey) give the same numbers
+as before the refactor. 69 C# tests.
+
+**Not folded in, on purpose (user decision needed):** the hand-written
+`LatheMachine` / `MillMachine` / `MachineBody` / `MillBody` / `MillHeightmap` /
+`MillStockVisual` and `Lathe.tscn` / `Mill.tscn` are a second, older code
+path that no scene in `Main.tscn` uses any more. Nothing new is built on
+them; deleting them is the user's call.

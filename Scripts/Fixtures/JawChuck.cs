@@ -22,12 +22,10 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture
     private const float JawHeight = 0.022f;
 
     public ChuckGrip Grip { get; private set; }
-    public StockItem Stock { get; private set; }
+    public StockSeat Seat { get; } = new();
+    public StockItem Stock => Seat.Stock;
     public float RadiusM { get; private set; }
 
-    // On a mill (indexer chuck) the bar is the stock being machined.
-    public Node3D MachinedPart { get; private set; }
-    public bool WasCut { get; set; }
     public bool HoldsFirmly => Grip.HoldsFirmly;
     public string LooseReason => Grip.Torque >= 2
         ? "PARÇA FIRLADI: kütük çenelerin içinde çok az tutuluyordu (en az 15 mm)"
@@ -108,33 +106,26 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture
     public void Spin(float degrees) => _rotor.RotateX(Mathf.DegToRad(degrees));
 
     /// <summary>The raw bar's own look, hidden while something else draws the part.</summary>
-    public void ShowRawStock(bool visible)
-    {
-        if (Stock != null)
-            StockHolding.ShowRaw(Stock, visible);
-    }
-
-    public void ShowMachined(Node3D machined)
-    {
-        MachinedPart = machined;
-        ShowRawStock(false);
-    }
+    public void ShowRawStock(bool visible) => Seat.ShowRaw(visible);
 
     public RigidBody3D TakeStock() => TakeBar();
+
+    public string ToolCrash(Vector3 tip, float radius) =>
+        tip.X < 0f && new Vector2(tip.Y, tip.Z).Length() < RadiusM + radius ? "ÇARPMA: takım aynaya girdi" : null;
 
     public string SheetLines
     {
         get
         {
             var g = Grip;
-            string text = StockHolding.Mark(g.HasBar) + "Kütük aynada"
+            string text = Sheet.Mark(g.HasBar) + "Kütük aynada"
                 + (g.HasBar ? System.FormattableString.Invariant($"  Ø{g.BarDiameterMm:0.#} x {g.BarLengthMm:0.#}") : "") + "\n";
             if (!g.HasBar)
                 return text + "    Ayna anahtarını tak, çeneleri aç,\n    yuvarlak çubuğu aynaya sür\n";
-            text += StockHolding.Mark(g.GripLengthMm >= ChuckGrip.MinGripMm)
+            text += Sheet.Mark(g.GripLengthMm >= ChuckGrip.MinGripMm)
                 + System.FormattableString.Invariant($"Çıkıntı {g.StickOutMm:0} mm, çenede {g.GripLengthMm:0} mm\n");
-            text += StockHolding.Mark(g.Torque >= ChuckGrip.FullTorque) + $"Ayna sıkıldı  {g.Torque}/{ChuckGrip.FullTorque}\n";
-            text += StockHolding.Mark(!g.KeyIn) + "Anahtar aynadan çıkarıldı\n";
+            text += Sheet.Mark(g.Torque >= ChuckGrip.FullTorque) + $"Ayna sıkıldı  {g.Torque}/{ChuckGrip.FullTorque}\n";
+            text += Sheet.Mark(!g.KeyIn) + "Anahtar aynadan çıkarıldı\n";
             return text;
         }
     }
@@ -166,10 +157,7 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture
     {
         if (item.Blank.Shape != StockShape.CylinderAlongX || !Grip.Insert(item.Blank.DiameterMm, item.Blank.LengthMm))
             return false;
-        Stock = item;
-        item.Fixed = true;
-        item.Freeze = true;
-        item.Reparent(this);
+        Seat.Put(item, this, Transform3D.Identity);
         Refresh();
         Changed?.Invoke();
         return true;
@@ -193,15 +181,12 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture
     /// machined part as a new object.</summary>
     public RigidBody3D TakeBar()
     {
-        var stock = Stock;
         RigidBody3D result = TakeMachined?.Invoke();
-        Stock = null;
         Grip.Remove();
         if (result != null)
-            stock.QueueFree();
+            Seat.Discard();
         else
-            result = StockHolding.Release(stock, MachinedPart, WasCut);
-        MachinedPart = null;
+            result = Seat.Take();
         Refresh();
         Changed?.Invoke();
         return result;

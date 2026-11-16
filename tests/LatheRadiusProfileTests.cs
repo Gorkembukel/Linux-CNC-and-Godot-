@@ -147,4 +147,13 @@ public class LatheRadiusProfileTests
         Assert.Equal(firstSeverIndex - secondSeverIndex, secondRemoved.Length);
         Assert.All(secondRemoved, r => Assert.Equal(25f, r, precision: 3));
     }
+
+    [Fact]
+    public void Sweep_BeyondTheEndOfTheBar_CutsNothing()
+    {
+        var profile = new LatheRadiusProfile(25f, -85f, 5f);
+        var result = profile.Sweep(new Godot.Vector2(0f, 40f), new Godot.Vector2(100f, 40f), 0.8f, 0.1f, 800f);
+        Assert.False(result.MaterialRemoved);
+        Assert.Equal(25f, profile.RadiusAt(profile.BucketCount - 1));
+    }
 }

@@ -7,32 +7,20 @@ using CncTrainer.Spec;
 
 namespace CncTrainer;
 
-/// <summary>Runtime behaviour of a procedural lathe; same flow as
-/// LatheMachine (confirmed positions cut the radius profile, a parting cut
-/// drops a pickupable part). With no stock in the chuck the tool cuts nothing.</summary>
-public sealed class LatheCutting
+/// <summary>Cutting on a procedural lathe: confirmed positions cut the
+/// radius profile, a parting cut drops a pickupable part. With no stock in
+/// the chuck the tool cuts nothing.</summary>
+public sealed class LatheCutting : CuttingProcess
 {
-    private readonly MachineSpec _spec;
-    private readonly BridgeClient _bridge;
     private readonly ProceduralLatheBody _body;
     private readonly WorkpieceVisual _workpiece;
-    private readonly ChipSpawner _chips;
     private readonly Node3D _parts;
 
     private Vector2? _lastPosition;
-    private ChipFormation? _chipFormation;
-    private double _timeSinceLastCut = 999.0;
-    private int _cutsWhileLoose;
 
-    /// <summary>What the bar in the chuck is made of.</summary>
-    public MaterialKind Material;
     /// <summary>Material has been removed since the last ResetStock.</summary>
     public bool HasCut { get; private set; }
 
-    /// <summary>Asked on every cut: is the bar held firmly? Null = always.</summary>
-    public System.Func<bool> IsSecure;
-    /// <summary>Raised once when a cut is taken on a bar that is not secure.</summary>
-    public System.Action CutWhileLoose;
     /// <summary>Raised after a parting cut has dropped a piece.</summary>
     public System.Action Severed;
     /// <summary>Where a tool's tip really is relative to where the control
@@ -40,15 +28,11 @@ public sealed class LatheCutting
     public System.Func<int, Vector2> TipError;
 
     public LatheCutting(MachineSpec spec, BridgeClient bridge, ProceduralLatheBody body, WorkpieceVisual workpiece,
-        ChipSpawner chips, Node3D parts)
+        ChipSpawner chips, Node3D parts) : base(spec, bridge, chips)
     {
-        _spec = spec;
-        _bridge = bridge;
         _body = body;
         _workpiece = workpiece;
-        _chips = chips;
         _parts = parts;
-        Material = spec.StockMaterial;
     }
 
     /// <summary>Real tip position (radius, Z) for a machine position.</summary>
@@ -59,13 +43,12 @@ public sealed class LatheCutting
     public void ResetStock()
     {
         _lastPosition = null;
-        _cutsWhileLoose = 0;
         HasCut = false;
+        ForgetLooseCuts();
     }
 
-    public void OnConfirmedState()
+    protected override void Cut(MachineState s, float seconds)
     {
-        var s = _bridge.State;
         var position = TipAt(s.Position, s.ToolNumber);
         var profile = _workpiece.Profile;
         if (profile == null)
@@ -76,24 +59,17 @@ public sealed class LatheCutting
 
         if (_lastPosition is Vector2 previous)
         {
-            float feedPerRev = s.SpindleRpm > 1.0 ? (float)(s.FeedRate / s.SpindleRpm) : 0f;
-            var result = profile.Sweep(previous, position, s.ToolNoseRadius, feedPerRev, (float)s.SpindleRpm);
+            float rpm = (float)System.Math.Abs(s.SpindleRpm);
+            float feedPerRev = rpm > 1f ? (float)(s.FeedRate / rpm) : 0f;
+            var result = profile.Sweep(previous, position, s.ToolNoseRadius, feedPerRev, rpm);
             if (result.MaterialRemoved)
             {
                 HasCut = true;
                 _workpiece.MarkDirty(result.MinDirtyIndex, result.MaxDirtyIndex);
-                float surfaceSpeed = 2f * Mathf.Pi * Mathf.Abs(position.X) * (float)s.SpindleRpm / 60f;
-                _chipFormation = ChipClassifier.Classify(
-                    MaterialPreset.Get(Material), result.DepthOfCutMm, feedPerRev, surfaceSpeed);
-                _timeSinceLastCut = 0.0;
-
-                // A light touch only rattles the bar; a real cut throws it.
-                if (IsSecure != null && !IsSecure() && ++_cutsWhileLoose > 3)
-                {
-                    _cutsWhileLoose = 0;
-                    CutWhileLoose?.Invoke();
+                var sample = new CutSample(s.ToolNumber, result.VolumeMm3, seconds, rpm, previous.DistanceTo(position) / Mathf.Max(seconds, 1e-3f),
+                    result.DepthOfCutMm, feedPerRev, SurfaceSpeedMmPerSec: 2f * Mathf.Pi * Mathf.Abs(position.X) * rpm / 60f);
+                if (!Report(sample))
                     return;
-                }
 
                 if (result.SeveredIndex is int severedIndex)
                 {
@@ -123,17 +99,12 @@ public sealed class LatheCutting
         body.AddToGroup("pickupable");
     }
 
-    public void Process(double delta)
+    protected override Vector3 MoveBody(double delta)
     {
-        int tool = _bridge.State.ToolNumber;
-        var position = TipAt(_bridge.Prediction.VisualPosition, tool);
+        int tool = Bridge.State.ToolNumber;
+        var position = TipAt(Bridge.Prediction.VisualPosition, tool);
         _body.SetPose(position.Y, position.X, tool, delta);
-
-        _timeSinceLastCut += delta;
-        if (_timeSinceLastCut > 0.2)
-            _chipFormation = null;
-
         _workpiece.RebuildDirtyChunks();
-        _chips.Tick(delta, _chipFormation, _body.TipLocal(position.Y, position.X));
+        return _body.TipLocal(position.Y, position.X);
     }
 }

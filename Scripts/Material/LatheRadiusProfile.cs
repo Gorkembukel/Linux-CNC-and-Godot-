@@ -73,11 +73,15 @@ public class LatheRadiusProfile : IMaterialModel
         float z0 = fromPos.Y, z1 = toPos.Y;
         float x0 = fromPos.X, x1 = toPos.X;
 
+        // A tool moving beyond either end of the bar touches nothing.
+        if (Mathf.Max(z0, z1) < ZMin - StepMm / 2f || Mathf.Min(z0, z1) > ZMax + StepMm / 2f)
+            return SweepResult.None;
+
         int i0 = IndexAt(Mathf.Min(z0, z1));
         int i1 = IndexAt(Mathf.Max(z0, z1));
 
         bool removedAny = false;
-        float maxDepthRemoved = 0f;
+        float maxDepthRemoved = 0f, volume = 0f;
         int? severedIndex = null;
 
         for (int i = i0; i <= i1; i++)
@@ -99,6 +103,7 @@ public class LatheRadiusProfile : IMaterialModel
                 // it cross again -- no extra per-bucket state needed.
                 if (_radius[i] > SeverEpsilonMm && cutRadius <= SeverEpsilonMm)
                     severedIndex = severedIndex is int existing ? Mathf.Min(existing, i) : i;
+                volume += Mathf.Pi * (_radius[i] * _radius[i] - cutRadius * cutRadius) * StepMm;
                 _radius[i] = cutRadius;
                 removedAny = true;
             }
@@ -108,7 +113,7 @@ public class LatheRadiusProfile : IMaterialModel
             return SweepResult.None;
 
         float contactLength = Mathf.Abs(z1 - z0);
-        return new SweepResult(true, i0, i1, maxDepthRemoved, contactLength, severedIndex);
+        return new SweepResult(true, i0, i1, maxDepthRemoved, contactLength, severedIndex, volume);
     }
 
     /// <summary>Call once a parting cut is detected (SweepResult.SeveredIndex)

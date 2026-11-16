@@ -22,6 +22,8 @@ public partial class ProceduralMachine : Node3D, IMachine
     [Export] public MachineSpec Spec { get; set; }
 
     public MachineRig Rig { get; private set; }
+    public MachineSafety Safety { get; private set; }
+    public CuttingProcess Cutting { get; private set; }
     public Scheduling.JobScheduler Scheduler => null;
 
     private const int EditorPreviewNodes = 150_000;
@@ -32,8 +34,6 @@ public partial class ProceduralMachine : Node3D, IMachine
     private ProceduralLatheBody _latheBody;
     private VoxelStockVisual _voxelStock;
     private WorkpieceVisual _workpiece;
-    private MillCutting _mill;
-    private LatheCutting _lathe;
     private string _fingerprint;
     private double _fingerprintTimer;
 
@@ -116,39 +116,40 @@ public partial class ProceduralMachine : Node3D, IMachine
         var profile = new MachineProfile(Spec.MachineName, axes, Spec.WslDistro, Spec.StatePort, Spec.CommandPort,
             Spec.RateHz, Spec.ConfigStem + ".ini", Spec.DemoProgram);
         Rig = new MachineRig(profile, bridge);
+        Safety = new MachineSafety(this, bridge);
         MachineProcessController.StartBackingProcess(profile);
         GetNodeOrNull<ConsoleStand>("ConsoleStand")?.Configure(Rig);
 
         var chips = new ChipSpawner { Name = "ChipSpawner" };
+        _work.AddChild(chips);
         if (Spec.Kind == MachineKind.Mill)
         {
             chips.FloorWorldY = -Spec.Mill.StockHeight * WorldScale.MmToM;
-            _work.AddChild(chips);
-            _mill = new MillCutting(Spec, bridge, _millBody, chips);
+            var mill = new MillCutting(Spec, bridge, _millBody, chips);
+            Cutting = mill;
             if (HandsOnMill)
             {
-                var workholding = new MillWorkholding { Name = "Workholding" };
-                AddChild(workholding);
-                workholding.Setup(Spec, _millBody, _mill, bridge);
+                var setup = new MillWorkholding { Name = "Workholding" };
+                AddChild(setup);
+                setup.Setup(Spec, _millBody, mill, bridge, Safety);
             }
             else
-                _mill.MountStock(_voxelStock);
-            bridge.Connect(BridgeClient.SignalName.StateUpdated, Callable.From(_mill.OnConfirmedState));
+                mill.MountStock(_voxelStock);
         }
         else
         {
-            _work.AddChild(chips);
             var parts = new Node3D { Name = "Parts" };
             _work.AddChild(parts);
-            _lathe = new LatheCutting(Spec, bridge, _latheBody, _workpiece, chips, parts);
+            var lathe = new LatheCutting(Spec, bridge, _latheBody, _workpiece, chips, parts);
+            Cutting = lathe;
             if (Spec.ManualSetup)
             {
-                var workholding = new LatheWorkholding { Name = "Workholding" };
-                AddChild(workholding);
-                workholding.Setup(Spec, _latheBody, _lathe, _workpiece, bridge);
+                var setup = new LatheWorkholding { Name = "Workholding" };
+                AddChild(setup);
+                setup.Setup(Spec, _latheBody, lathe, _workpiece, bridge, Safety);
             }
-            bridge.Connect(BridgeClient.SignalName.StateUpdated, Callable.From(_lathe.OnConfirmedState));
         }
+        bridge.Connect(BridgeClient.SignalName.StateUpdated, Callable.From(Cutting.OnConfirmedState));
     }
 
     public override void _Process(double delta)
@@ -164,10 +165,9 @@ public partial class ProceduralMachine : Node3D, IMachine
             return;
         }
 
-        _mill?.Process(delta);
-        _lathe?.Process(delta);
+        Cutting?.Process(delta);
 
-        if (_mill != null && OS.HasEnvironment("CNC_DEBUG_PRINT"))
+        if (Cutting is MillCutting mill && OS.HasEnvironment("CNC_DEBUG_PRINT"))
         {
             _debugTimer += delta;
             if (_debugTimer >= 0.5)
@@ -176,7 +176,7 @@ public partial class ProceduralMachine : Node3D, IMachine
                 var s = Rig.Bridge.State;
                 GD.Print($"[{Spec.MachineName}] connected={Rig.Bridge.IsBridgeConnected} " +
                          $"pos=({s.Position.X:F3},{s.Position.Y:F3},{s.Position.Z:F3},{s.Position.A:F2},{s.Position.B:F2},{s.Position.C:F2}) " +
-                         $"tool=T{s.ToolNumber} removed={_mill.RemovedMm3:F0}mm3 seq={s.LastSeq}");
+                         $"tool=T{s.ToolNumber} removed={mill.RemovedMm3:F0}mm3 seq={s.LastSeq}");
             }
         }
     }

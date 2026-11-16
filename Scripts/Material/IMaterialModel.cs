@@ -18,9 +18,11 @@ public readonly struct SweepResult
     /// through at that Z (a parting cut). The lowest such index, if more than
     /// one bucket crossed to zero in this one sweep (a wide tool/step).</summary>
     public readonly int? SeveredIndex;
+    public readonly float VolumeMm3;
 
-    public SweepResult(bool removed, int minIdx, int maxIdx, float depth, float contactLength, int? severedIndex = null)
+    public SweepResult(bool removed, int minIdx, int maxIdx, float depth, float contactLength, int? severedIndex = null, float volumeMm3 = 0f)
     {
+        VolumeMm3 = volumeMm3;
         MaterialRemoved = removed;
         MinDirtyIndex = minIdx;
         MaxDirtyIndex = maxIdx;
