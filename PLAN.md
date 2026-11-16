@@ -1375,3 +1375,85 @@ mouse paths (only the methods behind them were called).
 6. `/usage` cannot be read from inside the session. Instead: commit + push
    after every step, this file kept current, and an hourly in-session timer
    (:17) that re-prompts the agent to continue if the work is not finished.
+
+## Hands-on setup, phase 5: tramming, step clamps, centring plate, indexer chuck (2026-11-16)
+
+- `IStockFixture` (`Scripts/Fixtures/StockHolding.cs`): what `MillWorkholding`
+  needs from anything that holds stock (stock, machined part, holds firmly,
+  alarm text, sheet lines, take stock). `Vise`, `TableClamping`,
+  `CentringPlate` and `JawChuck` implement it; `MillWorkholding` no longer
+  knows about the vise except for its jaw-crash check.
+- **Vise tramming**: a vise set on the table by hand lands up to 0.6 deg out
+  of square. Dial indicator in hand reads the run-out along the fixed jaw;
+  mallet taps on one end turn it (0.1 deg with loose bolts, 0.01 deg with
+  snug bolts, not at all with tight bolts). Not trammed = the part is cut
+  skewed (the stock inherits the vise's angle; nothing else enforces it).
+- **Step clamps** (`TableClamping`, `ClampItem`): a block put straight on
+  the table (click on the table with the stock in hand) lies at a random
+  small angle, is indicated/tapped the same way, and is held by clamp sets
+  whose studs sit in the T-slot under each end. Needs a tight clamp on both
+  ends; cutting it loose throws it; running the tool into a clamp is a crash.
+- **Centring plate** (`CentringPlate`): for rotary tables. Its pin drops in
+  the table centre, four bolts, self-centring jaws tightened with the vise
+  handle. The body leaves 20 mm for it under the nominal stock, so with the
+  nominal stock height the top face is at machine Z0 and X/Y zero is the
+  rotary centre -- the 3+2 programs (statue included) stay valid.
+- **Indexer chuck**: on `Workholding.Chuck` mills the same `JawChuck` as the
+  lathe sits on the rotary axis; the bar becomes a cylindrical voxel stock.
+  A key left in it when the axis turns is a crash.
+- `FixtureCart` (`Scripts/Workshop`): the cart is a workshop object now, not
+  built by each machine; exports say what it carries.
+
+Verified live on LinuxCNC (`tmp_verify/TmpFix.cs`): tram 0.43 deg -> taps
+bring it in, tight bolts block taps, an untrammed vise still cuts (824 mm3
+slot); clamps 836 mm3 (analytic 835), loose clamps throw the part, a pass
+through a clamp stops the machine; centring plate on the 5-axis trunnion:
+tool at work Z0.05 is 0.050 mm above the stock, 836 mm3 on top and +556 on
+the side face at A90 (analytic 557); indexer chuck on the 4-axis machine:
+799 mm3 flat, +798 at A90; key left in -> crash on the first A move.
+68 C# + 14 pytest green.
+
+**Bug found and fixed on the way**: `MillWorkholding` compared the stock's
+GLOBAL transform to detect that it had shifted, so on any machine whose
+table moves (VMC, indexer, trunnion) it re-mounted the stock every frame
+and nothing was ever cut. It now compares relative to the table.
+
+## Workshop objects are their own scenes (2026-11-16)
+
+`Main.tscn` now only instances scenes: `Scenes/Workshop/Floor.tscn`,
+`StockStation.tscn`, `ToolBench.tscn`, `FixtureCart.tscn` (two instances:
+vise + bolts + clamps by the bench mill, centring plate + bolts by the
+trunnion), `Scenes/UI/Hud.tscn` (status label, debug overlay, operator
+panel; still named `UI` so `Main.cs` paths are unchanged), the player and
+the three machines (BenchLathe, BenchMill, Trunnion5Axis). Only the dev
+orbit camera and the light are still plain nodes in `Main.tscn`. Checked
+with a windowed run: all three machines start and connect, no errors.
+
+**Initiatives taken without asking (user away), phase 5 + scenes**
+1. Bench mill Z travel -40 -> -85 mm (preset and `BenchMill.tscn`): stock
+   clamped straight on the table has its top 50 mm below the old limit.
+2. `ManualSetup = true` on the Router, 4-axis, 5-axis trunnion and swivel
+   head presets and on `Trunnion5Axis.tscn` (plan decision: hands-on on all
+   generated machines). Flat-bed / slant-bed lathe presets were left as they
+   are: their travels were not checked against the empty-chuck layout.
+3. Fixture carts moved out of the machines into the workshop; a machine
+   scene used alone has no cart until one is placed next to it.
+4. Step clamps and the plate's bolts are tightened with the same T-handle
+   hex key as the vise bolts; the plate's jaws with the vise handle (no new
+   hand tools).
+5. Tramming is simplified to one reading (run-out over the jaw / stock
+   length) instead of sweeping the indicator along the jaw.
+6. The trunnion's old tool list has no edge finder; on the plate it is not
+   needed for X/Y (rotary centre), Z is by paper.
+
+## RESUME HERE (2026-11-16) -- Phase 4-5 + scene split DONE
+
+Branch `hands-on-lathe-and-fixtures` (pushed; on top of
+`single-distro-namespaces`, also pushed; nothing merged). All five phases of
+the hands-on plan are implemented and verified live through scripted
+operators. What is left is the user's own play-test: none of the keyboard /
+mouse paths (carrying, aiming, wheel-turning, prompts) has been exercised by
+the agent, for any phase. Still pending from before: the eleven demo
+programs never ran live; training/scenario mode not started.
+`tmp_verify/` (untracked) holds the harnesses: `TmpLathe`, `TmpFix`,
+`TmpLook` (windowed screenshots), run with `run_scene.ps1` / `look.ps1`.

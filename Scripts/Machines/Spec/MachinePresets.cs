@@ -59,7 +59,8 @@ public static class MachinePresets
         Axes = List(
             new AxisSpec(AxisId.Y, Tool, -100f, 100f),
             new AxisSpec(AxisId.X, Tool, -150f, 150f),
-            new AxisSpec(AxisId.Z, Tool, -40f, 120f, home: 50f, homeSequence: 0)),
+            // Z reaches the table top, for stock clamped straight onto it.
+            new AxisSpec(AxisId.Z, Tool, -85f, 120f, home: 50f, homeSequence: 0)),
         Tools = List(EndMill(1, 10f), EndMill(2, 6f), EdgeFinder(9)),
         Mill = new MillStructure
         {
@@ -125,6 +126,7 @@ public static class MachinePresets
     {
         Kind = MachineKind.Mill,
         MachineName = "Router",
+        ManualSetup = true,
         WorkHeightMm = 850f,
         Axes = List(
             new AxisSpec(AxisId.Y, Tool, -300f, 300f, maxVelocity: 250f),
@@ -144,6 +146,7 @@ public static class MachinePresets
     {
         Kind = MachineKind.Mill,
         MachineName = "Vmc4Axis",
+        ManualSetup = true,
         DemoProgram = "nc_files/indexer4_altigen_helis.ngc",
         WorkHeightMm = 1000f,
         Enclosure = true,
@@ -168,6 +171,7 @@ public static class MachinePresets
     {
         Kind = MachineKind.Mill,
         MachineName = "Trunnion5Axis",
+        ManualSetup = true,
         DemoProgram = "nc_files/trunnion5_bes_yuz.ngc",
         WorkHeightMm = 1050f,
         Enclosure = true,
@@ -192,6 +196,7 @@ public static class MachinePresets
     {
         Kind = MachineKind.Mill,
         MachineName = "SwivelHead5Axis",
+        ManualSetup = true,
         WorkHeightMm = 1000f,
         Enclosure = true,
         BodyColor = new Color(0.82f, 0.82f, 0.8f),

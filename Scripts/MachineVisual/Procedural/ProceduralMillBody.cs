@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using CncTrainer.Bridge;
+using CncTrainer.Fixtures;
 using CncTrainer.Spec;
 using static CncTrainer.Procedural.BodyParts;
 
@@ -87,6 +88,9 @@ public partial class ProceduralMillBody : Node3D
 
         if (spec.ManualSetup && m.Workholding == Workholding.Vise)
             cursor -= 0.05f;
+        // On a rotary table the stock goes on a centring plate.
+        if (spec.ManualSetup && m.Workholding == Workholding.Clamps && axes.Any(a => a.OnWorkpiece && a.IsRotary))
+            cursor -= CentringPlate.Thickness;
         TableTopY = cursor;
         TableSizeX = tableX;
         TableSizeZ = tableZ;

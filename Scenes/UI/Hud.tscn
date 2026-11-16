@@ -1,0 +1,31 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" uid="uid://b1btw2qphahrp" path="res://Scripts/DebugOverlay.cs" id="1"]
+[ext_resource type="Script" uid="uid://c3xkg6fhxc810" path="res://Scripts/Panel/OperatorPanel.cs" id="2"]
+
+[node name="UI" type="CanvasLayer"]
+
+[node name="StatusLabel" type="Label" parent="."]
+offset_left = 10.0
+offset_top = 10.0
+offset_right = 320.0
+offset_bottom = 110.0
+theme_override_font_sizes/font_size = 13
+text = "BRIDGE DISCONNECTED"
+
+[node name="DebugOverlay" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -260.0
+offset_top = 10.0
+offset_right = -10.0
+offset_bottom = 230.0
+grow_horizontal = 0
+script = ExtResource("1")
+
+[node name="OperatorPanel" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 0
+script = ExtResource("2")

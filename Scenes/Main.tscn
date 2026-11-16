@@ -1,26 +1,16 @@
 [gd_scene format=3 uid="uid://c1b6bfsalpcl1"]
 
 [ext_resource type="Script" uid="uid://con1dyo2fpo5g" path="res://Scripts/Main.cs" id="1"]
-[ext_resource type="Script" uid="uid://b1btw2qphahrp" path="res://Scripts/DebugOverlay.cs" id="2"]
-[ext_resource type="Script" uid="uid://c3xkg6fhxc810" path="res://Scripts/Panel/OperatorPanel.cs" id="5"]
 [ext_resource type="Script" uid="uid://b0e3etxia5dtm" path="res://Scripts/CameraController.cs" id="6"]
 [ext_resource type="PackedScene" path="res://Scenes/Machines/BenchMill.tscn" id="9_vy5pj"]
 [ext_resource type="PackedScene" uid="uid://b25netjmaly0d" path="res://Scenes/Machines/Trunnion5Axis.tscn" id="10_bmxlf"]
 [ext_resource type="PackedScene" path="res://Scenes/Machines/BenchLathe.tscn" id="11"]
 [ext_resource type="PackedScene" uid="uid://ddlr61u8q7x3p" path="res://Scenes/Player.tscn" id="12"]
-[ext_resource type="Script" uid="uid://53li01uqalvl" path="res://Scripts/Workshop/StockStation.cs" id="20"]
-[ext_resource type="Script" uid="uid://lg52xrfc4l52" path="res://Scripts/Workshop/ToolBench.cs" id="21"]
-
-[sub_resource type="BoxMesh" id="BoxMesh_floor"]
-size = Vector3(12, 0.1, 10)
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_floor"]
-albedo_color = Color(0.35, 0.35, 0.37, 1)
-metallic = 0.05
-roughness = 0.9
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
-size = Vector3(12, 0.1, 10)
+[ext_resource type="PackedScene" path="res://Scenes/Workshop/Floor.tscn" id="13"]
+[ext_resource type="PackedScene" path="res://Scenes/UI/Hud.tscn" id="14"]
+[ext_resource type="PackedScene" path="res://Scenes/Workshop/StockStation.tscn" id="15"]
+[ext_resource type="PackedScene" path="res://Scenes/Workshop/ToolBench.tscn" id="16"]
+[ext_resource type="PackedScene" path="res://Scenes/Workshop/FixtureCart.tscn" id="17"]
 
 [node name="Main" type="Node3D" unique_id=933770483]
 script = ExtResource("1")
@@ -33,56 +23,31 @@ script = ExtResource("6")
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=409694215]
 transform = Transform3D(0.707107, -0.5, 0.5, 0, 0.707107, 0.707107, -0.707107, -0.5, 0.5, 0, 50, 0)
 
-[node name="Floor" type="StaticBody3D" parent="." unique_id=495725792]
+[node name="Floor" parent="." unique_id=495725792 instance=ExtResource("13")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1.15, 1)
-
-[node name="FloorMesh" type="MeshInstance3D" parent="Floor" unique_id=2053311631]
-mesh = SubResource("BoxMesh_floor")
-surface_material_override/0 = SubResource("StandardMaterial3D_floor")
-
-[node name="FloorCollision" type="CollisionShape3D" parent="Floor" unique_id=1202074152]
-shape = SubResource("BoxShape3D_floor")
 
 [node name="Player" parent="." unique_id=1327845567 instance=ExtResource("12")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.15, -1.1, 1.3)
 
+[node name="UI" parent="." unique_id=1928220117 instance=ExtResource("14")]
+
+[node name="StockStation" parent="." unique_id=604508160 instance=ExtResource("15")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.4, -1.1, 0.6)
+
+[node name="ToolBench" parent="." unique_id=1770567236 instance=ExtResource("16")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.119312, -1.1, 3.4)
+
+[node name="MillFixtureCart" parent="." instance=ExtResource("17")]
+transform = Transform3D(-0.15264097, 0, 0.9882817, 0, 1, 0, -0.9882817, 0, -0.15264097, -3.372, -1.1, 2.283)
+
+[node name="TrunnionFixtureCart" parent="." instance=ExtResource("17")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.35, -1.1, 1.3)
+Vise = false
+CentringPlate = true
+Clamps = 0
+
 [node name="BenchLathe" parent="." unique_id=535766212 instance=ExtResource("11")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.6, -1.1, -0.253608)
-
-[node name="UI" type="CanvasLayer" parent="." unique_id=1928220117]
-
-[node name="StatusLabel" type="Label" parent="UI" unique_id=1437718433]
-offset_left = 10.0
-offset_top = 10.0
-offset_right = 320.0
-offset_bottom = 110.0
-theme_override_font_sizes/font_size = 13
-text = "BRIDGE DISCONNECTED"
-
-[node name="DebugOverlay" type="Control" parent="UI" unique_id=237381373]
-layout_mode = 3
-anchors_preset = 1
-anchor_left = 1.0
-anchor_right = 1.0
-offset_left = -260.0
-offset_top = 10.0
-offset_right = -10.0
-offset_bottom = 230.0
-grow_horizontal = 0
-script = ExtResource("2")
-
-[node name="OperatorPanel" type="Control" parent="UI" unique_id=1503020155]
-layout_mode = 3
-anchors_preset = 0
-script = ExtResource("5")
-
-[node name="StockStation" type="Node3D" parent="." unique_id=604508160]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.4, -1.1, 0.6)
-script = ExtResource("20")
-
-[node name="ToolBench" type="Node3D" parent="." unique_id=1770567236]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.119312, -1.1, 3.4)
-script = ExtResource("21")
 
 [node name="BenchMill" parent="." unique_id=415818930 instance=ExtResource("9_vy5pj")]
 transform = Transform3D(-0.15264097, 0, 0.9882817, 0, 1, 0, -0.9882817, 0, -0.15264097, -4.108716, -1.0999999, 3.4079206)

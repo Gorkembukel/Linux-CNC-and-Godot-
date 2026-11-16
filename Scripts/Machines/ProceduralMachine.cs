@@ -93,7 +93,7 @@ public partial class ProceduralMachine : Node3D, IMachine
         }
     }
 
-    private bool HandsOnMill => Spec.ManualSetup && Spec.Mill.Workholding == Workholding.Vise;
+    private bool HandsOnMill => Spec.ManualSetup && Spec.Mill.Workholding != Workholding.None;
 
     private VoxelStock NewStock(int maxNodes)
     {

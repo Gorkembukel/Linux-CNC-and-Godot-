@@ -23,6 +23,10 @@ public partial class Fastener : StaticBody3D, IInteractable
     public bool IsTight => Present && Turns >= TightTurns;
     public bool IsSnug => Present && Turns >= SnugTurns;
 
+    /// <summary>What comes out when the fastener is taken out again.</summary>
+    public System.Func<Carryable> ItemFactory = BoltItem.Create;
+    public System.Action Removed;
+
     private Node3D _visual;
 
     public override void _Ready()
@@ -65,9 +69,10 @@ public partial class Fastener : StaticBody3D, IInteractable
         else if (Present && Turns == 0 && player.Held == null)
         {
             Present = false;
-            var bolt = BoltItem.Create();
+            var bolt = ItemFactory();
             GetTree().CurrentScene.AddChild(bolt);
             player.Give(bolt);
+            Removed?.Invoke();
         }
         Refresh();
     }
@@ -77,6 +82,14 @@ public partial class Fastener : StaticBody3D, IInteractable
         if (!Present || player.HeldTool?.Kind != HandToolKind.HexKey)
             return;
         Turns = Mathf.Clamp(Turns + steps, 0, TightTurns);
+        Refresh();
+    }
+
+    /// <summary>Fits the fastener, started by hand.</summary>
+    public void Fit()
+    {
+        Present = true;
+        Turns = 0;
         Refresh();
     }
 

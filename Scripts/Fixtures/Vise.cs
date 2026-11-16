@@ -15,7 +15,7 @@ namespace CncTrainer.Fixtures;
 /// underside, X along the jaws, Y up, the fixed jaw at the back (-Z) and the
 /// screw toward the operator (+Z).
 /// </summary>
-public partial class Vise : Carryable, IInteractable
+public partial class Vise : Carryable, IInteractable, IStockFixture
 {
     public const float BedTopY = 0.05f;
     public const float JawTopY = 0.095f;
@@ -33,7 +33,15 @@ public partial class Vise : Carryable, IInteractable
     public bool Seated { get; private set; }
     public StockItem Stock { get; private set; }
     /// <summary>The stock in the jaws has had material removed.</summary>
-    public bool WasCut;
+    public bool WasCut { get; set; }
+    /// <summary>How far the fixed jaw is out of parallel with machine X.</summary>
+    public float YawDeg { get; private set; }
+    public float RunoutMm => StockHolding.RunoutMm(YawDeg, JawWidth / WorldScale.MmToM);
+    public bool Aligned => Mathf.Abs(RunoutMm) <= StockHolding.AlignedWithinMm;
+    public bool HoldsFirmly => BoltsTight && StockClamped;
+    public string LooseReason => BoltsTight
+        ? "PARÇA FIRLADI: mengene sıkılmadan kesime girildi"
+        : "PARÇA FIRLADI: mengene cıvataları tam sıkılmamıştı";
     /// <summary>Once machining starts the raw stock is replaced by this.</summary>
     public Node3D MachinedPart { get; private set; }
 
@@ -95,14 +103,17 @@ public partial class Vise : Carryable, IInteractable
     }
 
     /// <summary>Sets the vise on the table at the given spot (table frame)
-    /// and opens its bolt holes over the nearest T-slots.</summary>
-    public void MountOn(MillTable table, float x)
+    /// and opens its bolt holes over the nearest T-slots. Set down by hand
+    /// it is never square to the table: yawDeg null = a random small angle.</summary>
+    public void MountOn(MillTable table, float x, float? yawDeg = null)
     {
         Table = table;
         Freeze = true;
         Reparent(table);
-        // A vise set down on chips does not sit flat.
-        Transform = new Transform3D(new Basis(Vector3.Right, table.Dirty ? Mathf.DegToRad(0.15f) : 0f), new Vector3(x, 0f, 0f));
+        YawDeg = yawDeg ?? StockHolding.HandPlacedYawDeg(0.6f);
+        _mountX = x;
+        _onChips = table.Dirty;
+        ApplyMount();
         foreach (float slotZ in table.SlotsNear(-0.09f, 0.09f))
             foreach (float side in new[] { -1f, 1f })
             {
@@ -112,12 +123,56 @@ public partial class Vise : Carryable, IInteractable
             }
     }
 
+    private float _mountX;
+    private bool _onChips;
+
+    // A vise set down on chips does not sit flat.
+    private void ApplyMount()
+    {
+        Transform = new Transform3D(
+            new Basis(Vector3.Up, Mathf.DegToRad(YawDeg)) * new Basis(Vector3.Right, _onChips ? Mathf.DegToRad(0.15f) : 0f),
+            new Vector3(_mountX, 0f, 0f));
+    }
+
+    /// <summary>A mallet tap on one end of the vise; it only moves while
+    /// the bolts are not fully tight, and only a little once they are snug.</summary>
+    public void Tap(float lookLocalX)
+    {
+        if (BoltsTight)
+            return;
+        YawDeg = StockHolding.Tap(YawDeg, lookLocalX, Bolts.Any(b => b.IsSnug));
+        ApplyMount();
+    }
+
+    public string SheetLines
+    {
+        get
+        {
+            int tight = Bolts.Count(b => b.IsTight);
+            string text = StockHolding.Mark(true) + "Mengene tablada" + (_onChips ? "  (TALAŞ ÜSTÜNE OTURDU)" : "") + "\n";
+            text += StockHolding.Mark(Aligned) + System.FormattableString.Invariant($"Mengene hizalı (komparatör)  sapma {RunoutMm:+0.00;-0.00} mm\n");
+            text += StockHolding.Mark(BoltsTight) + $"Cıvatalar tam sıkı  {tight}/{Bolts.Count}\n";
+            text += StockHolding.Mark(HasParallels) + "Paraleller\n";
+            text += StockHolding.Mark(Stock != null) + "Kütük mengenede\n";
+            text += StockHolding.Mark(Torque >= 3) + $"Mengene sıkıldı  {Torque}/3\n";
+            text += StockHolding.Mark(Seated) + "Çekiçle oturtuldu\n";
+            return text;
+        }
+    }
+
     public string Prompt(PlayerController player)
     {
         if (!IsMounted)
             return null;
         var tool = player.HeldTool?.Kind;
         float needed = Stock != null ? Stock.Blank.SizeMm.Y : 0f;
+
+        if (tool == HandToolKind.DialIndicator)
+            return StockHolding.DialText(RunoutMm);
+        if (tool == HandToolKind.Mallet && Stock == null)
+            return BoltsTight ? "Cıvatalar tam sıkı: mengene vurarak oynamaz"
+                : System.FormattableString.Invariant($"[Tık] Mengenenin bu ucuna vur   sapma {RunoutMm:+0.00;-0.00} mm")
+                  + (Bolts.Any(b => b.IsSnug) ? "  (ince ayar)" : "  (kaba ayar; ince ayar için cıvataları hafif sık)");
 
         if (tool == HandToolKind.ViseHandle)
             return Stock != null && OpeningMm <= needed
@@ -163,6 +218,8 @@ public partial class Vise : Carryable, IInteractable
             player.ReleaseHeld().QueueFree();
             PlaceParallels();
         }
+        else if (tool == HandToolKind.Mallet && Stock == null)
+            Tap(ToLocal(player.LookPoint).X);
         else if (tool == HandToolKind.Mallet)
             SeatWithMallet();
         else if (player.Held == null && Stock != null && OpeningMm > Stock.Blank.SizeMm.Y)
@@ -242,8 +299,7 @@ public partial class Vise : Carryable, IInteractable
     public void ShowMachined(Node3D machined)
     {
         MachinedPart = machined;
-        foreach (var mesh in Stock.GetChildren().OfType<MeshInstance3D>())
-            mesh.Visible = false;
+        StockHolding.ShowRaw(Stock, false);
     }
 
     /// <summary>Takes whatever is in the jaws out: the untouched stock, or
@@ -251,28 +307,11 @@ public partial class Vise : Carryable, IInteractable
     public RigidBody3D TakeStock()
     {
         var stock = Stock;
+        var machined = MachinedPart;
         Stock = null;
+        MachinedPart = null;
         Torque = 0;
         Seated = false;
-        var scene = GetTree().CurrentScene;
-        if (!WasCut)
-        {
-            MachinedPart?.QueueFree();
-            MachinedPart = null;
-            foreach (var mesh in stock.GetChildren().OfType<MeshInstance3D>())
-                mesh.Visible = true;
-            stock.Fixed = false;
-            stock.Reparent(scene);
-            return stock;
-        }
-
-        var part = new Carryable { Name = "Part", DisplayName = "İşlenmiş parça", Mass = stock.Mass };
-        scene.AddChild(part);
-        part.GlobalTransform = stock.GlobalTransform;
-        part.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = stock.Blank.BoundsM } });
-        MachinedPart.Reparent(part);
-        MachinedPart = null;
-        stock.QueueFree();
-        return part;
+        return StockHolding.Release(stock, machined, WasCut);
     }
 }

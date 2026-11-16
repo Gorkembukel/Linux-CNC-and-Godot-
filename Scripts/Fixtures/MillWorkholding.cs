@@ -1,3 +1,4 @@
+using System.Linq;
 using Godot;
 using CncTrainer.Bridge;
 using CncTrainer.Interaction;
@@ -9,15 +10,21 @@ using CncTrainer.Spec;
 namespace CncTrainer.Fixtures;
 
 /// <summary>
-/// Hands-on setup of a mill: the table the vise is bolted to, a cart with
-/// the vise and its bolts, and the link between what the player clamped and
-/// what the machine cuts. Stock placed in the vise becomes the stock being
+/// Hands-on setup of a mill: the table fixtures are set on (or, on an
+/// indexer, the chuck), and the link between what the player clamped and
+/// what the machine cuts. Stock in a fixture becomes the stock being
 /// machined exactly where it sits; cutting it while it is not held firmly
-/// throws it out and stops the machine. Child of the machine root.
+/// throws it out and stops the machine. The fixtures themselves come from a
+/// FixtureCart in the workshop. Child of the machine root.
 /// </summary>
 public partial class MillWorkholding : Node3D, ISetupSheet
 {
+    private const float M = WorldScale.MmToM;
+
     public MillTable Table { get; private set; }
+    /// <summary>Indexer machines: the chuck on the rotary axis.</summary>
+    public JawChuck Chuck { get; private set; }
+    public IStockFixture Fixture => Chuck != null ? Chuck : Table.Fixture;
 
     private MachineSpec _spec;
     private ProceduralMillBody _body;
@@ -37,52 +44,45 @@ public partial class MillWorkholding : Node3D, ISetupSheet
         _body = body;
         _cutting = cutting;
         _bridge = bridge;
+        var m = spec.Mill;
 
-        Table = MillTable.Create(body.TableSizeX, body.TableSizeZ, spec.Mill.TableThicknessMm * WorldScale.MmToM, body.SlotZ);
-        Table.Position = new Vector3(0f, body.TableTopY, 0f);
-        body.WorkEnd.AddChild(Table);
-
-        cutting.IsSecure = () => Table.Vise is Vise vise && vise.BoltsTight && vise.StockClamped;
-        cutting.CutWhileLoose = ThrowPart;
-
-        AddToGroup("setup_sheets");
-        BuildCart(new Vector3(spec.Mill.BaseWidthMm * WorldScale.MmToM / 2f + 0.7f, 0f, 0.9f));
-    }
-
-    private void BuildCart(Vector3 at)
-    {
-        const float top = 0.75f;
-        var cart = new Node3D { Name = "FixtureCart", Position = at };
-        AddChild(cart);
-        BodyParts.SolidBox(cart, "Top", new Vector3(0.7f, 0.04f, 0.5f), new Vector3(0f, top - 0.02f, 0f), BodyParts.Steel);
-        BodyParts.SolidBox(cart, "Frame", new Vector3(0.6f, top - 0.04f, 0.4f), new Vector3(0f, (top - 0.04f) / 2f, 0f), BodyParts.Mat(new Color(0.75f, 0.1f, 0.1f)));
-
-        var vise = Vise.Create();
-        vise.Freeze = true;
-        cart.AddChild(vise);
-        vise.Position = new Vector3(-0.12f, top, 0f);
-        for (int i = 0; i < 4; i++)
+        if (m.Workholding == Workholding.Chuck)
         {
-            var bolt = BoltItem.Create();
-            bolt.Freeze = true;
-            cart.AddChild(bolt);
-            bolt.Position = new Vector3(0.18f + 0.05f * (i % 2), top, -0.06f + 0.1f * (i / 2));
+            // On the rotary axis, where the fixed indexer chuck is drawn.
+            Chuck = JawChuck.Create(m.StockHeight + 60f, 3, 30f, 30f);
+            Chuck.Position = new Vector3(-m.StockSizeXMm / 2f * M + 0.02f, -m.StockHeight / 2f * M, 0f);
+            body.WorkEnd.AddChild(Chuck);
         }
+        else
+        {
+            Table = MillTable.Create(body.TableSizeX, body.TableSizeZ, m.TableThicknessMm * M, body.SlotZ);
+            Table.Position = new Vector3(0f, body.TableTopY, 0f);
+            body.WorkEnd.AddChild(Table);
+        }
+
+        cutting.IsSecure = () => Fixture?.HoldsFirmly ?? true;
+        cutting.CutWhileLoose = ThrowPart;
+        AddToGroup("setup_sheets");
     }
+
+    private Transform3D InWorkEnd(Node3D node) => _body.WorkEnd.GlobalTransform.AffineInverse() * node.GlobalTransform;
 
     public override void _Process(double delta)
     {
-        var vise = Table.Vise;
-        var stock = vise?.Stock;
+        var fixture = Fixture;
+        var stock = fixture?.Stock;
 
-        if (stock != null && vise.MachinedPart == null)
+        if (stock != null && fixture.MachinedPart == null)
         {
             var blank = stock.Blank;
-            float step = VoxelStock.StepFor(new Vector3(blank.SizeMm.X, blank.SizeMm.Z, blank.SizeMm.Y), _spec.Mill.VoxelStepMm, 6_000_000);
+            bool block = blank.Shape == StockShape.Block;
+            var size = block ? new Vector3(blank.SizeMm.X, blank.SizeMm.Z, blank.SizeMm.Y) : new Vector3(blank.LengthMm, blank.DiameterMm, blank.DiameterMm);
+            float step = VoxelStock.StepFor(size, _spec.Mill.VoxelStepMm, 6_000_000);
             var visual = new VoxelStockVisual { Name = "Machined", Position = new Vector3(0f, blank.BoundsM.Y / 2f, 0f) };
             stock.AddChild(visual);
-            visual.Build(VoxelStock.Block(blank.SizeMm.X, blank.SizeMm.Z, blank.SizeMm.Y, step));
-            vise.ShowMachined(visual);
+            visual.Build(block ? VoxelStock.Block(size.X, size.Y, size.Z, step) : VoxelStock.CylinderAlongX(size.X, size.Y, step));
+            fixture.ShowMachined(visual);
+            fixture.WasCut = false;
             _removedAtMount = _cutting.RemovedMm3;
             _mountedAt = default;
             _offsetAtPlacement = _bridge.State.WorkOffset;
@@ -90,22 +90,26 @@ public partial class MillWorkholding : Node3D, ISetupSheet
 
         if (stock != null)
         {
-            // The part shifts a little when it is clamped and when it is seated.
-            if (!_cutting.HasStock || stock.GlobalTransform != _mountedAt)
+            // The part shifts when it is clamped, seated, tapped or slid;
+            // measured against the table, which itself moves on many machines.
+            var at = InWorkEnd(stock);
+            if (!_cutting.HasStock || !at.IsEqualApprox(_mountedAt))
             {
-                _mountedAt = stock.GlobalTransform;
-                _cutting.MountStock((VoxelStockVisual)vise.MachinedPart);
+                _mountedAt = at;
+                _cutting.MountStock((VoxelStockVisual)fixture.MachinedPart);
             }
             if (_cutting.RemovedMm3 > _removedAtMount)
             {
-                vise.WasCut = true;
-                Table.Dirty = true;
+                fixture.WasCut = true;
+                if (Table != null)
+                    Table.Dirty = true;
             }
         }
         else if (_cutting.HasStock)
             _cutting.ClearStock();
 
-        CheckJawCrash(vise);
+        CheckFixtureCrash(fixture);
+        CheckChuckKey();
         CheckEdgeFinder();
         ShowPaperGap();
     }
@@ -155,29 +159,21 @@ public partial class MillWorkholding : Node3D, ISetupSheet
     {
         get
         {
-            var vise = Table.Vise;
+            var fixture = Fixture;
             var state = _bridge.State;
-            static string Mark(bool done) => done ? "[x] " : "[ ] ";
             string text = $"AYAR FÖYÜ - {_spec.MachineName}\n";
-            text += Mark(vise != null) + "Mengene tablada" + (vise != null && vise.Rotation.X != 0f ? "  (TALAŞ ÜSTÜNE OTURDU)" : "") + "\n";
-            if (vise == null)
-                return text + "    Mengeneyi arabadan al, tablaya koy";
-            int tight = 0;
-            foreach (var bolt in vise.Bolts)
-                if (bolt.IsTight) tight++;
-            text += Mark(vise.BoltsTight) + $"Cıvatalar tam sıkı  {tight}/{vise.Bolts.Count}\n";
-            text += Mark(vise.HasParallels) + "Paraleller\n";
-            text += Mark(vise.Stock != null) + "Kütük mengenede\n";
-            text += Mark(vise.Torque >= 3) + $"Mengene sıkıldı  {vise.Torque}/3\n";
-            text += Mark(vise.Seated) + "Çekiçle oturtuldu\n";
-            if (vise.Stock != null)
+            if (fixture == null)
+                return text + (_spec.AxisDefs().Any(a => a.OnWorkpiece && a.IsRotary) ? "[ ] Bağlama yok\n    Merkezleme plakasını arabadan al,\n    tabla merkezine oturt"
+                    : "[ ] Bağlama yok\n    Mengeneyi arabadan al, tablaya koy\n    (ya da kütüğü tablaya koy, pabuçla bağla)");
+            text += fixture.SheetLines;
+            if (fixture.Stock != null)
             {
                 var delta = state.WorkOffset - _offsetAtPlacement;
-                text += Mark(Mathf.Abs(delta.X) > 1e-4f) + "X sıfırı (kenar bulucu)\n";
-                text += Mark(Mathf.Abs(delta.Y) > 1e-4f) + "Y sıfırı (kenar bulucu)\n";
-                text += Mark(Mathf.Abs(delta.Z) > 1e-4f) + "Z sıfırı (kağıt mastar)\n";
+                text += StockHolding.Mark(Mathf.Abs(delta.X) > 1e-4f) + "X sıfırı\n";
+                text += StockHolding.Mark(Mathf.Abs(delta.Y) > 1e-4f) + "Y sıfırı\n";
+                text += StockHolding.Mark(Mathf.Abs(delta.Z) > 1e-4f) + "Z sıfırı (kağıt mastar)\n";
             }
-            if (Table.Dirty)
+            if (Table != null && Table.Dirty)
                 text += "    Tabla talaşlı: fırçayla temizle\n";
             return text;
         }
@@ -185,36 +181,61 @@ public partial class MillWorkholding : Node3D, ISetupSheet
 
     private void ThrowPart()
     {
-        var vise = Table.Vise;
-        vise.WasCut = true;
-        var part = vise.TakeStock();
+        var fixture = Fixture;
+        string reason = fixture.LooseReason;
+        fixture.WasCut = true;
+        var part = fixture.TakeStock();
         _cutting.ClearStock();
         part.Freeze = false;
         part.ApplyCentralImpulse((GlobalTransform.Basis * new Vector3(0.6f, 1.2f, 1.4f)) * part.Mass * 2.5f);
-        StopMachine(vise.BoltsTight
-            ? "PARÇA FIRLADI: mengene sıkılmadan kesime girildi"
-            : "PARÇA FIRLADI: mengene cıvataları tam sıkılmamıştı");
+        StopMachine(reason);
     }
 
-    /// <summary>The cutter running into a vise jaw: what happens when the
-    /// stock sits too low in the jaws and the program cuts at jaw height.</summary>
-    private void CheckJawCrash(Vise vise)
+    /// <summary>The cutter running into a vise jaw (stock too low in the
+    /// jaws, program cutting at jaw height) or into a step clamp.</summary>
+    private void CheckFixtureCrash(IStockFixture fixture)
     {
-        if (vise == null || _crashed || _spec.FindTool(_bridge.State.ToolNumber) is not ToolSpec tool)
+        if (fixture is not Node3D node || _spec.FindTool(_bridge.State.ToolNumber) is not ToolSpec tool)
             return;
-        var tip = vise.GlobalTransform.AffineInverse() * (_body.WorkEnd.GlobalTransform * _cutting.ToolInWork(_bridge.State.Position).Origin);
-        float radius = tool.DiameterMm / 2f * WorldScale.MmToM;
-        float movingFace = Vise.FixedJawFaceZ + vise.OpeningMm * WorldScale.MmToM;
-        bool overJaws = Mathf.Abs(tip.X) < Vise.JawWidth / 2f + radius
-                        && ((tip.Z < Vise.FixedJawFaceZ + radius && tip.Z > Vise.FixedJawFaceZ - 0.03f - radius)
-                            || (tip.Z > movingFace - radius && tip.Z < movingFace + 0.03f + radius));
-        if (overJaws && tip.Y < Vise.JawTopY - 0.0005f)
+        var tip = node.GlobalTransform.AffineInverse() * (_body.WorkEnd.GlobalTransform * _cutting.ToolInWork(_bridge.State.Position).Origin);
+        float radius = tool.DiameterMm / 2f * M;
+        bool hit = false, clear = true;
+        string reason = null;
+        if (fixture is Vise vise)
+        {
+            float movingFace = Vise.FixedJawFaceZ + vise.OpeningMm * M;
+            bool overJaws = Mathf.Abs(tip.X) < Vise.JawWidth / 2f + radius
+                            && ((tip.Z < Vise.FixedJawFaceZ + radius && tip.Z > Vise.FixedJawFaceZ - 0.03f - radius)
+                                || (tip.Z > movingFace - radius && tip.Z < movingFace + 0.03f + radius));
+            hit = overJaws && tip.Y < Vise.JawTopY - 0.0005f;
+            clear = !overJaws || tip.Y > Vise.JawTopY + 0.005f;
+            reason = "ÇARPMA: takım mengene çenesine girdi (kütük çenelerin üstüne çıkmıyor, paralel kullan)";
+        }
+        else if (fixture is TableClamping clamping)
+        {
+            hit = clamping.ToolHits(tip, radius);
+            clear = !hit;
+            reason = "ÇARPMA: takım pabuca girdi (pabuçları takım yolunun dışına bağla)";
+        }
+
+        if (hit && !_crashed)
         {
             _crashed = true;
-            StopMachine("ÇARPMA: takım mengene çenesine girdi (kütük çenelerin üstüne çıkmıyor, paralel kullan)");
+            StopMachine(reason);
         }
-        else if (!overJaws || tip.Y > Vise.JawTopY + 0.005f)
+        else if (clear)
             _crashed = false;
+    }
+
+    /// <summary>A key left in the indexer chuck hits the table as soon as
+    /// the axis turns.</summary>
+    private void CheckChuckKey()
+    {
+        if (Chuck == null || !Chuck.Grip.KeyIn || Mathf.Abs(_bridge.State.Velocity.A) < 0.01f)
+            return;
+        var key = Chuck.TakeKey();
+        key.ApplyCentralImpulse(GlobalTransform.Basis * new Vector3(0.3f, 1.5f, 2f) * key.Mass * 3f);
+        StopMachine("ÇARPMA: ayna anahtarı aynada unutuldu, döner eksen çalıştı");
     }
 
     private void StopMachine(string reason)

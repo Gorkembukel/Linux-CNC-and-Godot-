@@ -19,7 +19,7 @@ MaxLimit = 150.0
 [sub_resource type="Resource" id="Resource_0b2y4"]
 script = ExtResource("2_mg2mi")
 Letter = 2
-MinLimit = -40.0
+MinLimit = -85.0
 MaxLimit = 120.0
 Home = 50.0
 HomeSequence = 0

@@ -181,16 +181,13 @@ public partial class LatheWorkholding : Node3D, ISetupSheet
             var state = _bridge.State;
             static string Mark(bool done) => done ? "[x] " : "[ ] ";
             string text = $"AYAR FÖYÜ - {_spec.MachineName}\n";
-            text += Mark(grip.HasBar) + "Kütük aynada" + (grip.HasBar ? Inv($"  Ø{grip.BarDiameterMm:0.#} x {grip.BarLengthMm:0.#}") : "") + "\n";
+            text += Chuck.SheetLines;
             if (!grip.HasBar)
-                return text + "    Ayna anahtarını tak, çeneleri aç,\n    yuvarlak çubuğu aynaya sür";
-            text += Mark(grip.GripLengthMm >= ChuckGrip.MinGripMm) + Inv($"Çıkıntı {grip.StickOutMm:0} mm, çenede {grip.GripLengthMm:0} mm\n");
+                return text;
             if (grip.StickOutMm > 3f * grip.BarDiameterMm)
                 text += "    Çıkıntı çapın 3 katından fazla: titreşim\n";
             if (_body.JawFrontZMm + grip.StickOutMm > (_spec.FindAxis(AxisId.Z)?.MaxLimit ?? 0f) - 5f)
                 text += "    Kütük ucu Z kursunun dışında: içeri it\n";
-            text += Mark(grip.Torque >= ChuckGrip.FullTorque) + $"Ayna sıkıldı  {grip.Torque}/{ChuckGrip.FullTorque}\n";
-            text += Mark(!grip.KeyIn) + "Anahtar aynadan çıkarıldı\n";
             text += Mark(Mathf.Abs(state.WorkOffset.Z - _zOffsetAtPlacement) > 1e-4f) + "Z sıfırı (alın tornala, TOUCH OFF Z 0)\n";
             text += Mark(Mathf.Abs(state.WorkOffset.X) > 1e-4f) + $"T{state.ToolNumber} X ofseti (paso al, kumpasla ölç,\n    TOUCH OFF X ölçülen çap)\n";
             return text;
