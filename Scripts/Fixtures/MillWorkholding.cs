@@ -2,6 +2,7 @@ using System.Linq;
 using Godot;
 using CncTrainer.Bridge;
 using CncTrainer.Interaction;
+using CncTrainer.Machining;
 using CncTrainer.Material;
 using CncTrainer.Player;
 using CncTrainer.Procedural;
@@ -25,6 +26,8 @@ public partial class MillWorkholding : MachineSetup
     /// <summary>Indexer machines: the chuck on the rotary axis.</summary>
     public JawChuck Chuck { get; private set; }
     public IStockFixture Fixture => Chuck != null ? Chuck : Table.Fixture;
+    /// <summary>The spindle, as the place the player puts tools in.</summary>
+    public ToolSocket Spindle { get; private set; }
 
     private ProceduralMillBody _body;
     private MillCutting _cutting;
@@ -54,6 +57,12 @@ public partial class MillWorkholding : MachineSetup
             Table.Position = new Vector3(0f, body.TableTopY, 0f);
             body.WorkEnd.AddChild(Table);
         }
+
+        Spindle = ToolSocket.Create(1, turret: false, new Vector3(0.09f, 0.2f, 0.09f), new Vector3(0f, 0.1f, 0f));
+        Spindle.ActiveNumber = () => Bridge.State.ToolNumber;
+        Spindle.Turning = () => System.Math.Abs(Bridge.State.SpindleRpm) > 1.0;
+        body.ToolEnd.AddChild(Spindle);
+        cutting.Tools = Spindle;
 
         cutting.IsSecure = () => Fixture?.HoldsFirmly ?? true;
         cutting.CutWhileLoose = ThrowPart;
@@ -117,7 +126,7 @@ public partial class MillWorkholding : MachineSetup
         float overtravel = _cutting.EdgeFinderOvertravelMm;
         bool touching = overtravel >= 0f;
         _body.SetToolKick(touching);
-        if (touching && !_edgeTouching && Spec.FindTool(Bridge.State.ToolNumber) is ToolSpec finder)
+        if (touching && !_edgeTouching && Spindle.Active(0).Spec is ToolSpec finder)
             Safety.Warn(System.FormattableString.Invariant(
                 $"Kenar bulucu attı: uç kenarda. İş mili ekseni kenardan {finder.DiameterMm / 2f:0.###} mm uzakta"));
         _edgeTouching = touching;
@@ -138,7 +147,7 @@ public partial class MillWorkholding : MachineSetup
         if (GetTree().GetFirstNodeInGroup("player") is not PlayerController player
             || player.HeldTool?.Kind != HandToolKind.PaperGauge || player.GlobalPosition.DistanceTo(GlobalPosition) > 4f)
             return;
-        var tool = Spec.FindTool(Bridge.State.ToolNumber);
+        var tool = Spindle.Active(0).Spec;
         if (tool == null || tool.Kind == ToolKind.EdgeFinder)
             player.ToolStatus = "Kağıt mastar: iş milinde kesici takım yok";
         else if (_cutting.TipGapMm() is not float gap)
@@ -156,17 +165,24 @@ public partial class MillWorkholding : MachineSetup
         get
         {
             var fixture = Fixture;
+            var inSpindle = Spindle.Active(0);
+            int wanted = Bridge.State.ToolNumber;
+            string tools = !inSpindle.Present ? "[ ] İş mili boş: takım arabasından takım tak\n"
+                : wanted > 0 && inSpindle.Spec.Number != wanted
+                    ? $"[ ] İş milinde T{inSpindle.Spec.Number} var, kontrol T{wanted} sanıyor\n"
+                    : $"[x] İş milinde T{inSpindle.Spec.Number} {inSpindle.Spec.Description}\n";
             if (fixture == null)
-                return Spec.AxisDefs().Any(a => a.OnWorkpiece && a.IsRotary)
+                return tools + (Spec.AxisDefs().Any(a => a.OnWorkpiece && a.IsRotary)
                     ? "[ ] Bağlama yok\n    Merkezleme plakasını arabadan al,\n    tabla merkezine oturt"
-                    : "[ ] Bağlama yok\n    Mengeneyi arabadan al, tablaya koy\n    (ya da kütüğü tablaya koy, pabuçla bağla)";
-            string text = fixture.SheetLines;
+                    : "[ ] Bağlama yok\n    Mengeneyi arabadan al, tablaya koy\n    (ya da kütüğü tablaya koy, pabuçla bağla)");
+            string text = tools + fixture.SheetLines;
             if (fixture.Seat.Occupied)
             {
                 var delta = Bridge.State.WorkOffset - _offsetAtPlacement;
                 text += Sheet.Mark(Mathf.Abs(delta.X) > 1e-4f) + "X sıfırı\n";
                 text += Sheet.Mark(Mathf.Abs(delta.Y) > 1e-4f) + "Y sıfırı\n";
                 text += Sheet.Mark(Mathf.Abs(delta.Z) > 1e-4f) + "Z sıfırı (kağıt mastar)\n";
+                text += "    Her takım için: kağıtla değdir,\n    TOUCH OFF Z (boy ofseti)\n";
             }
             if (Table != null && Table.Dirty)
                 text += "    Tabla talaşlı: fırçayla temizle\n";
@@ -188,7 +204,7 @@ public partial class MillWorkholding : MachineSetup
     private void CheckFixtureCrash(IStockFixture fixture)
     {
         string reason = null;
-        if (fixture is Node3D node && Spec.FindTool(Bridge.State.ToolNumber) is ToolSpec tool)
+        if (fixture is Node3D node && Spindle.Active(0).Spec is ToolSpec tool)
         {
             var tip = node.GlobalTransform.AffineInverse() * (_body.WorkEnd.GlobalTransform * _cutting.ToolInWork(Bridge.State.Position).Origin);
             reason = fixture.ToolCrash(tip, tool.DiameterMm / 2f * M);

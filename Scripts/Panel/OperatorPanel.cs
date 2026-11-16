@@ -382,8 +382,10 @@ public partial class OperatorPanel : Control
         {
             if (float.TryParse(knownZInput.Text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float knownZ))
             {
-                float measuredZ = _bridge.State.Position.Z;
-                _bridge.SendMdi(System.FormattableString.Invariant($"G10 L1 P{_bridge.State.ToolNumber} Z{measuredZ - knownZ:F4}"));
+                // L10: the tool's length offset becomes whatever makes the
+                // current position read as knownZ in the active work system.
+                _bridge.SendMdi(System.FormattableString.Invariant($"G10 L10 P{_bridge.State.ToolNumber} Z{knownZ:F4}"));
+                ApplyToolOffsetSoon();
             }
         }));
         return row;

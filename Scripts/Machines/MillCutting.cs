@@ -59,8 +59,11 @@ public sealed class MillCutting : CuttingProcess
         if (_stock == null)
             return;
         var inStock = _workToStock * _kinematics.ToolInWork(s.Position);
-        var pose = new Transform3D(inStock.Basis, inStock.Origin / WorldScale.MmToM);
-        var tool = Spec.FindTool(s.ToolNumber);
+        var mounted = Tools.Active(s.ToolNumber);
+        var tool = mounted.Spec;
+        // A tool sticking out further than nominal has its tip that much
+        // further from the spindle than the control thinks.
+        var pose = new Transform3D(inStock.Basis, inStock.Origin / WorldScale.MmToM - inStock.Basis.Y.Normalized() * mounted.ErrorMm.Y);
 
         if (tool?.Kind == ToolKind.EdgeFinder)
         {
@@ -79,11 +82,10 @@ public sealed class MillCutting : CuttingProcess
         EdgeFinderOvertravelMm = -1f;
 
         // A broken tool cuts nothing; a worn one cuts undersize.
-        if (_lastPose is Transform3D previous && tool != null && Tools?.IsBroken(s.ToolNumber) != true)
+        if (_lastPose is Transform3D previous && mounted.Cuts)
         {
             var cutter = tool.Cutter();
-            if (Tools != null)
-                cutter = cutter with { RadiusMm = cutter.RadiusMm - Tools[s.ToolNumber].EdgeLossMm / 3f };
+            cutter = cutter with { RadiusMm = cutter.RadiusMm - mounted.State.EdgeLossMm / 3f };
             var result = _stock.Stock.Cut(previous, pose, cutter);
             if (result.MaterialRemoved)
                 _stock.MarkDirty(result);
@@ -122,8 +124,8 @@ public sealed class MillCutting : CuttingProcess
     {
         var position = Bridge.Prediction.VisualPosition;
         _body.SetPose(position);
-        int tool = Bridge.State.ToolNumber;
-        _body.SetTool(Tools?.IsBroken(tool) == true ? 0 : tool);
+        var mounted = Tools.Active(Bridge.State.ToolNumber);
+        _body.ShowTool(mounted.Cuts ? mounted.Spec : null, mounted.ErrorMm.Y);
         _stock?.RebuildDirtyChunks();
         return _kinematics.ToolTransform(position).Origin;
     }

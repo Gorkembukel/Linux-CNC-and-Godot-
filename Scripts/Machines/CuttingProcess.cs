@@ -38,8 +38,8 @@ public abstract class CuttingProcess
     /// <summary>Raised once when a real cut is taken on stock that is not secure.</summary>
     public System.Action CutWhileLoose;
     public event System.Action<CutSample> CutObserved;
-    /// <summary>The state each tool is in; null = tools never wear or break.</summary>
-    public ToolCrib Tools;
+    /// <summary>What is really cutting when the control says tool N.</summary>
+    public IToolSource Tools;
 
     protected CuttingProcess(MachineSpec spec, BridgeClient bridge, ChipSpawner chips)
     {
@@ -47,6 +47,7 @@ public abstract class CuttingProcess
         Bridge = bridge;
         _chips = chips;
         Material = spec.StockMaterial;
+        Tools = new SpecTools(spec);
     }
 
     public void OnConfirmedState()

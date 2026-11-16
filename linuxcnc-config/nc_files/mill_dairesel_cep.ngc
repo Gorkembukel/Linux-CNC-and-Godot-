@@ -8,6 +8,7 @@
 G21 G17 G90 G54
 
 T1 M6
+G43
 S2400 M3
 G0 Z10.0
 
@@ -33,6 +34,7 @@ G0 Z10.0
 M5
 
 T2 M6
+G43
 S3200 M3
 
 ( --- cepin cevresinde dort yay kanal: R34, 50 derece, 3mm derin --- )

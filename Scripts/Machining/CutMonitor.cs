@@ -31,7 +31,6 @@ public sealed class CutMonitor
     private float _overloadSeconds, _rubbingSeconds, _stoppedVolume;
     private double _sinceCut = 999.0, _sinceWarning = 999.0;
 
-    public ToolCrib Tools { get; } = new();
     /// <summary>The verdict on the cutting going on now; empty when idle.</summary>
     public CutLoad Load { get; private set; }
     /// <summary>1 = dry cutting; set lower while coolant runs.</summary>
@@ -46,7 +45,6 @@ public sealed class CutMonitor
         _spec = spec;
         _cutting = cutting;
         _safety = safety;
-        cutting.Tools = Tools;
         cutting.CutObserved += OnCut;
     }
 
@@ -69,8 +67,9 @@ public sealed class CutMonitor
         }
         // Brushing the work with a stopped tool does no harm; pushing into it does.
         _stoppedVolume += sample.VolumeMm3;
-        if (_stoppedVolume > StoppedSpindleVolumeMm3 && _spec.FindTool(sample.ToolNumber) is ToolSpec tool)
-            Break(Tools[tool.Number], $"TAKIM KIRILDI: {Name(tool)} iş mili dönmeden malzemeye sürüldü");
+        var mounted = _cutting.Tools.Active(sample.ToolNumber);
+        if (_stoppedVolume > StoppedSpindleVolumeMm3 && mounted.Present)
+            Break(mounted.State, $"TAKIM KIRILDI: {Name(mounted.Spec)} iş mili dönmeden malzemeye sürüldü");
     }
 
     private static string Name(ToolSpec tool) => $"T{tool.Number} ({tool.Description})";
@@ -96,7 +95,8 @@ public sealed class CutMonitor
         _removalRate = Mathf.Lerp(_removalRate, _pendingVolume / dt, blend);
         _pendingVolume = 0f;
 
-        var tool = _spec.FindTool(_last.ToolNumber);
+        var mounted = _cutting.Tools.Active(_last.ToolNumber);
+        var tool = mounted.Spec;
         if (_removalRate < IdleBelowMm3PerSec || tool == null || Mathf.Abs(_last.SpindleRpm) < 1f)
         {
             _surfaceSpeed = 0f;
@@ -116,7 +116,7 @@ public sealed class CutMonitor
         Load = load;
         PeakToolLoad = Mathf.Max(PeakToolLoad, load.ToolLoad);
         ChatterMarks |= load.Chatter;
-        var state = Tools[tool.Number];
+        var state = mounted.State;
 
         if (load.Fault == CutFault.ToolOverload)
         {
@@ -159,8 +159,9 @@ public sealed class CutMonitor
     /// <summary>One line for the control's screen.</summary>
     public string StatusLine(int toolNumber)
     {
-        var state = Tools[toolNumber];
-        string tool = state.Broken ? $"T{toolNumber} KIRIK" : $"T{toolNumber} aşınma %{state.Wear * 100f:0}";
+        var mounted = _cutting.Tools.Active(toolNumber);
+        string tool = !mounted.Present ? "takım yok"
+            : mounted.State.Broken ? $"T{mounted.Spec.Number} KIRIK" : $"T{mounted.Spec.Number} aşınma %{mounted.State.Wear * 100f:0}";
         return $"YÜK %{Load.SpindleLoad * 100f:0}   {tool}";
     }
 }

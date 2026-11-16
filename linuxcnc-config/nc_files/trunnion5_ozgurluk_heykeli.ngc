@@ -11,6 +11,7 @@ G64 P0.03
 
 ( --- KABA: dort yandan, 15 mm kademelerle, yuzeyde 1 mm pay --- )
 T1 M6
+G43
 S9000 M3
 ( kaba, C0 )
 G0 Z80.0
@@ -5023,6 +5024,7 @@ M5
 
 ( --- INCE: alti yandan, 1.5 mm adim --- )
 T2 M6
+G43
 S16000 M3
 ( ince, C0 )
 G0 Z80.0

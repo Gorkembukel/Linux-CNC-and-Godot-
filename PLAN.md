@@ -1544,3 +1544,58 @@ Two real faults found by the live runs and fixed:
 bench lathe got 3 kW so the stock demo program's 2 mm steel passes run at
 about 100 % instead of stalling; a broken tool can only be replaced once
 system 2 (tool preparation) is in.
+
+### System 2 -- tool preparation (done)
+
+- `IToolSource` / `MountedTool` (`Scripts/Machining/ToolSource.cs`): "what is
+  really cutting when the control says tool N" -- its spec, its state, and
+  how far its tip is from where the control assumes. `CuttingProcess.Tools`
+  and `CutMonitor` only ever ask this. Two implementations: `SpecTools`
+  (every tool there, exact; machines without hands-on setup) and
+  `ToolSocket`.
+- `ToolItem` (carryable): a cutter in its holder or a lathe tool on its
+  block, with its own `ToolState` and its own setting error -- a mill cutter
+  sticks out 0.5-3 mm more or less than nominal, a lathe insert sits
+  0.08-0.3 mm (radius) / 0.1-0.4 mm (Z) off. This replaces the per-tool-number
+  random lathe error of phase 4: the error now belongs to the physical tool.
+- `ToolSocket` (interactable + `IToolSource`): the mill's spindle (one
+  pocket) or the lathe's turret (one per station). Hands-on machines start
+  EMPTY. Tool in hand + click = in; empty hand + click = out; not while the
+  spindle turns. A mill cuts with whatever is in the spindle whichever T the
+  control thinks it has (swap the tool by hand at every M6, then CONFIRM);
+  an empty spindle cuts nothing.
+- `ToolCart` scene (`Machine` export -> a ProceduralMachine): that machine's
+  tools plus a `ToolLengthGauge`: a mill tool in hand shows true length,
+  nominal and difference; a broken tool is exchanged for a fresh one (with a
+  new, different length). Three carts are placed in `Main.tscn`.
+- Mill TOUCH OFF Z now sends `G10 L10 P<tool> Z<value>` + `G43` (the offset
+  that makes the current position read as the typed value), so "paper under
+  T1, SET Z; paper under T2, TOUCH OFF Z" works. The length difference from
+  the gauge can also be typed in MDI (`G10 L1 P2 Z2.31`, then `G43`).
+- Every mill program got `G43` after each `Tn M6` (11 files, the user's two
+  torus programs included; `tools/statue_cam.py` too). Without it LinuxCNC
+  ignores tool length offsets altogether.
+- Setup sheets: mill -- what is in the spindle and whether it is the tool
+  the control expects; lathe -- how many stations are loaded.
+
+Verified live: empty spindle cuts 0; T2 (6 mm) in the spindle while the
+control has T1 cuts a 6 mm slot (411 mm3 instead of 836) and the sheet says
+so; a tool 2 mm longer than nominal cuts a "1 mm" slot 3 mm deep (836 mm3),
+and after `G10 L1 P1 Z2` + `G43` the next 1 mm slot is 279 mm3 (analytic
+279); lathe scenario with tools loaded into the turret by hand unchanged
+(48.00 / 44.00). 79 C# tests.
+
+Bug found on the way (voxel stock, old): `VoxelStock.Cut` only updated the
+grid nodes inside the cutter's bounding box, not the ring just outside it,
+so whenever the cutter's edge did not fall exactly on a grid line the cut
+wall was drawn up to half a voxel inside its true place and 4 % of a slot's
+volume went uncounted. It never showed before because every test cutter was
+exactly 10 / 6 mm on a 0.5 mm grid; the first worn tool exposed it. Fixed
+(box padded by one step) + unit test.
+
+**Initiatives, system 2:** tool lengths are entered as the DIFFERENCE from
+nominal (machine Z still means "tip of a nominal tool", so travel limits and
+every existing program keep their meaning); lathe tools are numbered by
+turret station in the order of the spec's tool list; the mill has no
+magazine logic -- every tool change is by hand at the spindle, as the
+simulated machine already waited for CONFIRM on M6.

@@ -105,4 +105,21 @@ public class VoxelStockTests
         float expected = 10f * 6f * 8f - Mathf.Pi * 4f * 3f;
         Assert.InRange(volume, expected * 0.90f, expected);
     }
+
+    [Fact]
+    public void SlotVolume_DoesNotDependOnTheCutterEdgeLandingOnAGridLine()
+    {
+        float Slot(float radius)
+        {
+            var stock = VoxelStock.Block(60f, 20f, 40f, 0.5f);
+            var cutter = new CutterShape(radius, 0f, 30f, 0f);
+            float volume = 0f;
+            for (float x = -10f; x < 10f; x += 0.1f)
+                volume += stock.Cut(new Godot.Transform3D(Godot.Basis.Identity, new Godot.Vector3(x, -3f, 0f)),
+                    new Godot.Transform3D(Godot.Basis.Identity, new Godot.Vector3(x + 0.1f, -3f, 0f)), cutter).VolumeMm3;
+            return volume;
+        }
+        // 5 mm puts the slot walls exactly on grid nodes, 4.999 mm just inside them.
+        Assert.InRange(Slot(4.999f) / Slot(5f), 0.99f, 1.001f);
+    }
 }

@@ -1,8 +1,8 @@
-using System.Collections.Generic;
 using Godot;
 using CncTrainer.Bridge;
 using CncTrainer.Chips;
 using CncTrainer.Interaction;
+using CncTrainer.Machining;
 using CncTrainer.Material;
 using CncTrainer.Procedural;
 using CncTrainer.Spec;
@@ -13,9 +13,9 @@ namespace CncTrainer.Fixtures;
 /// Hands-on setup of a lathe: the bar the player puts in the chuck becomes
 /// the stock being turned, as far out of the jaws as they left it. A chuck
 /// that is not tight throws the bar on the first real cut, a key left in the
-/// chuck flies off when the spindle starts, and every tool's tip sits a
-/// little off from where the control believes it is until the player
-/// measures a cut and touches the tool off.
+/// chuck flies off when the spindle starts. The turret starts empty: the
+/// player loads it, and every tool's tip sits a little off from where the
+/// control believes it is until a cut is measured and the tool touched off.
 /// </summary>
 public partial class LatheWorkholding : MachineSetup
 {
@@ -24,11 +24,11 @@ public partial class LatheWorkholding : MachineSetup
     private const float ProfileStepMm = 0.5f;
 
     public JawChuck Chuck { get; private set; }
+    public ToolSocket Turret { get; private set; }
 
     private ProceduralLatheBody _body;
     private LatheCutting _cutting;
     private WorkpieceVisual _workpiece;
-    private readonly Dictionary<int, Vector2> _tipErrors = new();
     private float _zOffsetAtPlacement;
     private bool _crashed;
 
@@ -43,15 +43,13 @@ public partial class LatheWorkholding : MachineSetup
         _workpiece = workpiece;
         Chuck = body.Chuck;
 
-        var random = new RandomNumberGenerator();
-        random.Randomize();
-        foreach (var tool in spec.Tools)
-            if (tool != null)
-                _tipErrors[tool.Number] = new Vector2(
-                    random.RandfRange(0.08f, 0.3f) * (random.Randf() < 0.5f ? -1f : 1f),
-                    random.RandfRange(0.1f, 0.4f) * (random.Randf() < 0.5f ? -1f : 1f));
-
-        cutting.TipError = TipErrorOf;
+        Turret = ToolSocket.Create(body.StationCount, turret: true, new Vector3(0.16f, 0.2f, 0.2f), new Vector3(0.06f, body.ToolReachM, 0f));
+        Turret.PocketOf = body.StationOf;
+        Turret.ActiveNumber = () => Bridge.State.ToolNumber;
+        Turret.Turning = () => System.Math.Abs(Bridge.State.SpindleRpm) > 1.0;
+        Turret.Changed += pocket => body.SetStationTool(pocket, Turret.Pocket(pocket)?.Spec);
+        body.CrossSlide.AddChild(Turret);
+        cutting.Tools = Turret;
         cutting.IsSecure = () => Chuck.HoldsFirmly;
         cutting.CutWhileLoose = () =>
         {
@@ -63,11 +61,6 @@ public partial class LatheWorkholding : MachineSetup
         Chuck.TakeMachined = () => _cutting.HasCut ? MakePart() : null;
         Chuck.Measure = Measure;
     }
-
-    public Vector2 TipErrorOf(int toolNumber) => _tipErrors.TryGetValue(toolNumber, out var error) ? error : Vector2.Zero;
-
-    /// <summary>For tests: fixes a tool's hidden tip error (radius, Z).</summary>
-    public void SetTipError(int toolNumber, Vector2 error) => _tipErrors[toolNumber] = error;
 
     private float LiveLengthMm() => (_workpiece.Profile.LiveRadii().Length - 1) * _workpiece.Profile.StepMm;
 
@@ -163,7 +156,10 @@ public partial class LatheWorkholding : MachineSetup
         {
             var grip = Chuck.Grip;
             var state = Bridge.State;
-            string text = Chuck.SheetLines;
+            var active = Turret.Active(state.ToolNumber);
+            string text = Sheet.Mark(Turret.LoadedCount > 0) + $"Tarette takım  {Turret.LoadedCount}/{Turret.PocketCount}"
+                + (state.ToolNumber > 0 && !active.Present ? $"  (T{state.ToolNumber} istasyonu BOŞ)" : "") + "\n";
+            text += Chuck.SheetLines;
             if (!grip.HasBar)
                 return text;
             if (grip.StickOutMm > 3f * grip.BarDiameterMm)

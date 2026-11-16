@@ -25,10 +25,14 @@ public partial class ProceduralMillBody : Node3D
     private Node3D _toolNode, _spindle, _headMount;
     private bool _headFollowsToolLength;
     private float _longestTool;
-    private int _toolNumber = int.MinValue;
+    private ToolSpec _shownTool;
+    private bool _toolShown;
+    private float _toolDrop;
 
     /// <summary>Moves with the workpiece: parent for the stock.</summary>
     public Node3D WorkEnd { get; private set; }
+    /// <summary>Moves with the spindle; its origin is the nominal tool tip.</summary>
+    public Node3D ToolEnd { get; private set; }
 
     /// <summary>Table top in WorkEnd's frame, its size, and where its
     /// T-slots run (along X, at these Z).</summary>
@@ -42,7 +46,7 @@ public partial class ProceduralMillBody : Node3D
         _spec = spec;
         Clear(this);
         _links.Clear();
-        _toolNumber = int.MinValue;
+        _toolShown = false;
 
         var m = spec.Mill;
         var axes = spec.AxisDefs();
@@ -53,7 +57,7 @@ public partial class ProceduralMillBody : Node3D
         var workLinks = AddChain(axes.Where(a => a.OnWorkpiece), "Work");
         var toolLinks = AddChain(axes.Where(a => !a.OnWorkpiece), "Tool");
         WorkEnd = workLinks.Count > 0 ? workLinks[^1].Node : this;
-        var toolEnd = toolLinks.Count > 0 ? toolLinks[^1].Node : this;
+        var toolEnd = ToolEnd = toolLinks.Count > 0 ? toolLinks[^1].Node : this;
 
         float stockH = m.StockHeight * M, stockX = m.StockSizeXMm * M, stockZ = m.StockSizeYMm * M;
         float tableX = m.TableSizeXMm * M, tableZ = m.TableSizeYMm * M, tableT = m.TableThicknessMm * M;
@@ -347,7 +351,7 @@ public partial class ProceduralMillBody : Node3D
     /// <summary>Shows the edge finder's tip jumping sideways on contact.</summary>
     public void SetToolKick(bool kicked)
     {
-        _toolNode.Position = new Vector3(kicked ? 0.002f : 0f, 0f, 0f);
+        _toolNode.Position = new Vector3(kicked ? 0.002f : 0f, _toolDrop, 0f);
     }
 
     public void SetPose(AxisVector position)
@@ -356,15 +360,22 @@ public partial class ProceduralMillBody : Node3D
             node.Transform = MachineKinematics.LinkTransform(axis, position.Get(axis.Letter));
     }
 
-    /// <summary>Shows tool `number` in the spindle. The tip stays at the
-    /// position LinuxCNC reports, so a longer tool lifts the head.</summary>
-    public void SetTool(int number)
+    /// <summary>Shows tool `number` of the spec in the spindle.</summary>
+    public void SetTool(int number) => ShowTool(_spec.FindTool(number));
+
+    /// <summary>Shows this tool in the spindle (null = empty spindle),
+    /// sticking out lengthErrorMm more than nominal. The nominal tip stays
+    /// at the position LinuxCNC reports, so a longer tool lifts the head.</summary>
+    public void ShowTool(ToolSpec tool, float lengthErrorMm = 0f)
     {
-        if (number == _toolNumber)
+        float drop = -lengthErrorMm * M;
+        if (_toolShown && tool == _shownTool && Mathf.IsEqualApprox(drop, _toolDrop))
             return;
-        _toolNumber = number;
+        _toolShown = true;
+        _shownTool = tool;
+        _toolDrop = drop;
         Clear(_toolNode);
-        var tool = _spec.FindTool(number);
+        _toolNode.Position = new Vector3(0f, drop, 0f);
         if (tool != null)
             _toolNode.AddChild(ToolMeshBuilder.MillTool(tool));
 

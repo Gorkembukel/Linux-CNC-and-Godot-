@@ -27,6 +27,15 @@ public partial class ProceduralLatheBody : Node3D
     private int _stationCount = 1;
     private float _indexAngle = 180f, _targetAngle = 180f;
     private int _toolNumber = int.MinValue;
+    private int _activeStation = -1;
+    private ToolSpec[] _stationTools = System.Array.Empty<ToolSpec>();
+    private readonly System.Collections.Generic.List<Node3D> _stations = new();
+
+    /// <summary>The cross slide, which carries the turret or tool post;
+    /// the tool tip is at (0, ToolReachM, 0) in its frame.</summary>
+    public Node3D CrossSlide => _crossSlide;
+    public float ToolReachM => _toolReach;
+    public int StationCount => _stationTools.Length;
 
     /// <summary>With manual setup: the chuck the player loads, its jaw
     /// front at machine Z = JawFrontZMm.</summary>
@@ -110,22 +119,27 @@ public partial class ProceduralLatheBody : Node3D
             new Vector3(0.075f, _toolReach, waysSide * (waysOffset - 0.07f) / 2f), accent);
 
         var tools = spec.Tools.Where(t => t != null).ToArray();
+        _stations.Clear();
+        _activeStation = -1;
+        _stationCount = l.Turret == TurretKind.Disc ? Mathf.Max(1, Mathf.Max(l.TurretStations, tools.Length)) : Mathf.Max(1, tools.Length);
+        // With manual setup the stations start empty: the player loads them.
+        _stationTools = new ToolSpec[_stationCount];
+        if (!spec.ManualSetup)
+            tools.CopyTo(_stationTools, 0);
         if (l.Turret == TurretKind.Disc)
         {
-            _stationCount = Mathf.Max(1, Mathf.Max(l.TurretStations, tools.Length));
             Box(_crossSlide, "TurretHousing", new Vector3(0.12f, turretR * 1.6f, turretR * 1.6f),
                 new Vector3(0.075f, _toolReach, 0f), bodyMat);
             _turret = new Node3D { Name = "Turret", Position = new Vector3(0f, _toolReach, 0f), RotationDegrees = new Vector3(_indexAngle, 0f, 0f) };
             _crossSlide.AddChild(_turret);
             Cylinder(_turret, "Disc", turretR, 0.03f, Vector3.Zero, Vector3.Right, DarkSteel);
-            for (int i = 0; i < tools.Length; i++)
+            _stationShank = Mathf.Max(0.01f, _toolReach - turretR * 0.8f);
+            for (int i = 0; i < _stationCount; i++)
             {
                 var station = new Node3D { Name = "Station", RotationDegrees = new Vector3(i * 360f / _stationCount, 0f, 0f) };
                 _turret.AddChild(station);
-                var tool = ToolMeshBuilder.LatheTool(tools[i], Mathf.Max(0.01f, _toolReach - turretR * 0.8f));
-                tool.Position = new Vector3(0f, _toolReach, 0f);
-                tool.RotationDegrees = new Vector3(180f, 0f, 0f);
-                station.AddChild(tool);
+                _stations.Add(station);
+                RefreshStation(i);
             }
         }
         else
@@ -158,6 +172,44 @@ public partial class ProceduralLatheBody : Node3D
         SetPose(0f, (xAxis?.MaxLimit ?? 100f) * 0.5f, tools.FirstOrDefault()?.Number ?? 0, 0.0);
     }
 
+    private float _stationShank;
+
+    private void RefreshStation(int index)
+    {
+        if (index >= _stations.Count)
+            return;
+        Clear(_stations[index]);
+        if (_stationTools[index] == null)
+            return;
+        var tool = ToolMeshBuilder.LatheTool(_stationTools[index], _stationShank);
+        tool.Position = new Vector3(0f, _toolReach, 0f);
+        tool.RotationDegrees = new Vector3(180f, 0f, 0f);
+        _stations[index].AddChild(tool);
+    }
+
+    private void RefreshPost()
+    {
+        if (_postTool == null)
+            return;
+        Clear(_postTool);
+        if (_activeStation >= 0 && _activeStation < _stationTools.Length && _stationTools[_activeStation] != null)
+            _postTool.AddChild(ToolMeshBuilder.LatheTool(_stationTools[_activeStation], _toolReach));
+    }
+
+    /// <summary>Station (0-based) the control's tool number means, -1 = none.</summary>
+    public int StationOf(int toolNumber) => _spec.Tools.Where(t => t != null).ToList().FindIndex(t => t.Number == toolNumber);
+
+    /// <summary>Shows this tool in a station (null = empty).</summary>
+    public void SetStationTool(int index, ToolSpec tool)
+    {
+        if (index < 0 || index >= _stationTools.Length)
+            return;
+        _stationTools[index] = tool;
+        RefreshStation(index);
+        if (index == _activeStation)
+            RefreshPost();
+    }
+
     /// <summary>Where the tool tip is in this body's frame (metres).</summary>
     public Vector3 TipLocal(float zMm, float radiusMm) => new Vector3(zMm * M, 0f, 0f) + _slideBasis * new Vector3(0f, radiusMm * M, 0f);
 
@@ -169,16 +221,10 @@ public partial class ProceduralLatheBody : Node3D
         if (toolNumber != _toolNumber)
         {
             _toolNumber = toolNumber;
-            var tools = _spec.Tools.Where(t => t != null).ToList();
-            int index = tools.FindIndex(t => t.Number == toolNumber);
+            int index = _activeStation = StationOf(toolNumber);
             if (_turret != null && index >= 0)
                 _targetAngle = MachineBody.TargetIndexAngleDeg(index + 1, _stationCount);
-            if (_postTool != null)
-            {
-                Clear(_postTool);
-                if (index >= 0)
-                    _postTool.AddChild(ToolMeshBuilder.LatheTool(tools[index], _toolReach));
-            }
+            RefreshPost();
         }
         if (_turret != null)
         {

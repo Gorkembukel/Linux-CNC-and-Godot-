@@ -142,10 +142,11 @@ public class VoxelStock
             var axis = pose.Basis.Y.Normalized();
             var top = tip + axis * cutter.LengthMm;
 
-            var lo = (new Vector3(Mathf.Min(tip.X, top.X), Mathf.Min(tip.Y, top.Y), Mathf.Min(tip.Z, top.Z))
-                      - Vector3.One * cutter.RadiusMm - Origin) / StepMm;
-            var hi = (new Vector3(Mathf.Max(tip.X, top.X), Mathf.Max(tip.Y, top.Y), Mathf.Max(tip.Z, top.Z))
-                      + Vector3.One * cutter.RadiusMm - Origin) / StepMm;
+            // One step beyond the cutter: the nodes just outside it carry the
+            // distance that places the cut surface between the grid points.
+            var reach = Vector3.One * (cutter.RadiusMm + StepMm);
+            var lo = (new Vector3(Mathf.Min(tip.X, top.X), Mathf.Min(tip.Y, top.Y), Mathf.Min(tip.Z, top.Z)) - reach - Origin) / StepMm;
+            var hi = (new Vector3(Mathf.Max(tip.X, top.X), Mathf.Max(tip.Y, top.Y), Mathf.Max(tip.Z, top.Z)) + reach - Origin) / StepMm;
             int ix0 = Mathf.Max(0, Mathf.CeilToInt(lo.X)), ix1 = Mathf.Min(CountX - 1, Mathf.FloorToInt(hi.X));
             int iy0 = Mathf.Max(0, Mathf.CeilToInt(lo.Y)), iy1 = Mathf.Min(CountY - 1, Mathf.FloorToInt(hi.Y));
             int iz0 = Mathf.Max(0, Mathf.CeilToInt(lo.Z)), iz1 = Mathf.Min(CountZ - 1, Mathf.FloorToInt(hi.Z));

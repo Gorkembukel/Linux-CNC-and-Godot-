@@ -9,6 +9,7 @@ G90
 G54
 
 T1 M6
+G43
 S2400 M3
 
 ( --- yuzey frezeleme: 1mm talas, 8mm adimli zikzak --- )
@@ -60,6 +61,7 @@ G0 Z10.0
 M5
 
 T2 M6
+G43
 S3200 M3
 
 ( --- cebin cevresinde dairesel kanal: R34, 3mm derinlik --- )

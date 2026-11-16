@@ -13,6 +13,7 @@ G64 P0.03
 ( 1. ASAMA: KABA SILINDIRIK FORM VE CAPRAZ ON BOSALTMA [T1] )
 ( ========================================================== )
 T1 M6
+G43
 S8000 M3
 G0 Z150.0
 G0 A0.0 C0.0
@@ -56,6 +57,7 @@ G0 Z150.0
 ( Torus Duzlemi: X'te 35 derece, Z'de 30 derece capraz egik )
 ( ========================================================== )
 T2 M6
+G43
 S14000 M3
 G0 Z150.0
 G0 A0.0 C0.0

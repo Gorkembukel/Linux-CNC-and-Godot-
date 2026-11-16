@@ -23,9 +23,6 @@ public sealed class LatheCutting : CuttingProcess
 
     /// <summary>Raised after a parting cut has dropped a piece.</summary>
     public System.Action Severed;
-    /// <summary>Where a tool's tip really is relative to where the control
-    /// believes it is: (radius, Z) in mm for a tool number.</summary>
-    public System.Func<int, Vector2> TipError;
 
     public LatheCutting(MachineSpec spec, BridgeClient bridge, ProceduralLatheBody body, WorkpieceVisual workpiece,
         ChipSpawner chips, Node3D parts) : base(spec, bridge, chips)
@@ -36,8 +33,13 @@ public sealed class LatheCutting : CuttingProcess
     }
 
     /// <summary>Real tip position (radius, Z) for a machine position.</summary>
-    public Vector2 TipAt(AxisVector v, int toolNumber) =>
-        new Vector2(v.X + (Tools?[toolNumber].EdgeLossMm ?? 0f), v.Z) + (TipError?.Invoke(toolNumber) ?? Vector2.Zero);
+    public Vector2 TipAt(AxisVector v, int toolNumber)
+    {
+        var mounted = Tools.Active(toolNumber);
+        return mounted.Present
+            ? new Vector2(v.X + mounted.State.EdgeLossMm + mounted.ErrorMm.X, v.Z + mounted.ErrorMm.Z)
+            : new Vector2(v.X, v.Z);
+    }
 
     /// <summary>A different bar is in the chuck now.</summary>
     public void ResetStock()
@@ -57,7 +59,7 @@ public sealed class LatheCutting : CuttingProcess
             return;
         }
 
-        if (_lastPosition is Vector2 previous && Tools?.IsBroken(s.ToolNumber) != true)
+        if (_lastPosition is Vector2 previous && Tools.Active(s.ToolNumber).Cuts)
         {
             float rpm = (float)System.Math.Abs(s.SpindleRpm);
             // From the tip's own travel: the bridge's feed_rate field is the

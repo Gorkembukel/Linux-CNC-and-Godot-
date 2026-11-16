@@ -233,6 +233,7 @@ def main():
         "",
         "( --- KABA: dort yandan, 15 mm kademelerle, yuzeyde 1 mm pay --- )",
         "T1 M6",
+        "G43",
         "S9000 M3",
     ):
         prog.add(line)
@@ -248,6 +249,7 @@ def main():
     prog.add("")
     prog.add("( --- INCE: alti yandan, 1.5 mm adim --- )")
     prog.add("T2 M6")
+    prog.add("G43")
     prog.add("S16000 M3")
     for c in (0, 60, 120, 180, 240, 300):
         height = maps[c] if c in maps else side_height_map(c)

@@ -9,6 +9,7 @@ G21 G17 G90 G54
 
 ( --- T1: +X ucunda altigen, anahtar agzi 52mm - yuzey Z-4 --- )
 T1 M6
+G43
 S2400 M3
 G0 Z40.0
 #1 = 0.0
@@ -32,6 +33,7 @@ M5
 
 ( --- T2: helis kanal - X ilerlerken A doner, 2 tur --- )
 T2 M6
+G43
 S3000 M3
 G0 A-360.0
 G0 X20.0 Y0.0
@@ -43,6 +45,7 @@ M5
 
 ( --- T3: dort radyal delik, 90 derece arayla --- )
 T3 M6
+G43
 S1500 M3
 #2 = 0.0
 o200 while [#2 LT 359.0]
