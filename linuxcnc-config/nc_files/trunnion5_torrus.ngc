@@ -1,0 +1,136 @@
+%
+( 5 EKSEN - TORUS ISLEME )
+( Makine: Trunnion5Axis - 3+2 Indekslemeli, RTCP/TCPM YOK )
+( Kutuk: 80 x 80 x 170 mm aluminyum blok. X/Y sifiri ortada, Z0 ust yuzey )
+( Ustten 140 mm islenir, alttaki 30 mm baglama payi olarak kalir )
+( A ekseni ust yuzeyin 120 mm altindan gecer [Z-120] )
+( Sag el kurali: +A donusunde Y- tarafi yukselir )
+( T1 = 12 mm parmak freze, kaba. T2 = 4 mm kure freze, ince )
+
+G21 G17 G90 G54
+G64 P0.03
+
+( --- KABA TAKIM YUKLEME --- )
+T1 M6
+S8000 M3
+G0 Z150.0
+G0 A0.0 C0.0
+
+( ========================================================== )
+( 1. ASAMA: UST YUZEY TEMIZLIGI VE KABA SILINDIR [A0] )
+( Z0 ust yuzeyden baslayarak Z-55 mm derinlige kadar kademeli iner )
+( Torus ana yaricap R=24 mm, tup yaricapi r=10 mm )
+( ========================================================== )
+#1 = -4.0
+o101 while [#1 GE -56.0]
+  ( Dis cevre bosaltma: 39 mm yaricaptan disari dogru )
+  #2 = 0.0
+  G0 X39.0 Y0.0
+  G0 Z5.0
+  G1 Z#1 F400
+  o102 while [#2 LE 360.0]
+    #3 = [39.0 * COS[#2]]
+    #4 = [39.0 * SIN[#2]]
+    G1 X#3 Y#4 F1200
+    #2 = [#2 + 12.0]
+  o102 endwhile
+  G0 Z10.0
+
+  ( Orta delik bosaltma: Z-25 ile Z-56 arasi ic kismi acar )
+  o105 if [#1 LE -25.0]
+    #2 = 0.0
+    G0 X9.0 Y0.0
+    G1 Z#1 F400
+    o103 while [#2 LE 360.0]
+      #3 = [9.0 * COS[#2]]
+      #4 = [9.0 * SIN[#2]]
+      G1 X#3 Y#4 F1200
+      #2 = [#2 + 15.0]
+    o103 endwhile
+    G0 Z10.0
+  o105 endif
+
+  #1 = [#1 - 4.0]
+o101 endwhile
+G0 Z150.0
+
+( --- INCE TAKIM YUKLEME --- )
+T2 M6
+S14000 M3
+G0 Z150.0
+G0 A0.0 C0.0
+
+( ========================================================== )
+( 2. ASAMA: TORUS DIS VE UST YUVARLATMA [3+2 INDEKSLEME] )
+( Pivot Z=-120 etrafinda +A donusunde Y- yukselir, Y+ alcalir )
+( ========================================================== )
+#10 = 10.0
+o201 while [#10 LE 80.0]
+  G0 A#10 C0.0
+  G0 Z150.0
+
+  ( Y- tarafindaki tepe noktasi: Y_parca = -[24 + 12*SIN[A]], Z_parca = -45 + 12*COS[A] )
+  #11 = [0.0 - [24.0 + 12.0 * SIN[#10]]]
+  #12 = [-45.0 + 12.0 * COS[#10]]
+  #13 = [#12 + 120.0]
+
+  ( Pivot Z=-120 donusum formulu: )
+  ( Y_makine = Y_parca * COS[A] - [Z_parca + 120] * SIN[A] )
+  ( Z_makine = -120 + Y_parca * SIN[A] + [Z_parca + 120] * COS[A] )
+  #14 = [#11 * COS[#10] - #13 * SIN[#10]]
+  #15 = [-120.0 + #11 * SIN[#10] + #13 * COS[#10]]
+  #16 = [#15 + 15.0]
+
+  #20 = 0.0
+  o202 while [#20 LE 360.0]
+    G0 A#10 C#20
+    G0 X-14.0 Y#14
+    G0 Z#16
+    G1 Z#15 F300
+    G1 X14.0 F900
+    G0 Z#16
+    #20 = [#20 + 10.0]
+  o202 endwhile
+
+  G0 Z150.0
+  #10 = [#10 + 10.0]
+o201 endwhile
+
+( ========================================================== )
+( 3. ASAMA: TORUS IC YANAK YUVARLATMA [3+2 INDEKSLEME] )
+( ========================================================== )
+#10 = 15.0
+o301 while [#10 LE 60.0]
+  G0 A#10 C0.0
+  G0 Z150.0
+
+  ( Ic yanak teget noktasi: Y_parca = +[24 - 12*SIN[A]] )
+  #11 = [24.0 - 12.0 * SIN[#10]]
+  #12 = [-45.0 + 12.0 * COS[#10]]
+  #13 = [#12 + 120.0]
+
+  #14 = [#11 * COS[#10] - #13 * SIN[#10]]
+  #15 = [-120.0 + #11 * SIN[#10] + #13 * COS[#10]]
+  #16 = [#15 + 15.0]
+
+  #20 = 0.0
+  o302 while [#20 LE 360.0]
+    G0 A#10 C#20
+    G0 X-8.0 Y#14
+    G0 Z#16
+    G1 Z#15 F300
+    G1 X8.0 F900
+    G0 Z#16
+    #20 = [#20 + 10.0]
+  o302 endwhile
+
+  G0 Z150.0
+  #10 = [#10 + 10.0]
+o301 endwhile
+
+M5
+G0 Z150.0
+G0 A0.0 C0.0
+G0 X0.0 Y0.0
+M2
+%

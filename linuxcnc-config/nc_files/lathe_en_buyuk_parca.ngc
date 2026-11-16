@@ -1,0 +1,143 @@
+%
+( TORNA - EN BUYUK PARCA: UC TAKIM, TAM BOY )
+( Makine: Lathe / BenchLathe. Kutuk: cap 50mm, alindan 76mm islenir. X = YARICAP - G8 )
+( T1 kaba + on finis, T2 finis, T3 kanal + kesme )
+( Profil: R6 kure uc, R6 boyun, R6'dan R12'ye konik, R3 ic radyus, fatura, )
+(         R2 kose, R20 govde + 2 dar kanal, pah, R23.5 govde + genis kanal, Z-75 kesme )
+
+G21 G8 G18 G90 G54
+
+T1 M6
+G43 H1
+S800 M3
+
+( --- alin --- )
+G0 X26.0 Z2.0
+G1 Z0.0 F150
+G1 X-0.5 F80
+G0 Z2.0
+
+( --- kaba: 2.5mm paso, profile 0.3mm pay birakir --- )
+G0 X23.8
+G1 Z-51.70 F150
+G0 X26.0
+G0 Z2.0
+G0 X22.5
+G1 Z-49.48 F150
+G0 X26.0
+G0 Z2.0
+G0 X20.0
+G1 Z-27.66 F150
+G0 X26.0
+G0 Z2.0
+G0 X17.5
+G1 Z-26.72 F150
+G0 X26.0
+G0 Z2.0
+G0 X15.0
+G1 Z-26.70 F150
+G0 X26.0
+G0 Z2.0
+G0 X12.5
+G1 Z-24.78 F150
+G0 X26.0
+G0 Z2.0
+G0 X10.0
+G1 Z-19.12 F150
+G0 X26.0
+G0 Z2.0
+G0 X7.5
+G1 Z-14.12 F150
+G0 X26.0
+G0 Z2.0
+G0 X5.0
+G1 Z-1.98 F150
+G0 X26.0
+G0 Z2.0
+
+( --- on finis: basamaklari temizler, 0.3mm pay --- )
+G0 X0.3 Z2.0
+G1 Z0.0 F120
+G3 X6.3 Z-6.0 I0.0 K-6.0        ( kure uc )
+G1 Z-12.0                       ( boyun )
+G1 X12.3 Z-24.0               ( konik )
+G2 X15.3 Z-27.0 I3.0 K0.0      ( ic radyus )
+G1 X18.3                       ( fatura )
+G3 X20.3 Z-29.0 I0.0 K-2.0     ( kose radyusu )
+G1 Z-46.0                       ( R20 govde )
+G1 X23.8 Z-52.0               ( pah )
+G1 Z-76.0                       ( R23.5 govde )
+G0 X26.0
+G0 Z5.0
+
+M5
+T2 M6
+G43 H2
+S1500 M3
+
+( --- finis: tek surekli kontur --- )
+G0 X0.0 Z2.0
+G1 Z0.0 F60
+G3 X6.0 Z-6.0 I0.0 K-6.0        ( kure uc )
+G1 Z-12.0                       ( boyun )
+G1 X12.0 Z-24.0               ( konik )
+G2 X15.0 Z-27.0 I3.0 K0.0      ( ic radyus )
+G1 X18.0                       ( fatura )
+G3 X20.0 Z-29.0 I0.0 K-2.0     ( kose radyusu )
+G1 Z-46.0                       ( R20 govde )
+G1 X23.5 Z-52.0               ( pah )
+G1 Z-76.0                       ( R23.5 govde )
+G0 X26.0
+G0 Z5.0
+
+M5
+T3 M6
+G43 H3
+S600 M3
+
+( --- dar kanal 1: Z-33..-36, dip R16 --- )
+G0 X26.0 Z-33.0
+G1 X16.0 F40
+G4 P0.3
+G1 Z-36.0 F30
+G0 X26.0
+
+( --- dar kanal 2: Z-39..-42, dip R16 --- )
+G0 Z-39.0
+G1 X16.0 F40
+G4 P0.3
+G1 Z-42.0 F30
+G0 X26.0
+
+( --- genis kanal: Z-58..-68, dip R19, bes dalma + dip temizleme --- )
+G0 Z-58.0
+G1 X19.0 F40
+G4 P0.2
+G0 X26.0
+G0 Z-60.5
+G1 X19.0 F40
+G4 P0.2
+G0 X26.0
+G0 Z-63.0
+G1 X19.0 F40
+G4 P0.2
+G0 X26.0
+G0 Z-65.5
+G1 X19.0 F40
+G4 P0.2
+G0 X26.0
+G0 Z-68.0
+G1 X19.0 F40
+G4 P0.2
+G1 Z-58.0 F30
+G0 X26.0
+
+( --- kesme --- )
+G0 Z-75.0
+G1 X-0.5 F40
+G0 X26.0
+
+M5
+G0 X30.0 Z5.0
+M2
+%

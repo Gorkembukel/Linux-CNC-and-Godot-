@@ -1,0 +1,174 @@
+%
+( 5 EKSEN - CIFT EGIK CAPRAZ TORUS [COMPOUND ANGLE TORUS] )
+( Makine: Trunnion5Axis - 3+2 Dinamik Normal Hizalamali, RTCP YOK )
+( Kutuk: 80 x 80 x 170 mm aluminyum blok. X/Y sifiri ortada, Z0 ust yuzey )
+( A ekseni pivotu: Z_pivot = -120.0 mm )
+( Sag el kurali: +A donusunde Y- tarafi yukselir )
+( T1 = 12 mm parmak freze, kaba. T2 = 4 mm kure freze, ince )
+
+G21 G17 G90 G54
+G64 P0.03
+
+( ========================================================== )
+( 1. ASAMA: KABA SILINDIRIK FORM VE CAPRAZ ON BOSALTMA [T1] )
+( ========================================================== )
+T1 M6
+S8000 M3
+G0 Z150.0
+G0 A0.0 C0.0
+
+( Kaba dis silindir R=37 mm, Z=-10 ile Z-85 arasi )
+#1 = -10.0
+o101 while [#1 GE -85.0]
+  #2 = 0.0
+  G0 X37.0 Y0.0
+  G0 Z5.0
+  G1 Z#1 F500
+  o102 while [#2 LE 360.0]
+    #3 = [37.0 * COS[#2]]
+    #4 = [37.0 * SIN[#2]]
+    G1 X#3 Y#4 F1400
+    #2 = [#2 + 15.0]
+  o102 endwhile
+  G0 Z10.0
+  #1 = [#1 - 6.0]
+o101 endwhile
+
+( Capraz acida [A35 C30] ust ve alt yuzey kaba tiraslama )
+G0 Z150.0
+G0 A35.0 C30.0
+#5 = 15.0
+o103 while [#5 GE -15.0]
+  G0 X-35.0 Y-35.0
+  G0 Z40.0
+  G1 Z#5 F400
+  G1 X35.0 F1200
+  G1 Y35.0 F1200
+  G1 X-35.0 F1200
+  G1 Y-35.0 F1200
+  #5 = [#5 - 5.0]
+o103 endwhile
+G0 Z150.0
+
+( ========================================================== )
+( 2. ASAMA: 5 EKSEN CAPRAZ TORUS INCE ISLEME [T2] )
+( Torus R=22 mm, r=8 mm, r_eff=10 mm [4mm kure freze] )
+( Torus Duzlemi: X'te 35 derece, Z'de 30 derece capraz egik )
+( ========================================================== )
+T2 M6
+S14000 M3
+G0 Z150.0
+G0 A0.0 C0.0
+
+( Sabit Geometrik Parametreler )
+#10 = 22.0      ( Ana Yaricap R )
+#11 = 8.0       ( Tup Yaricapi r )
+#12 = 10.0      ( Efektif Yaricap: r + R_takim = 10.0 mm )
+#13 = -50.0     ( Torus Merkez Z Konumu )
+#14 = -120.0    ( A Ekseni Pivot Z )
+#15 = 35.0      ( Torus Egim Acisi Alfa - X ekseni )
+#16 = 30.0      ( Torus Yonelim Acisi Beta - Z ekseni )
+
+( Poloidal Kesit Acisi u: -110 ile +110 derece arasi )
+#20 = -110.0
+o201 while [#20 LE 110.0]
+
+  ( Toroidal Halka Acisi v: 0 ile 360 derece arasi )
+  #21 = 0.0
+  o202 while [#21 LE 359.0]
+
+    ( 1. Lokal Torus Koordinatlari [Egilmemis Duzlem] )
+    #30 = [[#10 + #12 * COS[#20]] * COS[#21]]   ( X_lokal )
+    #31 = [[#10 + #12 * COS[#20]] * SIN[#21]]   ( Y_lokal )
+    #32 = [#12 * SIN[#20]]                      ( Z_lokal )
+
+    ( 1b. Lokal Yuzey Normal Vektoru )
+    #33 = [COS[#20] * COS[#21]]                 ( Nx_lokal )
+    #34 = [COS[#20] * SIN[#21]]                 ( Ny_lokal )
+    #35 = [SIN[#20]]                            ( Nz_lokal )
+
+    ( 2. Uzayda Capraz Donusum: Once X'te Alfa [35], sonra Z'de Beta [30] )
+    ( Ara koordinatlar Alfa donusu sonrasi )
+    #36 = #30
+    #37 = [#31 * COS[#15] - #32 * SIN[#15]]
+    #38 = [#31 * SIN[#15] + #32 * COS[#15]]
+
+    ( Parca koordinatlari Beta donusu ve Z_merkez ofseti sonrasi )
+    #40 = [#36 * COS[#16] - #37 * SIN[#16]]     ( X_parca )
+    #41 = [#36 * SIN[#16] + #37 * COS[#16]]     ( Y_parca )
+    #42 = [#13 + #38]                           ( Z_parca )
+
+    ( Normal vektorunun uzayda capraz donusumu )
+    #43 = #33
+    #44 = [#34 * COS[#15] - #35 * SIN[#15]]
+    #45 = [#34 * SIN[#15] + #35 * COS[#15]]
+
+    #46 = [#43 * COS[#16] - #44 * SIN[#16]]     ( Nx_parca )
+    #47 = [#43 * SIN[#16] + #44 * COS[#16]]     ( Ny_parca )
+    #48 = #45                                   ( Nz_parca )
+
+    ( 3. Dinamik 5 Eksen A ve C Acilarinin Hesabi )
+    ( Yuzey normalini Y- egilme duzlemine getiren C acisi )
+    #50 = ATAN[#46] / [0.0 - #47]               ( Hedef C Acisi )
+    ( Yuzey normalini Z eksenine hizalayan A acisi )
+    #51 = ACOS[#48]                             ( Hedef A Acisi )
+
+    ( Makine A ekseni limit korumasi: 0 ile 95 derece arasi )
+    o203 if [#51 GT 95.0]
+      #51 = 95.0
+    o203 endif
+
+    ( 4. RTCP Kapali Kinematik Donusum: Once C, Sonra Pivot Z=-120 etrafinda A )
+    ( C donusu sonrasi ara X_c ve Y_c )
+    #52 = [#40 * COS[#50] - #41 * SIN[#50]]     ( X_c )
+    #53 = [#40 * SIN[#50] + #41 * COS[#50]]     ( Y_c )
+    #54 = [#42 - #14]                           ( Z_parca - Z_pivot )
+
+    ( A pivot donusu sonrasi kesin Makine Koordinatlari )
+    #55 = #52                                   ( X_makine )
+    #56 = [#53 * COS[#51] - #54 * SIN[#51]]     ( Y_makine )
+    #57 = [#14 + #53 * SIN[#51] + #54 * COS[#51]] ( Z_makine )
+    #58 = [#57 + 12.0]                          ( Guvenli yaklasma Z )
+
+    ( 5. 3+2 Indekslemeli Kesim Hareketi )
+    G0 Z145.0
+    G0 A#51 C#50
+    G0 X#55 Y#56
+    G0 Z#58
+    G1 Z#57 F400
+    G0 Z#58
+
+    #21 = [#21 + 15.0]
+  o202 endwhile
+
+  #20 = [#20 + 15.0]
+o201 endwhile
+
+( ========================================================== )
+( 3. ASAMA: ORTA DELIK VE ALT BAGLANTI TEMIZLIGI )
+( ========================================================== )
+G0 Z150.0
+G0 A35.0 C30.0
+( Torus merkez deligini capraz eksende tam acma )
+#60 = 25.0
+o301 while [#60 GE -15.0]
+  G0 X0.0 Y0.0
+  G0 Z40.0
+  G1 Z#60 F300
+  #61 = 0.0
+  o302 while [#61 LE 360.0]
+    #62 = [11.0 * COS[#61]]
+    #63 = [11.0 * SIN[#61]]
+    G1 X#62 Y#63 F800
+    #61 = [#61 + 20.0]
+  o302 endwhile
+  G0 Z40.0
+  #60 = [#60 - 5.0]
+o301 endwhile
+
+M5
+G0 Z150.0
+G0 A0.0 C0.0
+G0 X0.0 Y0.0
+M2
+%
