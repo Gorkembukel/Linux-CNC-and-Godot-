@@ -38,6 +38,25 @@ public class LatheRadiusProfile : IMaterialModel
             _radius[i] = stockRadiusMm;
     }
 
+    /// <summary>A bar that already has a shape: radiiMm[0] is at zMin.</summary>
+    public LatheRadiusProfile(float[] radiiMm, float zMin, float stepMm = 0.5f)
+    {
+        ZMin = zMin;
+        ZMax = zMin + (radiiMm.Length - 1) * stepMm;
+        StepMm = stepMm;
+        _radius = radiiMm;
+    }
+
+    /// <summary>The radii from the chuck end up to where the bar ends (the
+    /// first bucket cut through).</summary>
+    public float[] LiveRadii()
+    {
+        int count = 0;
+        while (count < _radius.Length && _radius[count] > SeverEpsilonMm)
+            count++;
+        return _radius[..count];
+    }
+
     public float RadiusAt(int index) => _radius[Mathf.Clamp(index, 0, _radius.Length - 1)];
     public float ZAt(int index) => ZMin + index * StepMm;
 

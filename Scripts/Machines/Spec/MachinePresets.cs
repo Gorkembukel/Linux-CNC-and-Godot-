@@ -15,6 +15,7 @@ public static class MachinePresets
     {
         ("Benchtop 3-axis mill (runs demo_mill_pocket)", BenchtopMill),
         ("Benchtop lathe (runs demo_facing_turning)", BenchtopLathe),
+        ("Benchtop lathe, hands-on chuck setup", HandsOnLathe),
         ("Vertical machining centre, 3-axis C-frame", VerticalMachiningCentre),
         ("Gantry router, 3-axis", GantryRouter),
         ("4-axis VMC with A rotary indexer", FourAxisIndexer),
@@ -82,6 +83,20 @@ public static class MachinePresets
         Tools = TurningTools(),
         Lathe = new LatheStructure { CrossSlideAngleDeg = 60f },
     };
+
+    /// <summary>The benchtop lathe with an empty chuck. The jaws sit at
+    /// machine Z-150 so a bar can stick out well past 100 mm and still be
+    /// clear of the turret where the machine wakes up (X0 Z0), and X homes
+    /// away from the centreline.</summary>
+    public static MachineSpec HandsOnLathe()
+    {
+        var spec = BenchtopLathe();
+        spec.MachineName = "BenchLathe";
+        spec.ManualSetup = true;
+        spec.FindAxis(AxisId.X).Home = 100f;
+        spec.Lathe.StockLengthMm = 185f;
+        return spec;
+    }
 
     public static MachineSpec VerticalMachiningCentre() => new()
     {

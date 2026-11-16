@@ -324,10 +324,11 @@ public partial class OperatorPanel : Control
         row.AddChild(knownDiameterInput);
         row.AddChild(MakeButton("TOUCH OFF X", () =>
         {
-            if (float.TryParse(knownDiameterInput.Text, out float knownDiameter))
+            if (float.TryParse(knownDiameterInput.Text.Replace(',', '.'), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float knownDiameter))
             {
                 float measuredRadius = _bridge.State.Position.X;
-                _bridge.SendMdi($"G10 L1 P{_bridge.State.ToolNumber} X{measuredRadius - knownDiameter / 2f:F4}");
+                _bridge.SendMdi(System.FormattableString.Invariant($"G10 L1 P{_bridge.State.ToolNumber} X{measuredRadius - knownDiameter / 2f:F4}"));
+                ApplyToolOffsetSoon();
             }
         }));
 
@@ -335,13 +336,22 @@ public partial class OperatorPanel : Control
         row.AddChild(knownZInput);
         row.AddChild(MakeButton("TOUCH OFF Z", () =>
         {
-            if (float.TryParse(knownZInput.Text, out float knownZ))
+            if (float.TryParse(knownZInput.Text.Replace(',', '.'), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float knownZ))
             {
                 float measuredZ = _bridge.State.Position.Z;
-                _bridge.SendMdi($"G10 L1 P{_bridge.State.ToolNumber} Z{measuredZ - knownZ:F4}");
+                _bridge.SendMdi(System.FormattableString.Invariant($"G10 L1 P{_bridge.State.ToolNumber} Z{measuredZ - knownZ:F4}"));
+                ApplyToolOffsetSoon();
             }
         }));
         return row;
+    }
+
+    // G10 L1 only rewrites the tool table; the new offset takes effect (and
+    // shows in the work coordinates) at the next G43.
+    private void ApplyToolOffsetSoon()
+    {
+        var bridge = _bridge;
+        GetTree().CreateTimer(0.6).Timeout += () => bridge.SendMdi("G43");
     }
 
     /// <summary>Work zero: with the tool (or edge finder) at a known spot

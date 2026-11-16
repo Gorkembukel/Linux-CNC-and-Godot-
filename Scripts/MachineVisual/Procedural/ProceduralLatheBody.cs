@@ -1,6 +1,7 @@
 using System.Linq;
 using Godot;
 using CncTrainer.Bridge;
+using CncTrainer.Fixtures;
 using CncTrainer.Spec;
 using static CncTrainer.Procedural.BodyParts;
 
@@ -27,6 +28,11 @@ public partial class ProceduralLatheBody : Node3D
     private float _indexAngle = 180f, _targetAngle = 180f;
     private int _toolNumber = int.MinValue;
 
+    /// <summary>With manual setup: the chuck the player loads, its jaw
+    /// front at machine Z = JawFrontZMm.</summary>
+    public JawChuck Chuck { get; private set; }
+    public float JawFrontZMm { get; private set; }
+
     public void Build(MachineSpec spec)
     {
         _spec = spec;
@@ -44,15 +50,26 @@ public partial class ProceduralLatheBody : Node3D
         float headstockH = l.HeadstockHeightMm * M, bedDepth = l.BedDepthMm * M;
         float bedTop = -(chuckR + 0.03f);
 
-        float chuckLength = 0.05f + grip * 0.3f;
-        Cylinder(this, "Chuck", chuckR, chuckLength, new Vector3(zMin - 0.05f + chuckLength / 2f, 0f, 0f), Vector3.Right, Steel);
-        float jawOuter = chuckR * 0.85f;
-        for (int i = 0; i < l.ChuckJawCount; i++)
+        JawFrontZMm = l.StockZMin + l.GripLengthMm;
+        Chuck = null;
+        if (spec.ManualSetup)
         {
-            var jaw = new Node3D { Name = "Jaw", RotationDegrees = new Vector3(i * 360f / l.ChuckJawCount, 0f, 0f) };
-            AddChild(jaw);
-            Box(jaw, "JawBlock", new Vector3(grip * 0.7f, jawOuter - stockR, 0.022f),
-                new Vector3(zMin + grip * 0.65f, (jawOuter + stockR) / 2f, 0f), DarkSteel);
+            Chuck = JawChuck.Create(l.ChuckDiameterMm, l.ChuckJawCount, l.GripLengthMm, l.HeadstockLengthMm);
+            Chuck.Position = new Vector3(JawFrontZMm * M, 0f, 0f);
+            AddChild(Chuck);
+        }
+        else
+        {
+            float chuckLength = 0.05f + grip * 0.3f;
+            Cylinder(this, "Chuck", chuckR, chuckLength, new Vector3(zMin - 0.05f + chuckLength / 2f, 0f, 0f), Vector3.Right, Steel);
+            float jawOuter = chuckR * 0.85f;
+            for (int i = 0; i < l.ChuckJawCount; i++)
+            {
+                var jaw = new Node3D { Name = "Jaw", RotationDegrees = new Vector3(i * 360f / l.ChuckJawCount, 0f, 0f) };
+                AddChild(jaw);
+                Box(jaw, "JawBlock", new Vector3(grip * 0.7f, jawOuter - stockR, 0.022f),
+                    new Vector3(zMin + grip * 0.65f, (jawOuter + stockR) / 2f, 0f), DarkSteel);
+            }
         }
 
         float headstockRight = zMin - 0.05f, bedLeft = headstockRight - l.HeadstockLengthMm * M;

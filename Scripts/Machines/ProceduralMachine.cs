@@ -84,6 +84,7 @@ public partial class ProceduralMachine : Node3D, IMachine
                 StockRadiusMm = l.StockDiameterMm / 2f,
                 StockZMin = l.StockZMin,
                 StockZMax = l.StockZMax,
+                StartEmpty = Spec.ManualSetup,
             };
             _work.AddChild(_workpiece);
             _latheBody = new ProceduralLatheBody { Name = "Body" };
@@ -140,6 +141,12 @@ public partial class ProceduralMachine : Node3D, IMachine
             var parts = new Node3D { Name = "Parts" };
             _work.AddChild(parts);
             _lathe = new LatheCutting(Spec, bridge, _latheBody, _workpiece, chips, parts);
+            if (Spec.ManualSetup)
+            {
+                var workholding = new LatheWorkholding { Name = "Workholding" };
+                AddChild(workholding);
+                workholding.Setup(Spec, _latheBody, _lathe, _workpiece, bridge);
+            }
             bridge.Connect(BridgeClient.SignalName.StateUpdated, Callable.From(_lathe.OnConfirmedState));
         }
     }

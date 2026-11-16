@@ -32,6 +32,8 @@ public partial class WorkpieceVisual : Node3D
     [Export] public float StockRadiusMm = 25.0f;
     [Export] public float StockZMin = -85.0f;
     [Export] public float StockZMax = 5.0f;
+    /// <summary>No stock until SetProfile is called (hands-on setup).</summary>
+    [Export] public bool StartEmpty;
     [Export] public int AngularSegments = 24;
     [Export] public int BucketsPerChunk = 40;
     [Export] public int MaxChunkRebuildsPerCall = 4;
@@ -46,12 +48,13 @@ public partial class WorkpieceVisual : Node3D
 
     public override void _Ready()
     {
-        RebuildFromScratch();
+        SetProfile(StartEmpty ? null : new LatheRadiusProfile(StockRadiusMm, StockZMin, StockZMax));
     }
 
-    private void RebuildFromScratch()
+    /// <summary>Shows this profile from now on; null = no stock.</summary>
+    public void SetProfile(LatheRadiusProfile profile)
     {
-        Profile = new LatheRadiusProfile(StockRadiusMm, StockZMin, StockZMax);
+        Profile = profile;
         _material ??= new StandardMaterial3D
         {
             AlbedoColor = new Color(0.72f, 0.73f, 0.76f),
@@ -59,7 +62,7 @@ public partial class WorkpieceVisual : Node3D
             Roughness = 0.35f,
         };
 
-        int chunkCount = Mathf.Max(1, Mathf.CeilToInt((float)(Profile.BucketCount - 1) / BucketsPerChunk));
+        int chunkCount = profile == null ? 0 : Mathf.Max(1, Mathf.CeilToInt((float)(profile.BucketCount - 1) / BucketsPerChunk));
         _chunkMeshes = new MeshInstance3D[chunkCount];
         _chunkDirty = new bool[chunkCount];
         foreach (var child in GetChildren())

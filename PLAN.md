@@ -1328,3 +1328,50 @@ that save viewport PNGs; headless scenes driving the real code against
 LinuxCNC; `tmp_verify/` (untracked) holds those throwaway scenes. Check
 `pgrep -x linuxcncsvr` in both distros first -- the user is often running
 the game, and a test would kill their session.
+
+## Hands-on setup, phase 4: lathe chuck, caliper, hidden tool error (2026-11-16, branch `hands-on-lathe-and-fixtures`)
+
+- `Scripts/Fixtures/ChuckGrip.cs` (engine-free state: jaw opening, torque
+  0-3, key in/out, bar diameter/length/stick-out), `JawChuck.cs` (the chuck
+  as an `IInteractable`: chuck key in hand + click = key in; with the key in,
+  wheel opens/closes/tightens and click takes the key out; round bar in hand
+  + click = bar in; with loose jaws and no key the wheel slides the bar and
+  click takes it out; caliper in hand reads the diameter where the player
+  looks, spindle stopped), `LatheWorkholding.cs` (bar in the chuck becomes
+  the `LatheRadiusProfile` being cut, at its real stick-out; setup sheet).
+- Consequences: spindle started with the key in the chuck -> key flies,
+  machine off; real cut with torque < 2 or < 15 mm in the jaws -> bar thrown,
+  machine off; tool into the chuck -> crash alarm.
+- Every tool gets a hidden tip error at session start (radius 0.08-0.3 mm,
+  Z 0.1-0.4 mm, random sign). The control does not know it: the first cut is
+  off until the operator measures and uses TOUCH OFF X / Z.
+- After a parting cut the bar in the chuck is shorter; loosening the chuck
+  lets it be pulled out for the next part, keeping its turned shape. Taking a
+  machined bar out gives a "Tornalanmış parça" object.
+- New preset "Benchtop lathe, hands-on chuck setup" and
+  `Scenes/Machines/BenchLathe.tscn` (ports 9200/9201); it replaces
+  `Lathe.tscn` in `Main.tscn`. `Lathe.tscn` itself is untouched.
+
+Verified live on LinuxCNC (`tmp_verify/TmpLathe.cs`, scripted operator):
+face, TOUCH OFF Z, skim at X23 -> caliper Ø48.00, TOUCH OFF X with 48,
+cut at X22 -> Ø44.00; part-off shortens the bar 118 -> 98 mm; key left in
+and loose chuck both stop the machine with the right alarm. 65 C# tests.
+Looked at on screenshots (chuck, key, bar). NOT verified: the keyboard /
+mouse paths (only the methods behind them were called).
+
+**Initiatives taken without asking (user away), phase 4**
+1. The hands-on lathe is a NEW scene/preset; the old hand-written lathe is
+   only removed from `Main.tscn`, not deleted.
+2. Jaw front sits at machine Z-150 (not Z-55 as the old fixed stock implied)
+   and X homes to 100: the machine wakes up at X0 Z0, and with the jaws at
+   Z-55 a bar sticking out more than 55 mm would start inside the turret.
+3. A bar thicker than the spindle bore (30 % of the chuck diameter) goes only
+   as deep as the jaws (30 mm); thinner bars pass into the spindle.
+4. TOUCH OFF X / Z on the 2D panel now send `G43` 0.6 s after the `G10 L1`,
+   so the new offset applies (and shows) at once instead of at the next
+   tool change; the fields accept a decimal comma. Affects the old lathe too.
+5. Setup-sheet ticks: Z zero = work offset Z changed since the bar went in;
+   X = the active tool has a non-zero X offset.
+6. `/usage` cannot be read from inside the session. Instead: commit + push
+   after every step, this file kept current, and an hourly in-session timer
+   (:17) that re-prompts the agent to continue if the work is not finished.
