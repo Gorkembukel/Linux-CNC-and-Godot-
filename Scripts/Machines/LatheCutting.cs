@@ -59,7 +59,10 @@ public sealed class LatheCutting : CuttingProcess
             return;
         }
 
-        if (_lastPosition is Vector2 previous && Tools.Active(s.ToolNumber).Cuts)
+        var mounted = Tools.Active(s.ToolNumber);
+        SetCollision(mounted.Present ? BodyInStock(profile, position, mounted.Spec) : null);
+
+        if (_lastPosition is Vector2 previous && mounted.Cuts)
         {
             float rpm = (float)System.Math.Abs(s.SpindleRpm);
             // From the tip's own travel: the bridge's feed_rate field is the
@@ -72,7 +75,7 @@ public sealed class LatheCutting : CuttingProcess
                 HasCut = true;
                 _workpiece.MarkDirty(result.MinDirtyIndex, result.MaxDirtyIndex);
                 var sample = new CutSample(s.ToolNumber, result.VolumeMm3, seconds, rpm, tipSpeed,
-                    result.DepthOfCutMm, feedPerRev, SurfaceSpeedMmPerSec: 2f * Mathf.Pi * Mathf.Abs(position.X) * rpm / 60f);
+                    result.DepthOfCutMm, feedPerRev, SurfaceSpeedMmPerSec: 2f * Mathf.Pi * Mathf.Abs(position.X) * rpm / 60f, s.Rapid);
                 if (!Report(sample))
                     return;
 
@@ -84,6 +87,25 @@ public sealed class LatheCutting : CuttingProcess
             }
         }
         _lastPosition = position;
+    }
+
+    /// <summary>Why the tool's body (not its cutting edge) is inside the
+    /// bar, or null. An insert reaches 9 mm below its shank, a parting blade
+    /// 30 mm. A turning tool's shank trails the tip on the tailstock side,
+    /// beyond the insert itself (which is what faces off the bar's end).</summary>
+    private static string BodyInStock(LatheRadiusProfile profile, Vector2 tip, ToolSpec tool)
+    {
+        if (tool.Kind is ToolKind.Boring or ToolKind.Drill)
+            return null;
+        bool parting = tool.Kind == ToolKind.Parting;
+        float reach = parting ? 30f : 9f;
+        float from = parting ? tip.Y - 6f : tip.Y + 6f, to = parting ? tip.Y + 6f : tip.Y + 18f;
+        for (float z = Mathf.Max(from, profile.ZMin); z <= Mathf.Min(to, profile.ZMax); z += profile.StepMm)
+            if (profile.RadiusAt(profile.IndexAt(z)) > tip.X + reach + 0.3f)
+                return parting
+                    ? "ÇARPMA: kesme kaleminin gövdesi parçaya çarptı (bıçak boyundan derin kanal)"
+                    : "ÇARPMA: kalemin gövdesi parçaya çarptı (uç bu kadar derine inemez)";
+        return null;
     }
 
     private void ExtractPart(LatheRadiusProfile profile, int severedIndex)

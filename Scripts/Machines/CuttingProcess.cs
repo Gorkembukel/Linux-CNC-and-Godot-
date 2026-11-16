@@ -10,7 +10,7 @@ namespace CncTrainer;
 /// two machine samples and under which conditions.</summary>
 public readonly record struct CutSample(
     int ToolNumber, float VolumeMm3, float Seconds, float SpindleRpm, float FeedMmPerSec,
-    float DepthMm, float FeedPerRevMm, float SurfaceSpeedMmPerSec);
+    float DepthMm, float FeedPerRevMm, float SurfaceSpeedMmPerSec, bool Rapid = false);
 
 /// <summary>
 /// What a lathe and a mill have in common while cutting: confirmed machine
@@ -38,6 +38,8 @@ public abstract class CuttingProcess
     /// <summary>Raised once when a real cut is taken on stock that is not secure.</summary>
     public System.Action CutWhileLoose;
     public event System.Action<CutSample> CutObserved;
+    /// <summary>A part of the machine that does not cut ran into the work.</summary>
+    public event System.Action<string> Collided;
     /// <summary>What is really cutting when the control says tool N.</summary>
     public IToolSource Tools;
 
@@ -82,6 +84,17 @@ public abstract class CuttingProcess
         _removedWhileLoose = 0f;
         CutWhileLoose?.Invoke();
         return false;
+    }
+
+    private bool _colliding;
+
+    /// <summary>Called on every confirmed sample with the reason the
+    /// machine's body is inside the work, or null; reports each collision once.</summary>
+    protected void SetCollision(string reason)
+    {
+        if (reason != null && !_colliding)
+            Collided?.Invoke(reason);
+        _colliding = reason != null;
     }
 
     /// <summary>Different stock is being cut from now on.</summary>

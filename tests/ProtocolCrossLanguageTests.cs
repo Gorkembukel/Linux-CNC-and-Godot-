@@ -18,14 +18,14 @@ public class ProtocolCrossLanguageTests
     // tool_nose_radius=0.4 spindle_enabled=True task_mode=1 interp_state=0
     // exec_state=2 motion_line=42 estop=False machine_on=True in_cycle=True
     // active_axis_mask=0b101 (X|Z) homed_mask=0b101 (X|Z) tool_change_pending=True
-    // work_offset=(40,45,30,0,0,0)
+    // work_offset=(40,45,30,0,0,0) motion_type=1 (traverse) coolant=1 (flood)
     private const string PythonEncodedStatePacketHex =
         "c001090300000000000015cd5b0700000000000000000000294000000000000000000000000000" +
         "403ec0000000000000000000000000000000000000000000000000000000000000f03f00000000" +
         "0000000000000000000000c0000000000000000000000000000000000000000000000000000000" +
         "0000c0624000000000000089400000803f0000803f02000000cdcccc3e010100022a0000000001" +
         "01050501000000000000444000000000008046400000000000003e400000000000000000000000" +
-        "00000000000000000000000000";
+        "000000000000000000000000000101";
 
     [Fact]
     public void Decodes_PythonEncodedStatePacket_Correctly()
@@ -67,6 +67,8 @@ public class ProtocolCrossLanguageTests
         Assert.True(s.ToolChangePending);
         Assert.Equal(40f, s.WorkOffset.X, precision: 4);
         Assert.Equal(30f, s.WorkOffset.Z, precision: 4);
+        Assert.Equal((byte)1, s.MotionTypeRaw);
+        Assert.Equal((byte)1, s.Coolant);
     }
 
     [Fact]

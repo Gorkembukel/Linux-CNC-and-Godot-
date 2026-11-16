@@ -1599,3 +1599,38 @@ every existing program keep their meaning); lathe tools are numbered by
 turret station in the order of the spec's tool list; the mill has no
 magazine logic -- every tool change is by hand at the spindle, as the
 simulated machine already waited for CONFIRM on M6.
+
+### System 3 -- collisions of what does not cut (done)
+
+- STATE packet +2 bytes (210): `motion_type` (LinuxCNC's own; 1 = rapid) and
+  `coolant` (bit 0 flood, bit 1 mist; used by system 5). Both sides, the
+  cross-language fixture and the size test updated. `MachineState.Rapid`,
+  `MachineState.Coolant`.
+- **Rapid into material**: a `CutSample` carries `Rapid`; more than 5 mm3
+  removed during a G0 breaks the tool and trips a crash (mill and lathe).
+- **Mill, holder and spindle nose against the stock**: every confirmed
+  sample checks a ring at the holder's bottom (26 mm radius, at the tool's
+  true length) and at the spindle nose against the voxel field.
+- **Mill, tool and holder against the fixture and the table**: the existing
+  `IStockFixture.ToolCrash` is now asked for the holder too, and
+  `MillTable.ToolCrash` catches the tip going below the table top.
+- **Lathe, tool body against the bar**: an insert reaches 9 mm below its
+  shank, a parting blade 30 mm; a turning tool's shank trails the tip on the
+  tailstock side from 6 mm behind it (the insert itself faces the end off).
+- `CuttingProcess.SetCollision` / `Collided` reports each collision once;
+  `ProceduralMachine` turns it into a `MachineSafety.Trip`.
+
+Verified live: mill G0 Z-2 into the stock -> crash after 34 mm3; a 6 mm x
+50 mm cutter sent 55 mm down -> "takım tutucu parçaya çarptı" at 50 mm
+(1463 mm3 removed, the hole's own volume is 1413); tip 3 mm below the table
+top beside the stock -> "takım tablaya girdi"; lathe turning tool plunged
+17 mm into the bar 20 mm from its end -> "kalemin gövdesi parçaya çarptı";
+lathe G0 into the bar end -> crash; the normal lathe scenario (face, skim,
+measure, cut, part off) and the mill slot / plate scenarios run clean.
+
+The lathe live scenario had been "facing" 21 mm inside the bar (the script
+assumed a shorter stick-out); the new shank check caught it. The script now
+faces 1 mm in, as an operator would.
+
+**Not modelled:** turret / tailstock / enclosure collisions, the mill head
+against the vise body sideways, boring bars and drills on the lathe.

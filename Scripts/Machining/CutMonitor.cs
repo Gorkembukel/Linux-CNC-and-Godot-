@@ -19,6 +19,7 @@ public sealed class CutMonitor
     private const float AveragingSeconds = 0.5f;
     private const float StallAfterSeconds = 0.5f;
     private const float StoppedSpindleVolumeMm3 = 15f;
+    private const float RapidVolumeMm3 = 5f;
     private const float IdleBelowMm3PerSec = 0.5f;
     private const double WarnEverySeconds = 6.0;
 
@@ -28,7 +29,7 @@ public sealed class CutMonitor
 
     private CutSample _last;
     private float _pendingVolume, _removalRate, _surfaceSpeed;
-    private float _overloadSeconds, _rubbingSeconds, _stoppedVolume;
+    private float _overloadSeconds, _rubbingSeconds, _stoppedVolume, _rapidVolume;
     private double _sinceCut = 999.0, _sinceWarning = 999.0;
 
     /// <summary>The verdict on the cutting going on now; empty when idle.</summary>
@@ -59,6 +60,16 @@ public sealed class CutMonitor
         _last = sample;
         _sinceCut = 0.0;
         _pendingVolume += sample.VolumeMm3;
+
+        // A rapid move is not a cut: whatever it meets, it hits.
+        _rapidVolume = sample.Rapid ? _rapidVolume + sample.VolumeMm3 : 0f;
+        if (_rapidVolume > RapidVolumeMm3)
+        {
+            _rapidVolume = 0f;
+            _cutting.Tools.Active(sample.ToolNumber).State?.Break();
+            _safety.Trip(IncidentKind.Crash, "ÇARPMA: hızlı hareketle (G0) malzemeye girildi, takım kırıldı");
+            return;
+        }
 
         if (Mathf.Abs(sample.SpindleRpm) >= 1f)
         {

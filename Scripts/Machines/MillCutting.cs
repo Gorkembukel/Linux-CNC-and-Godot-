@@ -65,6 +65,8 @@ public sealed class MillCutting : CuttingProcess
         // further from the spindle than the control thinks.
         var pose = new Transform3D(inStock.Basis, inStock.Origin / WorldScale.MmToM - inStock.Basis.Y.Normalized() * mounted.ErrorMm.Y);
 
+        SetCollision(mounted.Present ? BodyInStock(pose, tool.LengthMm + mounted.ErrorMm.Y) : null);
+
         if (tool?.Kind == ToolKind.EdgeFinder)
         {
             // A ring around the tip, 2 mm up: the deepest point of it inside the stock.
@@ -99,12 +101,32 @@ public sealed class MillCutting : CuttingProcess
                 var sample = new CutSample(s.ToolNumber, result.VolumeMm3, seconds, rpm, tipSpeed,
                     DepthMm: Mathf.Min(cutter.LengthMm, result.VolumeMm3 / (cutter.RadiusMm * 2f * travel)),
                     FeedPerRevMm: Mathf.Abs(rpm) > 1f ? tipSpeed * 60f / Mathf.Abs(rpm) : 0f,
-                    SurfaceSpeedMmPerSec: 2f * Mathf.Pi * cutter.RadiusMm * Mathf.Abs(rpm) / 60f);
+                    SurfaceSpeedMmPerSec: 2f * Mathf.Pi * cutter.RadiusMm * Mathf.Abs(rpm) / 60f, s.Rapid);
                 if (!Report(sample))
                     return;
             }
         }
         _lastPose = pose;
+    }
+
+    private const float HolderRadiusMm = 26f;
+
+    /// <summary>Why the tool holder or the spindle nose is inside the stock,
+    /// or null. Pose: tool tip in the stock's frame (mm), Y along the tool.</summary>
+    private string BodyInStock(Transform3D pose, float toolLengthMm)
+    {
+        float noseRadius = Spec.Mill.SpindleHousingDiameterMm * 0.375f;
+        float noseHeight = toolLengthMm + ToolMeshBuilder.HolderLength / WorldScale.MmToM;
+        for (int i = 0; i < 12; i++)
+        {
+            float angle = Mathf.Tau * i / 12f;
+            var around = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
+            if (_stock.Stock.SampleDistance(pose * (around * HolderRadiusMm + Vector3.Up * (toolLengthMm + 1f))) > 0.3f)
+                return "ÇARPMA: takım tutucu parçaya çarptı (takımın boyu bu derinliğe yetmiyor)";
+            if (_stock.Stock.SampleDistance(pose * (around * noseRadius + Vector3.Up * (noseHeight + 1f))) > 0.3f)
+                return "ÇARPMA: iş mili gövdesi parçaya çarptı";
+        }
+        return null;
     }
 
     /// <summary>Gap between the tool tip and the stock straight below it

@@ -1,6 +1,6 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://csibpo1is3et"]
 
-[ext_resource type="Script" path="res://Scripts/Workshop/FixtureCart.cs" id="1"]
+[ext_resource type="Script" uid="uid://481mtdbubljt" path="res://Scripts/Workshop/FixtureCart.cs" id="1"]
 
-[node name="FixtureCart" type="Node3D"]
+[node name="FixtureCart" type="Node3D" unique_id=114776740]
 script = ExtResource("1")

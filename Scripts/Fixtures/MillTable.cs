@@ -38,6 +38,12 @@ public partial class MillTable : StaticBody3D, IInteractable
     public IEnumerable<float> SlotsNear(params float[] wanted) =>
         wanted.Select(w => _slotZ.OrderBy(z => Mathf.Abs(z - w)).First()).Distinct();
 
+    /// <summary>Why a tool with its tip here (table frame) is in the table, or null.</summary>
+    public string ToolCrash(Vector3 tip, float radius) =>
+        tip.Y < -0.0005f && Mathf.Abs(tip.X) < _halfX + radius && Mathf.Abs(tip.Z) < _halfZ + radius
+            ? "ÇARPMA: takım tablaya girdi"
+            : null;
+
     private string OnChips => Dirty ? " (tabla talaşlı: önce fırçayla temizle)" : "";
 
     public string Prompt(PlayerController player)

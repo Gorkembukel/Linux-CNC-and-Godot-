@@ -150,6 +150,7 @@ public partial class ProceduralMachine : Node3D, IMachine
             }
         }
         Rig.Monitor = new Machining.CutMonitor(Spec, Cutting, Safety);
+        Cutting.Collided += reason => Safety.Trip(IncidentKind.Crash, reason);
         bridge.Connect(BridgeClient.SignalName.StateUpdated, Callable.From(Cutting.OnConfirmedState));
     }
 

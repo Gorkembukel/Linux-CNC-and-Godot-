@@ -33,6 +33,11 @@ public class MachineState
     /// program's X/Y/Z words refer to.</summary>
     public AxisVector WorkPosition => Position - WorkOffset;
 
+    /// <summary>The move in progress is a rapid traverse (G0).</summary>
+    public bool Rapid;
+    /// <summary>Flood (M8) or mist (M7) coolant is on.</summary>
+    public bool Coolant;
+
     public ulong LastSeq;
     public long LastTMonoNs;
     public ulong SampleCount;
@@ -65,6 +70,8 @@ public class MachineState
         InCycle = s.InCycle;
         ToolChangePending = s.ToolChangePending;
         WorkOffset = s.WorkOffset;
+        Rapid = s.MotionTypeRaw == 1;
+        Coolant = s.Coolant != 0;
 
         LastSeq = header.Seq;
         LastTMonoNs = header.TMonoNs;

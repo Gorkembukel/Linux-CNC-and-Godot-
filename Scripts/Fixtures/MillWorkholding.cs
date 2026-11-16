@@ -200,17 +200,31 @@ public partial class MillWorkholding : MachineSetup
         Throw(part, reason);
     }
 
-    /// <summary>The cutter running into the fixture's own hardware.</summary>
+    /// <summary>The tool, or the holder above it, running into the
+    /// fixture's own hardware or into the table.</summary>
     private void CheckFixtureCrash(IStockFixture fixture)
     {
         string reason = null;
-        if (fixture is Node3D node && Spindle.Active(0).Spec is ToolSpec tool)
+        if (Spindle.Active(0) is { Present: true } mounted)
         {
-            var tip = node.GlobalTransform.AffineInverse() * (_body.WorkEnd.GlobalTransform * _cutting.ToolInWork(Bridge.State.Position).Origin);
-            reason = fixture.ToolCrash(tip, tool.DiameterMm / 2f * M);
+            float radius = mounted.Spec.DiameterMm / 2f * M;
+            float length = (mounted.Spec.LengthMm + mounted.ErrorMm.Y) * M;
+            var tool = _body.WorkEnd.GlobalTransform * _cutting.ToolInWork(Bridge.State.Position);
+            Vector3 tip = tool * new Vector3(0f, -mounted.ErrorMm.Y * M, 0f), holder = tool * new Vector3(0f, length, 0f);
+
+            if (fixture is Node3D node)
+            {
+                var toFixture = node.GlobalTransform.AffineInverse();
+                reason = fixture.ToolCrash(toFixture * tip, radius)
+                         ?? (fixture.ToolCrash(toFixture * holder, HolderRadius) != null ? "ÇARPMA: takım tutucu bağlama aparatına çarptı" : null);
+            }
+            if (reason == null && Table != null)
+                reason = Table.ToolCrash(Table.GlobalTransform.AffineInverse() * tip, radius);
         }
         if (reason != null && !_crashed)
             Safety.Trip(IncidentKind.Crash, reason);
         _crashed = reason != null;
     }
+
+    private const float HolderRadius = 0.026f;
 }

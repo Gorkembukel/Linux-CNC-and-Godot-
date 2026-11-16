@@ -102,6 +102,7 @@ public struct StateSample
     public byte ActiveAxisMask, HomedMask;
     public bool ToolChangePending;
     public AxisVector WorkOffset;
+    public byte MotionTypeRaw, Coolant;
 
     public bool IsHomed(AxisId axis) => (HomedMask & (1 << (int)axis)) != 0;
     public bool HasAxis(AxisId axis) => (ActiveAxisMask & (1 << (int)axis)) != 0;
@@ -132,6 +133,8 @@ public struct StateSample
             HomedMask = r.ReadByte(),
             ToolChangePending = r.ReadByte() != 0,
             WorkOffset = ReadAxes(r),
+            MotionTypeRaw = r.ReadByte(),
+            Coolant = r.ReadByte(),
         };
     }
 

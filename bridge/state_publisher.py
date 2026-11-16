@@ -86,6 +86,8 @@ class StatePublisher:
             tool_change_pending=bool(self.tool_change_pending()),
             work_offset=tuple(self.stat.g5x_offset[i] + self.stat.g92_offset[i] + self.stat.tool_offset[i]
                               for i in range(AXIS_CAPACITY)),
+            motion_type=int(self.stat.motion_type),
+            coolant=(1 if self.stat.flood else 0) | (2 if self.stat.mist else 0),
         )
 
     def publish_once(self) -> None:
