@@ -22,6 +22,9 @@ public sealed class CutMonitor
     private const float RapidVolumeMm3 = 5f;
     private const float IdleBelowMm3PerSec = 0.5f;
     private const double WarnEverySeconds = 6.0;
+    private const double DryWarnEverySeconds = 40.0;
+    /// <summary>Wear with coolant running, relative to cutting dry.</summary>
+    public const float CoolantWearFactor = 0.4f;
 
     private readonly MachineSpec _spec;
     private readonly CuttingProcess _cutting;
@@ -30,7 +33,7 @@ public sealed class CutMonitor
     private CutSample _last;
     private float _pendingVolume, _removalRate, _surfaceSpeed;
     private float _overloadSeconds, _rubbingSeconds, _stoppedVolume, _rapidVolume;
-    private double _sinceCut = 999.0, _sinceWarning = 999.0;
+    private double _sinceCut = 999.0, _sinceWarning = 999.0, _sinceDryWarning = 999.0;
 
     /// <summary>The verdict on the cutting going on now; empty when idle.</summary>
     public CutLoad Load { get; private set; }
@@ -98,6 +101,7 @@ public sealed class CutMonitor
     public void Tick(double delta)
     {
         _sinceWarning += delta;
+        _sinceDryWarning += delta;
         _sinceCut += delta;
         float dt = (float)delta;
         if (dt <= 0f)
@@ -149,6 +153,12 @@ public sealed class CutMonitor
         {
             _safety.Trip(IncidentKind.ToolBroken, $"TAKIM BİTTİ: {Name(tool)} köreldi ve kırıldı. Takımı değiştir");
             return;
+        }
+
+        if (WearFactor >= 1f && _cutting.Material == MaterialKind.Steel && _sinceCut < 0.1 && _sinceDryWarning > DryWarnEverySeconds)
+        {
+            _sinceDryWarning = 0.0;
+            _safety.Warn("Çelik kuru kesiliyor: soğutma sıvısını aç (M8), takım daha yavaş körelir");
         }
 
         // Feed ramps through "too fine" at the start and end of every move.

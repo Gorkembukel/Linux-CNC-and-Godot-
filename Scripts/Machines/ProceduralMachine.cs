@@ -170,7 +170,11 @@ public partial class ProceduralMachine : Node3D, IMachine
         }
 
         Cutting?.Process(delta);
-        Rig?.Monitor?.Tick(delta);
+        if (Rig?.Monitor is { } monitor)
+        {
+            monitor.WearFactor = Rig.Bridge.State.Coolant ? Machining.CutMonitor.CoolantWearFactor : 1f;
+            monitor.Tick(delta);
+        }
 
         if (Cutting is MillCutting mill && OS.HasEnvironment("CNC_DEBUG_PRINT"))
         {

@@ -64,6 +64,8 @@ public partial class MillWorkholding : MachineSetup
         body.ToolEnd.AddChild(Spindle);
         cutting.Tools = Spindle;
 
+        AddDoor(body, body.DoorOpening);
+
         cutting.IsSecure = () => Fixture?.HoldsFirmly ?? true;
         cutting.CutWhileLoose = ThrowPart;
     }
@@ -114,6 +116,7 @@ public partial class MillWorkholding : MachineSetup
         else if (_cutting.HasStock)
             _cutting.ClearStock();
 
+        CheckDoorInterlock();
         CheckFixtureCrash(fixture);
         if (Chuck != null)
             CheckKeyLeftIn(Chuck, Mathf.Abs(Bridge.State.Velocity.A) > 0.01f, "ÇARPMA: ayna anahtarı aynada unutuldu, döner eksen çalıştı");

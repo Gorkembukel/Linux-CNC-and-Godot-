@@ -304,4 +304,6 @@ public partial class BridgeClient : Node
     public void ResetEstop() => SendCommand(CommandKind.EstopReset);
     public void MachineOn() => SendCommand(CommandKind.MachineOn);
     public void MachineOff() => SendCommand(CommandKind.MachineOff);
+    /// <summary>The machine forgets where it is: every axis must be homed again.</summary>
+    public void Unhome() => SendCommand(CommandKind.Unhome);
 }

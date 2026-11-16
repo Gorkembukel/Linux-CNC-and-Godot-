@@ -18,6 +18,13 @@ public static class BodyParts
     public static StandardMaterial3D Steel => Mat(new Color(0.55f, 0.56f, 0.58f), 0.85f, 0.3f);
     public static StandardMaterial3D DarkSteel => Mat(new Color(0.2f, 0.2f, 0.22f), 0.7f, 0.45f);
 
+    public static StandardMaterial3D CoolantLook() => new()
+    {
+        AlbedoColor = new Color(0.75f, 0.9f, 1f, 0.55f),
+        Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+        Roughness = 0.05f,
+    };
+
     public static MeshInstance3D Box(Node3D parent, string name, Vector3 size, Vector3 center, Godot.Material material)
     {
         var mesh = new MeshInstance3D { Name = name, Mesh = new BoxMesh { Size = size }, MaterialOverride = material, Position = center };

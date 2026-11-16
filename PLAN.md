@@ -1667,3 +1667,63 @@ bench and is named "Tornalanmış parça (yüzey temiz)". 80 C# tests.
 tolerances) belongs to the training-scenario mode, which is not started;
 everything it needs to read is now available through `IMeasurable`,
 `MachineSafety.Incidents` and `CutMonitor`.
+
+### System 5 -- safety and machine routine (done)
+
+- **Door** (`MachineDoor`, enclosed machines with hands-on setup): closes
+  the enclosure's open front; closed, nothing behind it can be reached (its
+  collider stops the crosshair ray); it starts open. Starting the spindle or
+  a program in AUTO with the door open trips an `Interlock` incident; while
+  the machine runs the door is locked. MDI moves and jogging with the door
+  open are allowed (setup). `MachineSetup.AddDoor` / `CheckDoorInterlock`
+  serve both machine kinds; the bodies expose `DoorOpening`.
+- **Coolant**: `M8` / `M7` / `M9` come back in the state packet; a stream
+  shows at the tool; wear runs at 0.4x while it is on
+  (`CutMonitor.CoolantWearFactor`); cutting steel dry earns a reminder every
+  40 s. The 2D panel has COOLANT M8 / M9 buttons.
+- **A crash costs the reference**: `MachineSafety.Trip(Crash, ...)` also
+  sends the new `UNHOME` command (19; `cmd.unhome(-1)` once the drives are
+  off), and says so. LinuxCNC itself then refuses MDI and AUTO until the
+  machine is switched on and homed again.
+- Open machines (bench mill, bench lathe) have no guard or door.
+
+Verified live: 5-axis trunnion, door open, `S3000 M3` -> "KAPI AÇIK", machine
+off, still homed; door closed -> the plate scenario runs as before; rapid
+into the stock -> crash and X/Y/Z unhomed two seconds later; steel at 1.93x
+speed with M8 -> wear 6 % / 13 % against 13 % / 30 % dry.
+
+## RESUME HERE (2026-11-16) -- Realism systems 1-5 DONE
+
+Branch `cutting-realism` (pushed; on top of `hands-on-lathe-and-fixtures`;
+nothing merged). Done in this branch: the shared foundation (step 0) and
+systems 1-5 above, each verified through scripted operators on real
+LinuxCNC. 80 C# tests, 12 pytest (+2 LinuxCNC lifecycle tests not re-run).
+
+What only the user can check: every keyboard / mouse path. New ones in this
+branch: loading tools from the tool cart into the spindle / turret, the
+length gauge, micrometer and depth gauge readings under the crosshair, the
+enclosure door, the COOLANT buttons.
+
+A session now starts with EMPTY spindles and turrets and (enclosed machine)
+an OPEN door: load tools from the blue tool cart first.
+
+Open, in the order they came up:
+1. User decision: delete the legacy hand-written lathe / mill code path
+   (`LatheMachine`, `MillMachine`, `MachineBody`, `MillBody`,
+   `MillHeightmap`, `MillStockVisual`, `Lathe.tscn`, `Mill.tscn`)?
+2. Training / scenario mode (work order, drawing with tolerances, report
+   card). Its inputs exist now: `IMeasurable`, `MachineSafety.Incidents`,
+   `CutMonitor` (peak load, chatter, wear).
+3. Not modelled yet: turret / tailstock / enclosure collisions, guards on
+   the open bench machines, sound, tool magazine logic, boring and drilling
+   on the lathe, persistence of cut parts across a restart.
+4. The eleven demo programs still have not been run end to end live.
+
+Harnesses (untracked `tmp_verify/`): `TmpLathe` (ok, keyin, loose, stall,
+shank, rapid), `TmpFix` (tram, clamps, clampsloose, clampscrash, plate,
+door, chuck, chuckkey, snap, nospindle, wear, wearcool, toollen, wrongtool,
+empty, rapid, holder, table, vol), `TmpLook` (windowed screenshots).
+`run_scene.ps1 -Scene tmp_fix -Scenarios a,b` runs them on ports 9210/9211.
+CAUTION: `look.ps1 -Scenario main` loads the real `Main.tscn` on the real
+ports and would take over a session the user has open; and a harness killed
+on timeout leaves its Godot child process behind (kill it by PID).

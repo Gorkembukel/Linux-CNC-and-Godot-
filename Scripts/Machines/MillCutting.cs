@@ -148,6 +148,7 @@ public sealed class MillCutting : CuttingProcess
         _body.SetPose(position);
         var mounted = Tools.Active(Bridge.State.ToolNumber);
         _body.ShowTool(mounted.Cuts ? mounted.Spec : null, mounted.ErrorMm.Y);
+        _body.SetCoolant(Bridge.State.Coolant);
         _stock?.RebuildDirtyChunks();
         return _kinematics.ToolTransform(position).Origin;
     }

@@ -272,6 +272,8 @@ public partial class OperatorPanel : Control
         row.AddChild(MakeButton("STOP", () => _bridge.StopProgram()));
         row.AddChild(MakeButton("STEP", () => _bridge.StepProgram()));
         row.AddChild(MakeButton("CONFIRM TC", () => _bridge.ConfirmToolChange()));
+        row.AddChild(MakeButton("COOLANT M8", () => _bridge.SendMdi("M8")));
+        row.AddChild(MakeButton("M9", () => _bridge.SendMdi("M9")));
         return row;
     }
 

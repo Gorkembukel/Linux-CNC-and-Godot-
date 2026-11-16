@@ -40,6 +40,9 @@ public partial class ProceduralMillBody : Node3D
     public float TableSizeX { get; private set; }
     public float TableSizeZ { get; private set; }
     public float[] SlotZ { get; private set; }
+    /// <summary>The enclosure's open front (centre and size, this body's
+    /// frame), null on an open machine.</summary>
+    public (Vector3 Centre, Vector2 Size)? DoorOpening { get; private set; }
 
     public void Build(MachineSpec spec)
     {
@@ -301,7 +304,10 @@ public partial class ProceduralMillBody : Node3D
             foreach (float side in new[] { -1f, 1f })
                 SolidBox(this, "EnclosureSide", new Vector3(0.02f, height, d), new Vector3(side * w / 2f, midY, baseCenterZ), sheet);
             Box(this, "EnclosureRoof", new Vector3(w, 0.02f, d), new Vector3(0f, top, baseCenterZ), sheet);
+            DoorOpening = (new Vector3(0f, midY, baseCenterZ + d / 2f), new Vector2(w, height));
         }
+        else
+            DoorOpening = null;
 
         SetPose(AxisVector.Zero);
         SetTool(spec.Tools.FirstOrDefault(t => t != null)?.Number ?? 0);
@@ -346,6 +352,20 @@ public partial class ProceduralMillBody : Node3D
             Cylinder(parent, "Pocket", 0.016f, 0.07f,
                 center + new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * (radius - 0.025f) + Vector3.Down * 0.06f, Vector3.Up, DarkSteel);
         }
+    }
+
+    private MeshInstance3D _coolant;
+
+    /// <summary>Shows or hides the coolant stream at the tool.</summary>
+    public void SetCoolant(bool on)
+    {
+        if (_coolant == null)
+        {
+            if (!on)
+                return;
+            _coolant = Cylinder(_spindle, "Coolant", 0.004f, 0.12f, new Vector3(0.03f, -0.06f, 0f), new Vector3(-0.35f, 1f, 0f), CoolantLook());
+        }
+        _coolant.Visible = on;
     }
 
     /// <summary>Shows the edge finder's tip jumping sideways on contact.</summary>

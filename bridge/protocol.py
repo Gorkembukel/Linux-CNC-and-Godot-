@@ -80,6 +80,7 @@ class CommandKind(IntEnum):
     ESTOP_RESET = 16
     MACHINE_ON = 17
     MACHINE_OFF = 18
+    UNHOME = 19  # the machine has lost its reference (after a crash)
 
 
 # position velocity (f64 x AXIS_CAPACITY*2) | feed_rate spindle_rpm (f64 x2)

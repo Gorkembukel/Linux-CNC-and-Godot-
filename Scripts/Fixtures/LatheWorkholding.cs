@@ -51,6 +51,7 @@ public partial class LatheWorkholding : MachineSetup
         Turret.Changed += pocket => body.SetStationTool(pocket, Turret.Pocket(pocket)?.Spec);
         body.CrossSlide.AddChild(Turret);
         cutting.Tools = Turret;
+        AddDoor(body, body.DoorOpening);
         cutting.IsSecure = () => Chuck.HoldsFirmly;
         cutting.CutWhileLoose = () =>
         {
@@ -138,6 +139,7 @@ public partial class LatheWorkholding : MachineSetup
         var s = Bridge.State;
         float rpm = (float)System.Math.Abs(s.SpindleRpm);
         Chuck.Spin(Mathf.Min(rpm * 6f, MaxSpinDegPerSec) * (float)delta);
+        CheckDoorInterlock();
         CheckKeyLeftIn(Chuck, rpm > 1f, "AYNA ANAHTARI FIRLADI: anahtar aynada unutuldu, iş mili çalıştırıldı");
 
         var tip = _cutting.TipAt(s.Position, s.ToolNumber);

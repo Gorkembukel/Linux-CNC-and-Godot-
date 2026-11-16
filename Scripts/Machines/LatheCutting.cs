@@ -129,6 +129,7 @@ public sealed class LatheCutting : CuttingProcess
         int tool = Bridge.State.ToolNumber;
         var position = TipAt(Bridge.Prediction.VisualPosition, tool);
         _body.SetPose(position.Y, position.X, tool, delta);
+        _body.SetCoolant(Bridge.State.Coolant);
         _workpiece.RebuildDirtyChunks();
         return _body.TipLocal(position.Y, position.X);
     }

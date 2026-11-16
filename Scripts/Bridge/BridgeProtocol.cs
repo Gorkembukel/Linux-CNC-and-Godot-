@@ -43,6 +43,7 @@ public enum CommandKind : byte
     EstopReset = 16,
     MachineOn = 17,
     MachineOff = 18,
+    Unhome = 19,
 }
 
 public readonly struct PacketHeader

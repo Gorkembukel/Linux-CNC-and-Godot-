@@ -30,14 +30,19 @@ public sealed class MachineSafety
         _bridge = bridge;
     }
 
-    /// <summary>Stops the program, the spindle and the drives.</summary>
+    /// <summary>Stops the program, the spindle and the drives. A crash
+    /// also costs the machine its reference: it has to be homed again.</summary>
     public void Trip(IncidentKind kind, string text)
     {
+        if (kind == IncidentKind.Crash)
+            text += "\nReferans kayboldu: makineyi aç, HOME ALL";
         var incident = new Incident(kind, text, Time.GetTicksMsec() / 1000.0);
         _incidents.Add(incident);
         _bridge.StopProgram();
         _bridge.SpindleOff();
         _bridge.MachineOff();
+        if (kind == IncidentKind.Crash)
+            _bridge.Unhome();
         PlayerController.Notify(_owner, text);
         Tripped?.Invoke(incident);
     }

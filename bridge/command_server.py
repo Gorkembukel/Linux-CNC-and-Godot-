@@ -117,6 +117,11 @@ class CommandServer:
             self.cmd.state(linuxcnc.STATE_ON)
         elif kind == CommandKind.MACHINE_OFF:
             self.cmd.state(linuxcnc.STATE_OFF)
+        elif kind == CommandKind.UNHOME:
+            # Motion only lets go of the reference once the drives are off.
+            # (The MACHINE_OFF sent just before this needs a moment to land.)
+            time.sleep(0.3)
+            self.cmd.unhome(-1)
         else:
             raise ValueError(f"unknown command_kind {kind}")
 

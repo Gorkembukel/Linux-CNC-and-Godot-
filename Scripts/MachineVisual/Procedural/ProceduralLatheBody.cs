@@ -41,6 +41,9 @@ public partial class ProceduralLatheBody : Node3D
     /// front at machine Z = JawFrontZMm.</summary>
     public JawChuck Chuck { get; private set; }
     public float JawFrontZMm { get; private set; }
+    /// <summary>The enclosure's open front (centre and size, this body's
+    /// frame), null on an open machine.</summary>
+    public (Vector3 Centre, Vector2 Size)? DoorOpening { get; private set; }
 
     public void Build(MachineSpec spec)
     {
@@ -167,7 +170,10 @@ public partial class ProceduralLatheBody : Node3D
             SolidBox(this, "EnclosureLeft", new Vector3(0.02f, height, depth), new Vector3(left, midY, 0f), sheet);
             SolidBox(this, "EnclosureRight", new Vector3(0.02f, height, depth), new Vector3(right, midY, 0f), sheet);
             Box(this, "EnclosureRoof", new Vector3(right - left, 0.02f, depth), new Vector3((right + left) / 2f, top, 0f), sheet);
+            DoorOpening = (new Vector3((right + left) / 2f, midY, depth / 2f), new Vector2(right - left, height));
         }
+        else
+            DoorOpening = null;
 
         SetPose(0f, (xAxis?.MaxLimit ?? 100f) * 0.5f, tools.FirstOrDefault()?.Number ?? 0, 0.0);
     }
@@ -208,6 +214,20 @@ public partial class ProceduralLatheBody : Node3D
         RefreshStation(index);
         if (index == _activeStation)
             RefreshPost();
+    }
+
+    private MeshInstance3D _coolant;
+
+    /// <summary>Shows or hides the coolant stream at the tool.</summary>
+    public void SetCoolant(bool on)
+    {
+        if (_coolant == null)
+        {
+            if (!on)
+                return;
+            _coolant = Cylinder(_crossSlide, "Coolant", 0.004f, 0.1f, new Vector3(0.03f, 0.04f, 0f), new Vector3(0.5f, 1f, 0f), CoolantLook());
+        }
+        _coolant.Visible = on;
     }
 
     /// <summary>Where the tool tip is in this body's frame (metres).</summary>
