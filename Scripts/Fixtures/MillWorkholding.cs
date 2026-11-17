@@ -32,6 +32,7 @@ public partial class MillWorkholding : MachineSetup
     private ProceduralMillBody _body;
     private MillCutting _cutting;
     private Transform3D _mountedAt;
+    private Workshop.StockItem _mountedStock;
     private double _removedAtMount;
     private bool _crashed;
     private bool _edgeTouching, _edgeBroken;
@@ -92,15 +93,27 @@ public partial class MillWorkholding : MachineSetup
         var seat = fixture?.Seat;
         var stock = seat?.Stock;
 
-        if (stock != null && seat.MachinedPart == null)
+        if (stock != null && stock != _mountedStock && seat.MachinedPart != null)
         {
+            _mountedStock = stock;
+            _cutting.Material = stock.Blank.Material;
+            _cutting.PartFinished?.Invoke();
+            _removedAtMount = _cutting.RemovedMm3;
+            _mountedAt = default;
+            _offsetAtPlacement = Bridge.State.WorkOffset;
+        }
+        else if (stock != null && seat.MachinedPart == null)
+        {
+            _mountedStock = stock;
             var blank = stock.Blank;
             bool block = blank.Shape == StockShape.Block;
             var size = block ? new Vector3(blank.SizeMm.X, blank.SizeMm.Z, blank.SizeMm.Y) : new Vector3(blank.LengthMm, blank.DiameterMm, blank.DiameterMm);
             float step = VoxelStock.StepFor(size, Spec.Mill.VoxelStepMm, 6_000_000);
             var visual = new VoxelStockVisual { Name = "Machined", Position = new Vector3(0f, blank.BoundsM.Y / 2f, 0f) };
             stock.AddChild(visual);
-            visual.Build(block ? VoxelStock.Block(size.X, size.Y, size.Z, step) : VoxelStock.CylinderAlongX(size.X, size.Y, step));
+            visual.Build(block ? VoxelStock.Block(size.X, size.Y, size.Z, step)
+                : stock.Turned is { } turned ? VoxelStock.Revolved(turned.RadiiMm, turned.InnerMm, turned.StepMm, step)
+                : VoxelStock.CylinderAlongX(size.X, size.Y, step));
             seat.ShowMachined(visual);
             _cutting.Material = blank.Material;
             _cutting.PartFinished?.Invoke();
@@ -127,8 +140,12 @@ public partial class MillWorkholding : MachineSetup
                     Table.Dirty = true;
             }
         }
-        else if (_cutting.HasStock)
-            _cutting.ClearStock();
+        else
+        {
+            _mountedStock = null;
+            if (_cutting.HasStock)
+                _cutting.ClearStock();
+        }
 
         CheckDoorInterlock();
         RunToolChanger(delta);

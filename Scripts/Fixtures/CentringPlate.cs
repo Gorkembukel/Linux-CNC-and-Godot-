@@ -47,7 +47,7 @@ public partial class CentringPlate : BoltedFixture, IInteractable, IStockFixture
 
     private void Refresh()
     {
-        float half = Seat.Occupied ? Seat.Stock.Blank.BoundsM.Z / 2f : 0.06f;
+        float half = Seat.Occupied ? Seat.ExtentsM.Z / 2f : 0.06f;
         for (int i = 0; i < 2; i++)
             _jaws[i].Position = new Vector3(0f, Thickness + JawHeight / 2f, (i == 0 ? -1f : 1f) * (half + 0.01f));
     }
@@ -60,13 +60,17 @@ public partial class CentringPlate : BoltedFixture, IInteractable, IStockFixture
         Transform = Transform3D.Identity;
     }
 
-    private static bool Fits(StockItem item) =>
-        item.Blank.Shape == StockShape.Block && item.Blank.SizeMm.X <= MaxStockMm && item.Blank.SizeMm.Y <= MaxStockMm;
+    private bool Fits(StockItem item, Basis turn)
+    {
+        var mm = SquareTurn.Extents(turn, item.Blank.BoundsM) / WorldScale.MmToM;
+        return item.Blank.Shape == StockShape.Block && mm.X <= MaxStockMm && mm.Z <= MaxStockMm;
+    }
 
-    public void PlaceStock(StockItem item)
+    public void PlaceStock(StockItem item, Basis? turn = null)
     {
         Torque = 0;
-        Seat.Put(item, this, new Transform3D(Basis.Identity, new Vector3(0f, Thickness + item.Blank.BoundsM.Y / 2f, 0f)));
+        var t = turn ?? Basis.Identity;
+        Seat.Put(item, this, new Transform3D(t, new Vector3(0f, Thickness + SquareTurn.Extents(t, item.Blank.BoundsM).Y / 2f, 0f)));
         Refresh();
     }
 
@@ -104,7 +108,7 @@ public partial class CentringPlate : BoltedFixture, IInteractable, IStockFixture
         if (player.HeldTool?.Kind == HandToolKind.ViseHandle)
             return Seat.Occupied ? $"[Tekerlek] Çeneleri sık / gevşet   sıkma {Torque}/3" : "Plakada kütük yok";
         if (player.Held is StockItem item && !Seat.Occupied)
-            return Fits(item) ? "[Tık] Kütüğü plakaya koy (çeneler merkezler)" : $"Plaka en fazla {MaxStockMm:0} x {MaxStockMm:0} mm blok tutar";
+            return Fits(item, player.HeldTurnIn(this)) ? "[Tık] Kütüğü plakaya koy (çeneler merkezler)" : $"Plaka en fazla {MaxStockMm:0} x {MaxStockMm:0} mm blok tutar";
         if (player.Held == null && Seat.Occupied)
             return Torque == 0 ? "[Tık] Parçayı al" : $"Çeneler sıkılı ({Torque}/3). Parçayı almak için mengene koluyla gevşet";
         return Seat.Occupied ? null : "Merkezleme plakası: blok kütük getir";
@@ -114,10 +118,11 @@ public partial class CentringPlate : BoltedFixture, IInteractable, IStockFixture
     {
         if (!IsMounted)
             return;
-        if (player.Held is StockItem item && !Seat.Occupied && Fits(item))
+        if (player.Held is StockItem item && !Seat.Occupied && Fits(item, player.HeldTurnIn(this)))
         {
+            var turn = player.HeldTurnIn(this);
             player.ReleaseHeld();
-            PlaceStock(item);
+            PlaceStock(item, turn);
         }
         else if (player.Held == null && Seat.Occupied && Torque == 0)
             player.Give(TakeStock());

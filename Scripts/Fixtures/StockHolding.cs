@@ -36,12 +36,20 @@ public sealed class StockSeat
 
     public bool Occupied => Stock != null;
 
-    /// <summary>Fixes the stock to its holder at this place (holder's frame).</summary>
+    /// <summary>How the stock is turned in its holder (quarter turns).</summary>
+    public Basis Turn { get; private set; } = Basis.Identity;
+
+    /// <summary>The stock's size along the holder's X, Y, Z (metres).</summary>
+    public Vector3 ExtentsM => Stock == null ? Vector3.Zero : SquareTurn.Extents(Turn, Stock.Blank.BoundsM);
+
+    /// <summary>Fixes the stock to its holder at this place (holder's frame).
+    /// Stock that was machined before keeps its cut shape.</summary>
     public void Put(StockItem item, Node3D holder, Transform3D at)
     {
         Stock = item;
-        MachinedPart = null;
-        WasCut = false;
+        Turn = SquareTurn.Snap(at.Basis);
+        MachinedPart = item.GetChildren().OfType<VoxelStockVisual>().FirstOrDefault();
+        WasCut = MachinedPart != null;
         item.Fixed = true;
         item.Freeze = true;
         item.Reparent(holder);
@@ -70,34 +78,23 @@ public sealed class StockSeat
         MachinedPart = null;
     }
 
-    /// <summary>Empties the seat: the untouched stock again, or the machined
-    /// part as a new carryable object where the stock was.</summary>
+    /// <summary>Empties the seat: the stock, untouched or with its machined
+    /// shape, as a loose object that can be put in a fixture again.</summary>
     public RigidBody3D Take()
     {
         var stock = Stock;
-        var machined = MachinedPart;
-        var scene = stock.GetTree().CurrentScene;
-        RigidBody3D result = stock;
-        if (!WasCut || machined == null)
+        if (!WasCut && MachinedPart != null)
         {
-            machined?.QueueFree();
+            MachinedPart.QueueFree();
             ShowRaw(true);
-            stock.Fixed = false;
-            stock.Reparent(scene);
         }
-        else
-        {
-            var part = new MilledPart { Name = "Part", DisplayName = "İşlenmiş parça" + SurfaceNote, Mass = stock.Mass };
-            scene.AddChild(part);
-            part.GlobalTransform = stock.GlobalTransform;
-            part.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = stock.Blank.BoundsM } });
-            machined.Reparent(part);
-            stock.QueueFree();
-            result = part;
-        }
+        else if (WasCut)
+            stock.DisplayName = "İşlenmiş parça" + SurfaceNote;
+        stock.Fixed = false;
+        stock.Reparent(stock.GetTree().CurrentScene);
         Stock = null;
         MachinedPart = null;
-        return result;
+        return stock;
     }
 }
 

@@ -168,14 +168,14 @@ public sealed class LatheCutting : CuttingProcess
         var removedRadii = profile.Sever(severedIndex, out var removedInner);
         _workpiece.MarkDirty(severedIndex, profile.BucketCount - 1);
 
-        var part = TurnedPart.Build(removedRadii, profile.StepMm, profile.ZAt(severedIndex + 1),
-            MaterialPreset.Get(Material).DensityKgPerM3, _workpiece.StockVisualMaterial, out float centreZ, removedInner);
+        var part = StockItem.CreateTurned(removedRadii, removedInner, profile.StepMm, Material);
         if (part == null)
             return;
         part.DisplayName += SurfaceNote();
         PartFinished?.Invoke();
         _parts.AddChild(part);
-        part.Position = new Vector3(centreZ * WorldScale.MmToM, 0f, 0f);
+        float middle = profile.ZAt(severedIndex + 1) + part.Blank.LengthMm / 2f;
+        part.Position = new Vector3(middle * WorldScale.MmToM, 0f, 0f);
     }
 
     protected override Vector3 MoveBody(double delta)
