@@ -47,7 +47,7 @@ public static class RevolutionMesh
     private const uint Flat = uint.MaxValue, OutsideGroup = 0, BoreGroup = 1;
 
     private static uint GroupFor(float x0, float r0, float x1, float r1, uint round) =>
-        Mathf.Abs(r1 - r0) > Mathf.Abs(x1 - x0) ? Flat : round;
+        Mathf.Abs(r1 - r0) > 4f * Mathf.Abs(x1 - x0) ? Flat : round;
 
     /// <summary>A flat end cap at axial position x, radius r; a ring when
     /// there is a bore of radius innerR.</summary>
@@ -81,7 +81,8 @@ public static class RevolutionMesh
     /// outside, the bore, and where the bar ends after a bore, the end ring.</summary>
     public static void AddSection(SurfaceTool st, float x0, float r0, float in0, float x1, float r1, float in1, int angularSegments)
     {
-        const float gone = 0.05f;
+        // Callers pass metres or millimetres; a bucket that was cut away is exactly 0.
+        const float gone = 0f;
         if (r1 <= gone && in0 > 0f)
         {
             st.SetSmoothGroup(Flat);
