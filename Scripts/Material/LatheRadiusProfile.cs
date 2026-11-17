@@ -133,16 +133,21 @@ public class LatheRadiusProfile : IMaterialModel
     }
 
     /// <summary>Cutting from the inside: a drill on the centreline opens a
-    /// hole of |x| + drillRadius, a boring bar's edge (facing outward) opens
-    /// the bore to x - noseRadius. Only where there is material; opening the
-    /// bore to the outside drops the ring like a parting cut.</summary>
-    public SweepResult SweepBore(Vector2 fromPos, Vector2 toPos, float toolNoseRadius, float drillRadius)
+    /// hole of |x| + drillRadius behind its conical point (pointAngleDeg
+    /// included, so the hole's bottom is that cone), a boring bar's edge
+    /// (facing outward) opens the bore to x - noseRadius. Only where there is
+    /// material; opening the bore to the outside drops the ring like a
+    /// parting cut.</summary>
+    public SweepResult SweepBore(Vector2 fromPos, Vector2 toPos, float toolNoseRadius, float drillRadius, float pointAngleDeg = 118f)
     {
         float z0 = fromPos.Y, z1 = toPos.Y, x0 = fromPos.X, x1 = toPos.X;
-        if (Mathf.Max(z0, z1) < ZMin - StepMm / 2f || Mathf.Min(z0, z1) > ZMax + StepMm / 2f)
-            return SweepResult.None;
         bool drill = drillRadius > 0f;
-        int i0 = IndexAt(Mathf.Min(z0, z1)), i1 = IndexAt(Mathf.Max(z0, z1));
+        float slope = Mathf.Tan(Mathf.DegToRad(Mathf.Clamp(pointAngleDeg, 1f, 180f) / 2f));
+        float pointLength = drill && slope < 1e3f ? drillRadius / slope : 0f;
+        float tipZ = Mathf.Min(z0, z1);
+        if (Mathf.Max(z0, z1) + pointLength < ZMin - StepMm / 2f || tipZ > ZMax + StepMm / 2f)
+            return SweepResult.None;
+        int i0 = IndexAt(tipZ), i1 = IndexAt(Mathf.Max(z0, z1) + pointLength);
         bool removedAny = false;
         float maxDepth = 0f, volume = 0f;
         int? severedIndex = null;
@@ -155,7 +160,9 @@ public class LatheRadiusProfile : IMaterialModel
             float x = Mathf.Abs(z1 - z0) < 1e-6f
                 ? Mathf.Max(Mathf.Abs(x0), Mathf.Abs(x1))
                 : Mathf.Abs(Mathf.Lerp(x0, x1, Mathf.Clamp((z - z0) / (z1 - z0), 0f, 1f)));
-            float cut = drill ? x + drillRadius : x - toolNoseRadius;
+            if (z < tipZ - 1e-4f)
+                continue;
+            float cut = drill ? x + Mathf.Min(drillRadius, (z - tipZ) * slope) : x - toolNoseRadius;
             if (cut <= _inner[i])
                 continue;
             float before = _inner[i];

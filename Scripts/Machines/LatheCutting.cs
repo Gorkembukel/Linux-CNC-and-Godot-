@@ -77,7 +77,7 @@ public sealed class LatheCutting : CuttingProcess
             var kind = mounted.Spec.Kind;
             float drillRadius = kind == ToolKind.Drill ? mounted.Spec.DiameterMm / 2f : 0f;
             var result = kind is ToolKind.Drill or ToolKind.Boring
-                ? profile.SweepBore(previous, position, s.ToolNoseRadius, drillRadius)
+                ? profile.SweepBore(previous, position, s.ToolNoseRadius, drillRadius, mounted.Spec.TipAngleDeg)
                 : profile.Sweep(previous, position, s.ToolNoseRadius, feedPerRev, rpm);
             if (result.MaterialRemoved)
             {

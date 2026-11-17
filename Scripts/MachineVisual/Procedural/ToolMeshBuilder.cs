@@ -71,7 +71,7 @@ public static class ToolMeshBuilder
                 float radius = Mathf.Max(0.003f, tool.DiameterMm / 2f * WorldScale.MmToM);
                 float length = tool.LengthMm * WorldScale.MmToM;
                 bool drill = tool.Kind == ToolKind.Drill;
-                float point = drill ? radius : 0f;
+                float point = drill ? radius / Mathf.Tan(Mathf.DegToRad(Mathf.Clamp(tool.TipAngleDeg, 30f, 179f) / 2f)) : 0f;
                 if (drill)
                     BodyParts.Cylinder(root, "Point", 0f, point, new Vector3(point / 2f, 0f, 0f), Vector3.Right, insertMaterial, topRadius: radius);
                 else
