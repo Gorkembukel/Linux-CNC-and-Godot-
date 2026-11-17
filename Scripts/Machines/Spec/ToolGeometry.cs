@@ -14,23 +14,28 @@ namespace CncTrainer.Spec;
 [Tool, GlobalClass]
 public partial class ToolGeometry : Resource
 {
-    [ExportGroup("Lathe insert")]
     /// <summary>Insert shape: ISO C 80°, D 55°, V 35°, T 60°, S 90°, W 80°, round, grooving blade, 60° threading, or Custom (drawn in the Tool Designer).</summary>
+    [ExportGroup("Lathe insert")]
     [Export] public InsertShape Insert = InsertShape.C80;
     /// <summary>Cutting edge length (round inserts: diameter).</summary>
     [Export] public float EdgeLengthMm = 12f;
+    /// <summary>Radius of the insert's rounded tip (round inserts: unused).</summary>
     [Export] public float NoseRadiusMm = 0.8f;
+    /// <summary>Insert thickness (only how it looks).</summary>
     [Export] public float ThicknessMm = 4.76f;
     /// <summary>Between the main cutting edge and the feed toward the chuck.</summary>
     [Export(PropertyHint.Range, "45,120,0.5")] public float ApproachDeg = 95f;
+    /// <summary>Right: cuts toward the chuck. Left: toward the tailstock. Neutral: both ways.</summary>
     [Export] public ToolHand Hand = ToolHand.Right;
     /// <summary>Grooving / parting blades: width; threading: unused.</summary>
     [Export] public float WidthMm = 3f;
     /// <summary>Grooving: how deep the blade reaches; threading: insert height.</summary>
     [Export] public float DepthMm = 20f;
+    /// <summary>Included angle of a threading insert (60 = metric and UN).</summary>
     [Export] public float ThreadAngleDeg = 60f;
     /// <summary>Custom insert outline, (x radial, z axial) mm.</summary>
     [Export] public Vector2[] OutlineMm = System.Array.Empty<Vector2>();
+    /// <summary>Colour of the insert's coating.</summary>
     [Export] public Color InsertColor = new(0.85f, 0.7f, 0.25f);
 
     /// <summary>Mill form cutter: (radius, height above the tip) mm from the

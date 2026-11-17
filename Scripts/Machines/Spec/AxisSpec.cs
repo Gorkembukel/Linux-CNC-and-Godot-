@@ -3,7 +3,14 @@ using CncTrainer.Bridge;
 
 namespace CncTrainer.Spec;
 
-public enum AxisCarrier { Tool, Workpiece }
+/// <summary>Which side of the machine an axis moves.</summary>
+public enum AxisCarrier
+{
+    /// <summary>Moves the spindle side: gantry, ram, quill, swivel head.</summary>
+    Tool,
+    /// <summary>Moves the work side: table, saddle, trunnion, rotary table.</summary>
+    Workpiece,
+}
 
 [Tool, GlobalClass]
 public partial class AxisSpec : Resource
@@ -13,11 +20,15 @@ public partial class AxisSpec : Resource
     /// <summary>Which side of the machine this axis moves: the spindle
     /// (gantry, ram, swivel head) or the workpiece (table, saddle, trunnion).</summary>
     [Export] public AxisCarrier Carrier = AxisCarrier.Tool;
-    /// <summary>mm for X/Y/Z, degrees for A/B/C.</summary>
+    /// <summary>Lowest position the axis may reach (soft limit): mm for X/Y/Z, degrees for A/B/C.</summary>
     [Export] public float MinLimit = -100f;
+    /// <summary>Highest position the axis may reach (soft limit): mm for X/Y/Z, degrees for A/B/C.</summary>
     [Export] public float MaxLimit = 100f;
+    /// <summary>Top speed of the axis, also its rapid speed (mm/s, or degrees/s for A/B/C).</summary>
     [Export] public float MaxVelocity = 100f;
+    /// <summary>How fast the axis speeds up and slows down (mm/s per second, or degrees/s per second).</summary>
     [Export] public float MaxAcceleration = 800f;
+    /// <summary>Machine position the axis reads after homing.</summary>
     [Export] public float Home;
     /// <summary>Axes with the lowest number home first.</summary>
     [Export] public int HomeSequence = 1;
@@ -25,9 +36,10 @@ public partial class AxisSpec : Resource
     /// machine X/Y/Z mm from work zero.</summary>
     [Export] public Vector3 PivotMm;
 
-    /// <summary>The sign is the direction the axis runs to find its home switch.</summary>
+    /// <summary>Speed the axis runs at to find its home switch; the sign is the direction.</summary>
     [ExportGroup("Homing")]
     [Export] public float HomeSearchVelocity = 20f;
+    /// <summary>Slow speed for the final, precise approach to the home switch; the sign is its direction.</summary>
     [Export] public float HomeLatchVelocity = 5f;
 
     /// <summary>Real play in the drive: after a reversal the axis moves

@@ -37,8 +37,11 @@ public partial class WorkpieceVisual : Node3D
     [Export] public float StockZMax = 5.0f;
     /// <summary>No stock until SetProfile is called (hands-on setup).</summary>
     [Export] public bool StartEmpty;
+    /// <summary>Segments around the bar's circumference in its mesh.</summary>
     [Export] public int AngularSegments = 24;
+    /// <summary>Profile steps per mesh chunk; a cut rebuilds only the chunks it touched.</summary>
     [Export] public int BucketsPerChunk = 40;
+    /// <summary>Most chunks rebuilt in one frame, so a big cut does not stall the game.</summary>
     [Export] public int MaxChunkRebuildsPerCall = 4;
 
     /// <summary>The live radius profile -- Main.cs sweeps cuts into this same

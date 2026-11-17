@@ -4,7 +4,28 @@ using CncTrainer.Material;
 
 namespace CncTrainer.Spec;
 
-public enum ToolKind { EndMill, FaceMill, Drill, ChamferMill, Turning, Parting, Boring, Threading, EdgeFinder }
+/// <summary>What sort of tool a ToolSpec is.</summary>
+public enum ToolKind
+{
+    /// <summary>Mill: end mill (flat, bull or ball nose by TipRadiusMm), or a form cutter with a profile.</summary>
+    EndMill,
+    /// <summary>Mill: face mill with inserts around its rim.</summary>
+    FaceMill,
+    /// <summary>Twist drill (mill spindle, or on a lathe turret along the spindle axis).</summary>
+    Drill,
+    /// <summary>Mill: chamfer / countersink cutter with a pointed tip (TipAngleDeg).</summary>
+    ChamferMill,
+    /// <summary>Lathe: outside turning and facing tool.</summary>
+    Turning,
+    /// <summary>Lathe: parting-off / grooving blade.</summary>
+    Parting,
+    /// <summary>Lathe: boring bar, cuts inside a hole.</summary>
+    Boring,
+    /// <summary>Lathe: threading tool.</summary>
+    Threading,
+    /// <summary>Mill: edge finder for picking up the work zero; does not cut.</summary>
+    EdgeFinder,
+}
 
 [Tool, GlobalClass]
 public partial class ToolSpec : Resource
@@ -31,8 +52,11 @@ public partial class ToolSpec : Resource
     /// <summary>LinuxCNC tool orientation (Q), 1-9.</summary>
     [ExportGroup("Lathe tool table")]
     [Export] public int Orientation = 1;
+    /// <summary>LinuxCNC tool table front angle (I): direction of the leading cutting edge; with an insert it comes from the insert.</summary>
     [Export] public float FrontAngleDeg = 95f;
+    /// <summary>LinuxCNC tool table back angle (J): direction of the trailing edge; with an insert it comes from the insert.</summary>
     [Export] public float BackAngleDeg = 155f;
+    /// <summary>Colour of the cutting part.</summary>
     [ExportGroup("")]
     [Export] public Color Color = new(0.85f, 0.75f, 0.35f);
     /// <summary>The real cutting shape (insert, form); null = the simple model above.</summary>

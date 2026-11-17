@@ -4,8 +4,41 @@ using Godot;
 
 namespace CncTrainer.Material;
 
-public enum InsertShape { C80, D55, V35, T60, S90, W80, Round, Groove, Thread60, Custom }
-public enum ToolHand { Right, Left, Neutral }
+/// <summary>Shape of a lathe insert (ISO letter and included angle).</summary>
+public enum InsertShape
+{
+    /// <summary>80 deg rhombus (CNMG, CCMT): strong, general turning and facing.</summary>
+    C80,
+    /// <summary>55 deg rhombus (DNMG, DCMT): profiling with moderate back clearance.</summary>
+    D55,
+    /// <summary>35 deg rhombus (VBMT, VNMG): fine profiling, follows steep descents.</summary>
+    V35,
+    /// <summary>60 deg triangle (TNMG, TCMT): turning and facing, three edges.</summary>
+    T60,
+    /// <summary>90 deg square (SNMG): heavy roughing, usually at a 45-75 deg approach.</summary>
+    S90,
+    /// <summary>80 deg trigon (WNMG): strong like C80 with three edges.</summary>
+    W80,
+    /// <summary>Round (RCMT): copying and radii; edge length is its diameter.</summary>
+    Round,
+    /// <summary>Grooving / parting blade: square end of WidthMm, DepthMm deep.</summary>
+    Groove,
+    /// <summary>Threading insert: a V of ThreadAngleDeg.</summary>
+    Thread60,
+    /// <summary>Drawn outline (OutlineMm), made in the Tool Designer.</summary>
+    Custom,
+}
+
+/// <summary>Which way a lathe tool cuts along the spindle axis.</summary>
+public enum ToolHand
+{
+    /// <summary>Cuts toward the chuck (the usual outside tool).</summary>
+    Right,
+    /// <summary>Cuts toward the tailstock (mirror image).</summary>
+    Left,
+    /// <summary>Symmetric: cuts both ways (grooving, threading, copying).</summary>
+    Neutral,
+}
 
 /// <summary>Engine-free description of a lathe tool's cutting insert (see
 /// ToolGeometry, the Resource the editor shows). Lengths in mm, angles in

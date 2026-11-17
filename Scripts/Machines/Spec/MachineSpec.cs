@@ -8,7 +8,14 @@ using CncTrainer.Chips;
 
 namespace CncTrainer.Spec;
 
-public enum MachineKind { Mill, Lathe }
+/// <summary>Kind of machine a MachineSpec builds.</summary>
+public enum MachineKind
+{
+    /// <summary>Milling machine: the tool turns, X / Y / Z (and rotary axes) move tool or work.</summary>
+    Mill,
+    /// <summary>Lathe: the work turns, X (radius) and Z move the tool.</summary>
+    Lathe,
+}
 
 /// <summary>
 /// Everything that defines one machine: its LinuxCNC configuration, axes,
@@ -20,17 +27,21 @@ public partial class MachineSpec : Resource
 {
     /// <summary>Mill or lathe: decides which structure below is used.</summary>
     [Export] public MachineKind Kind = MachineKind.Mill;
-    /// <summary>Name of the machine: its scene, its LinuxCNC files (gen_<name>.ini / .tbl) and the UI.</summary>
+    /// <summary>Name of the machine: its scene, its LinuxCNC files (gen_NAME.ini / .tbl) and the UI.</summary>
     [Export] public string MachineName = "Machine";
 
-    /// <summary>LinuxCNC allows one running instance per WSL distro.</summary>
+    /// <summary>WSL distribution this machine's LinuxCNC runs in (several machines can share one).</summary>
     [ExportGroup("LinuxCNC")]
     [Export] public string WslDistro = "Ubuntu";
+    /// <summary>UDP port the bridge sends this machine's state to; every machine needs its own.</summary>
     [Export] public int StatePort = 9204;
+    /// <summary>UDP port the bridge takes this machine's commands on; every machine needs its own.</summary>
     [Export] public int CommandPort = 9205;
+    /// <summary>State packets per second from the bridge.</summary>
     [Export] public double RateHz = 100.0;
     /// <summary>Path inside linuxcnc-config/, e.g. nc_files/part.ngc.</summary>
     [Export] public string DemoProgram = "";
+    /// <summary>On: the control moves to ToolChangePosition before every tool change.</summary>
     [Export] public bool UseToolChangePosition;
     /// <summary>Machine X/Y/Z the control moves to before a tool change.</summary>
     [Export] public Vector3 ToolChangePosition;
@@ -39,14 +50,19 @@ public partial class MachineSpec : Resource
     /// of each side sits closest to the machine base.</summary>
     [ExportGroup("Axes and tools")]
     [Export] public Godot.Collections.Array<AxisSpec> Axes = new();
+    /// <summary>Tools the machine has, written to its LinuxCNC tool table; the tool cart carries them.</summary>
     [Export] public Godot.Collections.Array<ToolSpec> Tools = new();
 
     /// <summary>Floor to work zero (mill) or spindle centreline (lathe).</summary>
     [ExportGroup("Body")]
     [Export] public float WorkHeightMm = 1100f;
+    /// <summary>The machine has a closed guard with a door (and a door interlock).</summary>
     [Export] public bool Enclosure;
+    /// <summary>Paint colour of the machine's main castings.</summary>
     [Export] public Color BodyColor = new(0.16f, 0.27f, 0.42f);
+    /// <summary>Colour of the moving parts and trim.</summary>
     [Export] public Color AccentColor = new(0.22f, 0.23f, 0.25f);
+    /// <summary>Material of the stock the machine starts with: decides chips and cutting load.</summary>
     [Export] public MaterialKind StockMaterial = MaterialKind.Aluminum;
     /// <summary>Continuous spindle power. A cut needing 1.5 times this stalls the spindle.</summary>
     [Export] public float SpindlePowerKw = 2.2f;
@@ -55,14 +71,15 @@ public partial class MachineSpec : Resource
     /// the nominal stock is already in place at machine zero.</summary>
     [Export] public bool ManualSetup;
 
-    [ExportGroup("Spindle and speeds")]
     /// <summary>Highest spindle speed the control allows (INI [SPINDLE_0]).</summary>
+    [ExportGroup("Spindle and speeds")]
     [Export] public float SpindleMaxRpm = 4000f;
     /// <summary>Lowest spindle speed the control allows.</summary>
     [Export] public float SpindleMinRpm;
     /// <summary>Top step of the console's jog feed dial (mm/min); the
     /// lower steps scale with it.</summary>
     [Export] public float JogMaxMmPerMin = 1260f;
+    /// <summary>The machine has flood coolant (M8 and the COOLANT key work).</summary>
     [Export] public bool FloodCoolant = true;
     /// <summary>Off: the machine runs with the door open (older or
     /// bypassed machines).</summary>
@@ -72,10 +89,11 @@ public partial class MachineSpec : Resource
     /// cuts that much deeper in Z than the control thinks.</summary>
     [ExportGroup("Accuracy")]
     [Export] public float ThermalGrowthMm;
+    /// <summary>How long the spindle takes to reach most of its thermal growth.</summary>
     [Export] public float ThermalWarmUpMinutes = 15f;
 
-    [ExportGroup("Structure")]
     /// <summary>Build of a mill (used when Kind is Mill).</summary>
+    [ExportGroup("Structure")]
     [Export] public MillStructure Mill;
     /// <summary>Build of a lathe (used when Kind is Lathe).</summary>
     [Export] public LatheStructure Lathe;

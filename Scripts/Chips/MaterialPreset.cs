@@ -2,7 +2,16 @@ using Godot;
 
 namespace CncTrainer.Chips;
 
-public enum MaterialKind { Steel, Aluminum, Brass }
+/// <summary>Stock material: sets cutting force, chips, colour and density.</summary>
+public enum MaterialKind
+{
+    /// <summary>Mild steel: tough, needs the most power, long chips at light cuts.</summary>
+    Steel,
+    /// <summary>Aluminium: light and easy to cut, high speeds.</summary>
+    Aluminum,
+    /// <summary>Brass: free-cutting, short broken chips.</summary>
+    Brass,
+}
 
 /// <summary>
 /// Brief section 6: "material profile (simple presets such as steel, aluminum,

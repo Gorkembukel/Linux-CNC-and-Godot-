@@ -19,6 +19,8 @@ public partial class DescriptionInspectorPlugin : EditorInspectorPlugin
     private const string DocFile = "res://.godot/mono/temp/bin/Debug/Linux.xml";
 
     private readonly Dictionary<string, string> _summaries = new();
+    // Type name -> its documented fields in order: for an enum, its values.
+    private readonly Dictionary<string, List<(string Name, string Text)>> _fields = new();
     private ulong _loadedStamp;
     private List<string> _classes = new();
 
@@ -30,6 +32,7 @@ public partial class DescriptionInspectorPlugin : EditorInspectorPlugin
             return;
         _loadedStamp = stamp;
         _summaries.Clear();
+        _fields.Clear();
         if (stamp == 0)
             return;
         foreach (var member in XDocument.Load(path).Descendants("member"))
@@ -42,8 +45,15 @@ public partial class DescriptionInspectorPlugin : EditorInspectorPlugin
             var parts = id[2..].Split('.');
             string key = id[0] == 'T' ? parts[^1] : $"{parts[^2]}.{parts[^1]}";
             string text = Regex.Replace(string.Concat(summary.Nodes().Select(Text)), @"\s+", " ").Trim();
-            if (text.Length > 0)
-                _summaries[key] = text;
+            if (text.Length == 0)
+                continue;
+            _summaries[key] = text;
+            if (id[0] == 'F')
+            {
+                if (!_fields.TryGetValue(parts[^2], out var list))
+                    _fields[parts[^2]] = list = new List<(string, string)>();
+                list.Add((parts[^1], text));
+            }
         }
     }
 
@@ -86,7 +96,19 @@ public partial class DescriptionInspectorPlugin : EditorInspectorPlugin
                 AddCustomControl(Line(text, 0.6f));
                 break;
             }
+        if (hintType == PropertyHint.Enum && EnumValues(hintString) is { Count: > 0 } values)
+            AddCustomControl(Line(string.Join("\n", values.Select(v => $"   {v.Name}: {v.Text}")), 0.5f));
         return false;
+    }
+
+    /// <summary>The documented values of the enum an inspector enum hint ("A,B:2,C") lists.</summary>
+    private List<(string Name, string Text)> EnumValues(string hintString)
+    {
+        var names = hintString.Split(',').Select(n => n.Split(':')[0].Trim()).Where(n => n.Length > 0).ToHashSet();
+        return _fields.Values
+            .Where(list => list.Count > 0 && list.All(v => names.Contains(v.Name)))
+            .OrderByDescending(list => list.Count)
+            .FirstOrDefault() ?? new List<(string, string)>();
     }
 
     private static Label Line(string text, float brightness)
