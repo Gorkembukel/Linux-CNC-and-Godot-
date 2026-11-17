@@ -103,11 +103,13 @@ public partial class ToolSocket : StaticBody3D, IInteractable, IToolSource
             if (Refuse?.Invoke(item.Spec) is string refusal)
                 return refusal;
             int target = LoadPocket(item);
-            if (magazine)
-                return target < 0 ? $"T{item.Spec.Number} cebi dolu: önce oradaki takımı al" : $"[Tık] Takımı magazinin {target + 1}. cebine tak (T{item.Spec.Number})";
+            string slot = magazine ? "cebi" : "istasyonu";
+            if (_turret && target < 0)
+                return OwnPocket(item) < 0 ? $"T{item.Spec.Number} bu makinenin takım listesinde yok"
+                    : $"T{item.Spec.Number} {slot} dolu: önce oradaki takımı al";
             if (target < 0)
-                return _turret ? "Tarette boş istasyon yok" : "İş milinde takım var: önce onu çıkar";
-            return _turret ? $"[Tık] Takımı {target + 1}. istasyona tak" : "[Tık] Takımı iş miline tak";
+                return "İş milinde takım var: önce onu çıkar";
+            return _turret ? $"[Tık] Takımı {target + 1}. {(magazine ? "cebe" : "istasyona")} tak (T{item.Spec.Number})" : "[Tık] Takımı iş miline tak";
         }
         if (player.Held != null)
             return null;
@@ -117,15 +119,19 @@ public partial class ToolSocket : StaticBody3D, IInteractable, IToolSource
         return _turret ? $"[Tık] {pocket + 1}. {(magazine ? "cepteki" : "istasyondaki")} takımı al: {_pockets[pocket].Label}" : $"[Tık] Takımı iş milinden al: {_pockets[pocket].Label}";
     }
 
-    // A magazine keeps tool N in pocket N; a turret takes the first free station.
+    // Tool N goes where the control will look for it when the program calls T N.
+    private int OwnPocket(ToolItem item)
+    {
+        int pocket = ActivePocket(item.Spec.Number);
+        return pocket >= 0 && pocket < _pockets.Length ? pocket : -1;
+    }
+
     private int LoadPocket(ToolItem item)
     {
-        if (_turret && !_latheTools)
-        {
-            int pocket = item.Spec.Number - 1;
-            return pocket >= 0 && pocket < _pockets.Length && _pockets[pocket] == null ? pocket : -1;
-        }
-        return System.Array.IndexOf(_pockets, null);
+        if (!_turret)
+            return System.Array.IndexOf(_pockets, null);
+        int pocket = OwnPocket(item);
+        return pocket >= 0 && _pockets[pocket] == null ? pocket : -1;
     }
 
     public void Use(PlayerController player)
