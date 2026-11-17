@@ -1,0 +1,96 @@
+%
+( DIK ISLEME MERKEZI - ALTI TAKIMLI PARCA )
+( Makine: "Vertical machining centre" sablonundan uretilen makine )
+( Kutuk: 150 x 100 x 50 mm, X/Y sifiri ortada, Z0 ust yuzey )
+( T1 12mm parmak, T2 6mm parmak, T3 10mm kure, T4 8.5mm matkap, )
+( T5 50mm tarama, T6 90 derece pah )
+
+G21 G17 G90 G54
+
+( --- T5: yuzey tarama, 1mm --- )
+T5 M6
+G43
+S1200 M3
+G0 Z20.0
+G0 X-105.0 Y-30.0
+G1 Z-1.0 F300
+G1 X105.0 F800
+G0 Y0.0
+G1 X-105.0
+G0 Y30.0
+G1 X105.0
+G0 Z20.0
+M5
+
+( --- T1: 80 x 50 dikdortgen cep, Z-5 ve Z-9 --- )
+T1 M6
+G43
+S2400 M3
+#1 = -5.0
+o100 while [#1 GE -9.0]
+  G0 X-34.0 Y-19.0
+  G1 Z#1 F150
+  G1 X34.0 F500
+  G1 Y-9.5
+  G1 X-34.0
+  G1 Y0.0
+  G1 X34.0
+  G1 Y9.5
+  G1 X-34.0
+  G1 Y19.0
+  G1 X34.0
+  G1 Y-19.0
+  G1 X-34.0
+  G1 Y19.0
+  G0 Z5.0
+  #1 = [#1 - 4.0]
+o100 endwhile
+G0 Z20.0
+M5
+
+( --- T3: cep tabaninda kuresel canak, R30 kure, 6mm derin --- )
+( Kure takimin merkezi R25 kure uzerinde gezer; her halka bir oncekinden icte ve derinde )
+T3 M6
+G43
+S3000 M3
+G0 X15.0 Y0.0
+G0 Z-5.0
+#2 = 15.0
+o200 while [#2 GT 0.4]
+  G1 X#2 Z[15.0 - SQRT[625.0 - #2 * #2] - 5.0] F200
+  G3 X#2 Y0.0 I[0 - #2] J0.0 F500
+  #2 = [#2 - 1.5]
+o200 endwhile
+G1 X0.0 Z-15.0 F200
+G0 Z20.0
+M5
+
+( --- T4: dort kosede cap 8.5 delik, kademeli delme --- )
+T4 M6
+G43
+S1500 M3
+G98
+G83 X-58.0 Y-36.0 Z-21.0 R2.0 Q5.0 F150
+X58.0
+Y36.0
+X-58.0
+G80
+G0 Z20.0
+M5
+
+( --- T6: deliklere pah --- )
+T6 M6
+G43
+S2000 M3
+G98
+G81 X-58.0 Y-36.0 Z-5.75 R2.0 F150
+X58.0
+Y36.0
+X-58.0
+G80
+G0 Z100.0
+
+M5
+G0 X0.0 Y0.0
+M2
+%

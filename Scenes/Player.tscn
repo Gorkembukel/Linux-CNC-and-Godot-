@@ -1,0 +1,7 @@
+[gd_scene format=3 uid="uid://ddlr61u8q7x3p"]
+
+[ext_resource type="Script" uid="uid://cfrb1x7x618fc" path="res://Scripts/Player/PlayerController.cs" id="1"]
+
+[node name="Player" type="CharacterBody3D" unique_id=368943289]
+visible = false
+script = ExtResource("1")

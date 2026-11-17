@@ -1,0 +1,61 @@
+%
+( FREZE - ADALI DAIRESEL CEP + YAY KANALLAR )
+( Makine: Mill / BenchMill. Kutuk: 120 x 80 x 30 mm, X/Y sifiri ortada, Z0 ust yuzey )
+( T1 = 10mm, T2 = 6mm parmak freze )
+( Cap 50 cep, ortasinda cap 14 ada kalir. Malzemeye helisel rampa ile girilir: )
+( G3 tam daire + Z = her turda Z'de inen helis )
+
+G21 G17 G90 G54
+
+T1 M6
+G43
+S2400 M3
+G0 Z10.0
+
+( --- 1. kat: Z-3 --- )
+G0 X16.0 Y0.0
+G1 Z0.5 F200
+G3 X16.0 Y0.0 I-16.0 J0.0 Z-3.0 F250   ( helisel giris )
+G3 X16.0 Y0.0 I-16.0 J0.0 F400         ( taban temizligi )
+G1 X12.0
+G3 X12.0 Y0.0 I-12.0 J0.0              ( ada cevresi )
+G1 X20.0
+G3 X20.0 Y0.0 I-20.0 J0.0              ( cep duvari )
+
+( --- 2. kat: Z-6 --- )
+G1 X16.0
+G3 X16.0 Y0.0 I-16.0 J0.0 Z-6.0 F250
+G3 X16.0 Y0.0 I-16.0 J0.0 F400
+G1 X12.0
+G3 X12.0 Y0.0 I-12.0 J0.0
+G1 X20.0
+G3 X20.0 Y0.0 I-20.0 J0.0
+G0 Z10.0
+M5
+
+T2 M6
+G43
+S3200 M3
+
+( --- cepin cevresinde dort yay kanal: R34, 50 derece, 3mm derin --- )
+G0 X30.814 Y-14.369
+G1 Z-3.0 F120
+G3 X30.814 Y14.369 I-30.814 J14.369 F300
+G0 Z5.0
+G0 X14.369 Y30.814
+G1 Z-3.0 F120
+G3 X-14.369 Y30.814 I-14.369 J-30.814 F300
+G0 Z5.0
+G0 X-30.814 Y14.369
+G1 Z-3.0 F120
+G3 X-30.814 Y-14.369 I30.814 J-14.369 F300
+G0 Z5.0
+G0 X-14.369 Y-30.814
+G1 Z-3.0 F120
+G3 X14.369 Y-30.814 I14.369 J30.814 F300
+G0 Z50.0
+
+M5
+G0 X0.0 Y0.0
+M2
+%

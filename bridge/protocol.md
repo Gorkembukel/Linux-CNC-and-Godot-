@@ -59,6 +59,8 @@ applies work offsets itself if it wants a work-relative view (keeps the bridge d
 | machine_on | u8 (bool) | |
 | homed_x, homed_z | u8, u8 (bool) | |
 | in_cycle | u8 (bool) | program running (not paused/idle) |
+| tool_change_pending | u8 (bool) | an M6 is waiting for TOOL_CHANGE_CONFIRM (`iocontrol.0.tool-change`) |
+| work_offset | f64 x 6 | G5x offset + G92 + tool offset per axis; machine position minus this is the work position |
 | pad | u8[1] | alignment pad, reserved, must be 0 |
 
 Total body after the 18-byte common header: 4+4+8+8+8+8+8+4+4+1+4+4+1+1+1+4+1+1+1+1+1 = 76 bytes (see
@@ -111,3 +113,11 @@ u8  ok
 u16 text_len
 u8[text_len] text    (error message if ok == 0)
 ```
+
+## SUBSCRIBE packet (Godot -> bridge), packet_type = 18
+
+Header only, no payload. Godot sends it once a second from its STATE socket
+to the bridge command port; the bridge then sends the STATE stream to that
+packet source address, out of the command socket. This makes the stream a
+reply to outbound traffic, which stateful firewalls pass without an inbound
+rule.

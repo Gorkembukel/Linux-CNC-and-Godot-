@@ -2,23 +2,25 @@
 STATE publisher and COMMAND server until killed (Ctrl+C / SIGTERM).
 
 Usage (inside WSL2 Ubuntu, with linuxcnc-uspace installed):
-    python3 bridge/main.py [--rate-hz 250]
+    python3 bridge/main.py [--ini sim_mill.ini] [--rate-hz 250]
 """
 from __future__ import annotations
 
 import argparse
 import signal
 import socket
+import subprocess
 import sys
 import threading
 from pathlib import Path
 
+import hal
 import linuxcnc
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from deploy import sync_linuxcnc_config  # noqa: E402
+from deploy import sync_linuxcnc_config, sync_nc_files  # noqa: E402
 from linuxcnc_process import LinuxCNCProcess  # noqa: E402
-from net import discover_windows_host_ip  # noqa: E402
+from net import discover_windows_host_ip, discover_own_ip  # noqa: E402
 from state_publisher import StatePublisher  # noqa: E402
 from command_server import CommandServer  # noqa: E402
 
@@ -31,17 +33,28 @@ REPO_CONFIG_DIR = REPO_ROOT / "linuxcnc-config"
 
 def main() -> int:
     ap = argparse.ArgumentParser()
+    ap.add_argument("--ini", default="sim_lathe.ini", help="INI file name inside linuxcnc-config/")
     ap.add_argument("--rate-hz", type=float, default=250.0)
     ap.add_argument("--state-port", type=int, default=STATE_PORT)
     ap.add_argument("--command-port", type=int, default=COMMAND_PORT)
     args = ap.parse_args()
 
     print(f"[bridge] syncing config from {REPO_CONFIG_DIR} to native WSL filesystem...")
-    ini_path = sync_linuxcnc_config(str(REPO_CONFIG_DIR))
+    ini_path = sync_linuxcnc_config(str(REPO_CONFIG_DIR), args.ini)
     print(f"[bridge] native ini: {ini_path}")
+
+    # trivkins assigns joints in the order the axis letters are listed.
+    coordinates = linuxcnc.ini(ini_path).find("TRAJ", "COORDINATES").split()
+    joint_axis_map = tuple((joint, "XYZABC".index(letter)) for joint, letter in enumerate(coordinates))
 
     dest_ip = discover_windows_host_ip()
     print(f"[bridge] Windows host (state stream destination): {dest_ip}")
+
+    own_ip = discover_own_ip()
+    endpoint_file = REPO_ROOT / "bridge" / ".bridge_endpoint"
+    endpoint_file.write_text(own_ip)
+    print(f"[bridge] own address (command destination for Godot): {own_ip} "
+          f"(written to {endpoint_file} -- 127.0.0.1 does NOT work here, see net.py)")
 
     stop_event = threading.Event()
 
@@ -54,16 +67,37 @@ def main() -> int:
 
     with LinuxCNCProcess(ini_path) as proc:
         print("[bridge] LinuxCNC is up.")
+
+        # basic_sim.tcl loops iocontrol's tool-change straight back into
+        # tool-changed, which completes every M6 instantly. Cutting that loop
+        # makes M6 wait for the operator's confirm (CommandServer sets the pin).
+        subprocess.run(["halcmd", "unlinkp", "iocontrol.0.tool-changed"], check=True)
+        # hal.get_value only works in a process that owns a HAL component.
+        hal_component = hal.component(f"godot-bridge-{args.command_port}")
+        hal_component.ready()
         stat = linuxcnc.stat()
         cmd = linuxcnc.command()
         stat.poll()
 
-        state_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        publisher = StatePublisher(stat, state_sock, (dest_ip, args.state_port), rate_hz=args.rate_hz)
-
         command_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         command_sock.bind(("0.0.0.0", args.command_port))
-        server = CommandServer(stat, cmd, command_sock)
+
+        # State goes out of the command socket, to whichever address last
+        # sent a SUBSCRIBE to it: a stateful firewall on the Windows side
+        # then sees the stream as replies to Godot's own outbound packets
+        # and lets it through with no inbound rule. The gateway address is
+        # only the destination until the first SUBSCRIBE arrives.
+        publisher = StatePublisher(stat, command_sock, (dest_ip, args.state_port), rate_hz=args.rate_hz,
+                                   joint_axis_map=joint_axis_map,
+                                   tool_change_pending=lambda: hal.get_value("iocontrol.0.tool-change"),
+                                   error_channel=linuxcnc.error_channel())
+
+        def retarget(addr):
+            publisher.dest_addr = addr
+
+        server = CommandServer(stat, cmd, command_sock, on_subscribe=retarget,
+                               before_program_open=lambda: sync_nc_files(str(REPO_CONFIG_DIR)),
+                               joint_axis_map=joint_axis_map)
 
         command_thread = threading.Thread(target=server.run_forever, args=(stop_event.is_set,), daemon=True)
         command_thread.start()

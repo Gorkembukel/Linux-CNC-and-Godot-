@@ -13,7 +13,13 @@ from __future__ import annotations
 import gcode
 from rs274.interpret import Translated, ArcsToSegmentsMixin, StatMixin
 
-from protocol import MotionType, PreviewSegment
+from protocol import AXIS_X, AXIS_Z, MotionType, PreviewSegment
+
+
+def _xz(x: float, z: float) -> tuple[float, ...]:
+    v = [0.0] * 6
+    v[AXIS_X], v[AXIS_Z] = x, z
+    return tuple(v)
 
 
 import os
@@ -99,14 +105,14 @@ class PreviewCanon(Translated, ArcsToSegmentsMixin, StatMixin):
         if x != self.last_x or z != self.last_z:
             self.segments.append(PreviewSegment(
                 motion_type=motion_type, line_number=self.line_number,
-                start_x=self.last_x, start_z=self.last_z, end_x=x, end_z=z,
+                start=_xz(self.last_x, self.last_z), end=_xz(x, z),
                 feed_rate=0.0 if motion_type == MotionType.RAPID else self.feed_rate,
             ))
         self.last_x, self.last_z = x, z
 
     def calc_extents(self) -> None:
-        xs = [s.start_x for s in self.segments] + [s.end_x for s in self.segments]
-        zs = [s.start_z for s in self.segments] + [s.end_z for s in self.segments]
+        xs = [s.start[AXIS_X] for s in self.segments] + [s.end[AXIS_X] for s in self.segments]
+        zs = [s.start[AXIS_Z] for s in self.segments] + [s.end[AXIS_Z] for s in self.segments]
         if xs:
             self.min_extents = [min(xs), 0.0, min(zs)]
             self.max_extents = [max(xs), 0.0, max(zs)]

@@ -1,0 +1,125 @@
+[gd_scene format=3 uid="uid://b25netjmaly0d"]
+
+[ext_resource type="Script" uid="uid://b85ahmu1t6com" path="res://Scripts/Machines/ProceduralMachine.cs" id="1_lgagi"]
+[ext_resource type="Script" uid="uid://dxs4voavg7lkd" path="res://Scripts/Machines/Spec/AxisSpec.cs" id="2_tqfha"]
+[ext_resource type="Script" uid="uid://oefcfuwvd3hn" path="res://Scripts/Machines/Spec/MillStructure.cs" id="3_ru6bv"]
+[ext_resource type="Script" uid="uid://cm82lwoqeh5ky" path="res://Scripts/Machines/Spec/ToolSpec.cs" id="4_uwo1e"]
+[ext_resource type="Script" uid="uid://do382wrytnimu" path="res://Scripts/Machines/Spec/MachineSpec.cs" id="5_hionk"]
+[ext_resource type="Script" uid="uid://dtl48gh6p81pt" path="res://Scripts/MachineVisual/ConsoleStand.cs" id="6_s87vo"]
+
+[sub_resource type="Resource" id="Resource_py651"]
+script = ExtResource("2_tqfha")
+MinLimit = -380.0
+MaxLimit = 380.0
+MaxVelocity = 400.0
+
+[sub_resource type="Resource" id="Resource_4idlm"]
+script = ExtResource("2_tqfha")
+Letter = 1
+MinLimit = -250.0
+MaxLimit = 250.0
+MaxVelocity = 400.0
+
+[sub_resource type="Resource" id="Resource_bkdml"]
+script = ExtResource("2_tqfha")
+Letter = 2
+MinLimit = -200.0
+MaxLimit = 420.0
+MaxVelocity = 400.0
+Home = 380.0
+HomeSequence = 0
+
+[sub_resource type="Resource" id="Resource_4eyl4"]
+script = ExtResource("2_tqfha")
+Letter = 3
+Carrier = 1
+MinLimit = -35.0
+MaxLimit = 110.0
+MaxVelocity = 90.0
+PivotMm = Vector3(0, 0, -120)
+
+[sub_resource type="Resource" id="Resource_q6r3d"]
+script = ExtResource("2_tqfha")
+Letter = 5
+Carrier = 1
+MinLimit = -360.0
+MaxLimit = 360.0
+MaxVelocity = 150.0
+
+[sub_resource type="Resource" id="Resource_1tr06"]
+script = ExtResource("3_ru6bv")
+BaseWidthMm = 1500.0
+BaseDepthMm = 1400.0
+ColumnWidthMm = 450.0
+SpindleHousingDiameterMm = 130.0
+MagazinePockets = 24
+TableSizeXMm = 350.0
+TableSizeYMm = 350.0
+Workholding = 2
+StockSizeXMm = 80.0
+StockSizeYMm = 80.0
+StockHeightMm = 170.0
+
+[sub_resource type="Resource" id="Resource_jv65k"]
+script = ExtResource("4_uwo1e")
+Description = "12mm flat end mill, roughing"
+DiameterMm = 12.0
+LengthMm = 110.0
+
+[sub_resource type="Resource" id="Resource_6en0d"]
+script = ExtResource("4_uwo1e")
+Number = 2
+Description = "4mm ball nose, finishing"
+DiameterMm = 4.0
+TipRadiusMm = 2.0
+LengthMm = 90.0
+
+[sub_resource type="Resource" id="Resource_qh0k3"]
+script = ExtResource("4_uwo1e")
+Number = 3
+Description = "6mm bull nose R0.5"
+DiameterMm = 6.0
+TipRadiusMm = 0.5
+LengthMm = 60.0
+
+[sub_resource type="Resource" id="Resource_vpfx5"]
+script = ExtResource("4_uwo1e")
+Number = 4
+Kind = 2
+Description = "6.8mm drill"
+DiameterMm = 6.8
+LengthMm = 80.0
+Color = Color(0.6, 0.6, 0.65, 1)
+
+[sub_resource type="Resource" id="Resource_bqqsg"]
+script = ExtResource("4_uwo1e")
+Number = 5
+Kind = 3
+Description = "90deg chamfer mill"
+LengthMm = 40.0
+TipAngleDeg = 90.0
+Color = Color(0.7, 0.5, 0.3, 1)
+
+[sub_resource type="Resource" id="Resource_6u518"]
+script = ExtResource("5_hionk")
+MachineName = "Trunnion5Axis"
+WslDistro = "Ubuntu"
+DemoProgram = "nc_files/trunnion5_ozgurluk_heykeli.ngc"
+UseToolChangePosition = true
+ToolChangePosition = Vector3(0, 0, 300)
+Axes = Array[ExtResource("2_tqfha")]([SubResource("Resource_py651"), SubResource("Resource_4idlm"), SubResource("Resource_bkdml"), SubResource("Resource_4eyl4"), SubResource("Resource_q6r3d")])
+Tools = Array[ExtResource("4_uwo1e")]([SubResource("Resource_jv65k"), SubResource("Resource_6en0d"), SubResource("Resource_qh0k3"), SubResource("Resource_vpfx5"), SubResource("Resource_bqqsg")])
+WorkHeightMm = 1050.0
+Enclosure = true
+BodyColor = Color(0.82, 0.82, 0.8, 1)
+SpindlePowerKw = 15.0
+ManualSetup = true
+Mill = SubResource("Resource_1tr06")
+
+[node name="Trunnion5Axis" type="Node3D" unique_id=697169260]
+script = ExtResource("1_lgagi")
+Spec = SubResource("Resource_6u518")
+
+[node name="ConsoleStand" type="Node3D" parent="." unique_id=1744271922]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.1, 0, 1.1169235)
+script = ExtResource("6_s87vo")

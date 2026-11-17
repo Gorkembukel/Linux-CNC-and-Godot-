@@ -1,0 +1,61 @@
+%
+( TORNA - KANAL ACMA )
+( Makine: Lathe / BenchLathe. Kutuk: cap 50mm. X = YARICAP - G8 )
+( Dis cap tek pasoda temizlenir, T3 ile uc kanal acilir, sonra parca kesilir )
+( Kanal: dal, dipte G4 ile bekle, Z yonunde genislet, geri cik )
+
+G21 G8 G18 G90 G54
+
+T1 M6
+G43 H1
+S800 M3
+
+( --- alin + dis cap --- )
+G0 X26.0 Z2.0
+G1 Z0.0 F150
+G1 X-0.5 F80
+G0 Z2.0
+G0 X23.0
+G1 Z-50.0 F150
+G0 X26.0
+G0 Z5.0
+
+M5
+T3 M6
+G43 H3
+S600 M3
+
+( --- kanal 1: Z-10..-13, dip R18 --- )
+G0 X26.0 Z-10.0
+G1 X18.0 F40
+G4 P0.3
+G1 Z-13.0 F30
+G0 X26.0
+
+( --- kanal 2: genis ve derin, Z-20..-26, dip R14, iki dalma --- )
+G0 Z-20.0
+G1 X14.0 F40
+G4 P0.3
+G0 X26.0
+G0 Z-26.0
+G1 X14.0 F40
+G4 P0.3
+G1 Z-20.0 F30
+G0 X26.0
+
+( --- kanal 3: Z-34..-37, dip R18 --- )
+G0 Z-34.0
+G1 X18.0 F40
+G4 P0.3
+G1 Z-37.0 F30
+G0 X26.0
+
+( --- kesme --- )
+G0 Z-52.0
+G1 X-0.5 F40
+G0 X26.0
+
+M5
+G0 X30.0 Z5.0
+M2
+%

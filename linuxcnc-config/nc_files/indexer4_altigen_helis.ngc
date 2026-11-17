@@ -1,0 +1,64 @@
+%
+( 4 EKSEN - ALTIGEN + HELIS KANAL + RADYAL DELIKLER )
+( Makine: "4-axis VMC with A rotary indexer" sablonundan uretilen makine )
+( Kutuk: cap 60, boy 180 mm silindir, X ekseni boyunca; ayna -X ucunda )
+( X/Y sifiri silindirin ortasi, Z0 silindirin en ust cizgisi, donme ekseni Z-30 )
+( T1 10mm parmak, T2 6mm kure, T3 6mm matkap )
+
+G21 G17 G90 G54
+
+( --- T1: +X ucunda altigen, anahtar agzi 52mm - yuzey Z-4 --- )
+T1 M6
+G43
+S2400 M3
+G0 Z40.0
+#1 = 0.0
+o100 while [#1 LT 359.0]
+  G0 A#1
+  G0 X97.0 Y-10.0
+  G0 Z-4.0
+  G1 X30.0 F400
+  G0 Z5.0
+  G0 X97.0 Y0.0
+  G0 Z-4.0
+  G1 X30.0 F400
+  G0 Z5.0
+  G0 X97.0 Y10.0
+  G0 Z-4.0
+  G1 X30.0 F400
+  G0 Z40.0
+  #1 = [#1 + 60.0]
+o100 endwhile
+M5
+
+( --- T2: helis kanal - X ilerlerken A doner, 2 tur --- )
+T2 M6
+G43
+S3000 M3
+G0 A-360.0
+G0 X20.0 Y0.0
+G0 Z5.0
+G1 Z-2.0 F100
+G1 X-50.0 A360.0 F400
+G0 Z40.0
+M5
+
+( --- T3: dort radyal delik, 90 derece arayla --- )
+T3 M6
+G43
+S1500 M3
+#2 = 0.0
+o200 while [#2 LT 359.0]
+  G0 A#2
+  G0 X-65.0 Y0.0
+  G0 Z3.0
+  G1 Z-12.0 F120
+  G0 Z40.0
+  #2 = [#2 + 90.0]
+o200 endwhile
+
+M5
+G0 A0.0
+G0 X0.0 Y0.0
+M2
+%

@@ -1,0 +1,29 @@
+[gd_scene format=3 uid="uid://ct7xvxnqqr4e5"]
+
+[ext_resource type="Script" uid="uid://e672ia485e3r" path="res://Scripts/Bridge/BridgeClient.cs" id="1"]
+[ext_resource type="Script" uid="uid://bio7qv7i5xpsd" path="res://Scripts/Material/WorkpieceVisual.cs" id="2"]
+[ext_resource type="Script" uid="uid://b37h3w6887a18" path="res://Scripts/MachineVisual/MachineBody.cs" id="3"]
+[ext_resource type="Script" uid="uid://dtl48gh6p81pt" path="res://Scripts/MachineVisual/ConsoleStand.cs" id="4"]
+[ext_resource type="Script" uid="uid://vj0d6qqexlko" path="res://Scripts/Chips/ChipSpawner.cs" id="5"]
+[ext_resource type="Script" uid="uid://6acyr0jjs5bc" path="res://Scripts/Machines/LatheMachine.cs" id="6"]
+
+[node name="Lathe" type="Node3D" unique_id=1917894056]
+script = ExtResource("6")
+
+[node name="BridgeClient" type="Node" parent="." unique_id=1916098956]
+script = ExtResource("1")
+
+[node name="Workpiece" type="Node3D" parent="." unique_id=1306415627]
+script = ExtResource("2")
+
+[node name="MachineBody" type="Node3D" parent="." unique_id=2090803757]
+script = ExtResource("3")
+
+[node name="ConsoleStand" type="Node3D" parent="." unique_id=1816874481]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.82405615, -1.1, 0.5)
+script = ExtResource("4")
+
+[node name="ChipSpawner" type="Node3D" parent="." unique_id=1329563145]
+script = ExtResource("5")
+
+[node name="Parts" type="Node3D" parent="." unique_id=1679051617]
