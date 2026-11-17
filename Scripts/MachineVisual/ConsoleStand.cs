@@ -934,6 +934,11 @@ public partial class ConsoleStand : Node3D
         else
         {
             _mdiBlocks.AddRange(blocks);
+            _page = Page.Prog;
+            _subPage = 2;
+            PlayerController.Notify(this, _mode == Mode.Mdi
+                ? "Blok MDI programına eklendi: çalıştırmak için CYCLE START"
+                : "Blok MDI programına eklendi: MDI modunu seç, sonra CYCLE START");
         }
         _keyIn = "";
     }
@@ -997,7 +1002,7 @@ public partial class ConsoleStand : Node3D
     private void OpenPage(Page page)
     {
         _page = page;
-        _subPage = 0;
+        _subPage = page == Page.Prog && _mode == Mode.Mdi ? 2 : 0;
         _offsetCursor = 0;
     }
 
