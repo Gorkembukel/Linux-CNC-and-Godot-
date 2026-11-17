@@ -10,9 +10,11 @@ during play:
   run through the game's kinematics and voxel stock.
 - `machine_*.png` — machine generator presets.
 - `stock_station*.png`, `tool_bench.png`, `vise_setup.png` — hands-on setup.
+- `console_*.png` — the control pendant on a live machine, its POS and
+  GRAPH pages, and the keypad in the close-up view.
 
 Still missing, worth adding from a real play session: the workshop seen in
-first person, the 2D operator panel next to a running machine, the setup
+first person, the pendant next to a running machine, the setup
 sheet on the HUD, chips during a cut, the generator dock in the editor.
 
 To capture from the game: Godot's embedded game view has a screenshot button,
