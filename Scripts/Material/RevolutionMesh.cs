@@ -41,10 +41,19 @@ public static class RevolutionMesh
     public static void AddBoreSegment(SurfaceTool st, float x0, float r0, float x1, float r1, int angularSegments) =>
         AddRingSegment(st, x1, r1, x0, r0, angularSegments);
 
+    // SurfaceTool smooths normals across every vertex shared within a group:
+    // flat faces (ends, shoulders, a hole's bottom) get no smoothing, so their
+    // edges stay sharp instead of blending into the cylinder next to them.
+    private const uint Flat = uint.MaxValue, OutsideGroup = 0, BoreGroup = 1;
+
+    private static uint GroupFor(float x0, float r0, float x1, float r1, uint round) =>
+        Mathf.Abs(r1 - r0) > Mathf.Abs(x1 - x0) ? Flat : round;
+
     /// <summary>A flat end cap at axial position x, radius r; a ring when
     /// there is a bore of radius innerR.</summary>
     public static void AddCap(SurfaceTool st, float x, float r, int angularSegments, bool outwardNormalIsNegativeX, float innerR = 0f)
     {
+        st.SetSmoothGroup(Flat);
         for (int a = 0; a < angularSegments; a++)
         {
             float t0 = a * Mathf.Tau / angularSegments;
@@ -75,16 +84,22 @@ public static class RevolutionMesh
         const float gone = 0.05f;
         if (r1 <= gone && in0 > 0f)
         {
+            st.SetSmoothGroup(Flat);
             AddRingSegment(st, x0, r0, x1, in0, angularSegments);
             return;
         }
         if (r0 <= gone && in1 > 0f)
         {
+            st.SetSmoothGroup(Flat);
             AddRingSegment(st, x0, in1, x1, r1, angularSegments);
             return;
         }
+        st.SetSmoothGroup(GroupFor(x0, r0, x1, r1, OutsideGroup));
         AddRingSegment(st, x0, r0, x1, r1, angularSegments);
         if (in0 > 0f || in1 > 0f)
+        {
+            st.SetSmoothGroup(GroupFor(x0, in0, x1, in1, BoreGroup));
             AddBoreSegment(st, x0, in0, x1, in1, angularSegments);
+        }
     }
 }
