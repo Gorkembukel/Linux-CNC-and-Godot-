@@ -8,6 +8,7 @@ public enum AxisCarrier { Tool, Workpiece }
 [Tool, GlobalClass]
 public partial class AxisSpec : Resource
 {
+    /// <summary>Which axis this is: X, Y, Z are linear (mm), A, B, C rotary (degrees).</summary>
     [Export] public AxisId Letter = AxisId.X;
     /// <summary>Which side of the machine this axis moves: the spindle
     /// (gantry, ram, swivel head) or the workpiece (table, saddle, trunnion).</summary>

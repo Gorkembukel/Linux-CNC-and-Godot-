@@ -28,13 +28,19 @@ public partial class MillStructure : Resource
     [Export] public float TableMaxLoadKg = 150f;
 
     [ExportGroup("Table")]
+    /// <summary>Table length along X.</summary>
     [Export] public float TableSizeXMm = 500f;
+    /// <summary>Table width along Y.</summary>
     [Export] public float TableSizeYMm = 300f;
+    /// <summary>Table thickness.</summary>
     [Export] public float TableThicknessMm = 50f;
+    /// <summary>Number of T-slots along the table; fixtures bolt into them.</summary>
     [Export] public int TSlotCount = 3;
+    /// <summary>What holds the stock: a vise, step clamps, or a chuck on the rotary axis.</summary>
     [Export] public Workholding Workholding = Workholding.Vise;
 
     [ExportGroup("Stock")]
+    /// <summary>Shape of the stock at start: a block or a round bar.</summary>
     [Export] public StockShape StockShape = StockShape.Block;
     /// <summary>Block: size along X. Cylinder: length.</summary>
     [Export] public float StockSizeXMm = 120f;

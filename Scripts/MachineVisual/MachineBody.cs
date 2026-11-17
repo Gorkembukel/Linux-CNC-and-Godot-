@@ -33,12 +33,17 @@ public partial class MachineBody : Node3D
     // claiming the opposite -- found live (reported: cutting looked like it
     // tore material straight off the chuck, because this used to sit at
     // StockZMax, right where facing/turning/parting actually happen).
+    /// <summary>Where the chuck grips the stock along the spindle (scene X, m).</summary>
     [Export] public float ChuckEndWorldX = -0.085f;
+    /// <summary>Scene X of the bed's headstock end (m).</summary>
     [Export] public float BedFarEndWorldX = -0.45f;
+    /// <summary>Scene X of the bed's tailstock end (m).</summary>
     [Export] public float BedNearEndWorldX = 0.15f;
 
     private const int StationCount = 3; // matches linuxcnc-config/sim_lathe.tbl's T1/T2/T3 exactly -- no speculative empty station
-    [Export] public float TurretToolReachMm = 45f; // distance from turret center to a tool's insert tip
+    /// <summary>Turret centre to a tool's insert tip.</summary>
+    [Export] public float TurretToolReachMm = 45f;
+    /// <summary>How fast the turret turns to the next station (degrees per second).</summary>
     [Export] public float TurretIndexSpeedDegPerSec = 240f;
 
     private MeshInstance3D _carriage;

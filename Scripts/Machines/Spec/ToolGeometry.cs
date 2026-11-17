@@ -15,6 +15,7 @@ namespace CncTrainer.Spec;
 public partial class ToolGeometry : Resource
 {
     [ExportGroup("Lathe insert")]
+    /// <summary>Insert shape: ISO C 80°, D 55°, V 35°, T 60°, S 90°, W 80°, round, grooving blade, 60° threading, or Custom (drawn in the Tool Designer).</summary>
     [Export] public InsertShape Insert = InsertShape.C80;
     /// <summary>Cutting edge length (round inserts: diameter).</summary>
     [Export] public float EdgeLengthMm = 12f;

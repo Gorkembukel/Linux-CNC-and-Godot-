@@ -23,19 +23,33 @@ namespace CncTrainer.Player;
 /// </summary>
 public partial class PlayerController : CharacterBody3D
 {
-    [Export] public float WalkSpeed = 2.0f; // m/s -- an unhurried human walking pace
+    /// <summary>Walking speed (m/s): an unhurried pace.</summary>
+    [Export] public float WalkSpeed = 2.0f;
+    /// <summary>How much faster the player goes with Shift held.</summary>
     [Export] public float RunSpeedMultiplier = 1.8f;
+    /// <summary>Upward speed of a jump (m/s).</summary>
     [Export] public float JumpVelocity = 4.0f;
+    /// <summary>Downward acceleration on the player (m/s²).</summary>
     [Export] public float Gravity = 9.8f;
+    /// <summary>Radians the view turns per pixel of mouse movement.</summary>
     [Export] public float MouseSensitivity = 0.0025f;
+    /// <summary>How close the player must be to a console to press its keys by looking at them (m).</summary>
     [Export] public float InteractRange = 1.2f;
-    [Export] public float OperateRange = 2.5f; // shortcuts + corner panel: hand on the panel, eyes on the part
-    [Export] public float PickupRange = 2.0f; // longer reach than InteractRange -- grabbing, not pressing a button at arm's length
+    /// <summary>Within this distance of a console its keyboard shortcuts work and its corner picture shows (m).</summary>
+    [Export] public float OperateRange = 2.5f;
+    /// <summary>How far the player reaches to pick something up (m).</summary>
+    [Export] public float PickupRange = 2.0f;
+    /// <summary>Normal field of view (degrees).</summary>
     [Export] public float BaseFov = 75f;
+    /// <summary>Field of view while the right mouse button zooms (degrees).</summary>
     [Export] public float ZoomFov = 22f;
+    /// <summary>Key that leans the player to the left.</summary>
     [Export] public Key LeanLeftKey = Key.Q;
+    /// <summary>Key that leans the player to the right.</summary>
     [Export] public Key LeanRightKey = Key.R;
+    /// <summary>Key that toggles crouching (Ctrl crouches while held).</summary>
     [Export] public Key CrouchToggleKey = Key.C;
+    /// <summary>Key that opens the close-up of a nearby console.</summary>
     [Export] public Key FocusKey = Key.Tab;
 
     private const float CapsuleRadius = 0.3f;

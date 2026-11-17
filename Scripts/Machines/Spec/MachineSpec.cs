@@ -18,7 +18,9 @@ public enum MachineKind { Mill, Lathe }
 [Tool, GlobalClass]
 public partial class MachineSpec : Resource
 {
+    /// <summary>Mill or lathe: decides which structure below is used.</summary>
     [Export] public MachineKind Kind = MachineKind.Mill;
+    /// <summary>Name of the machine: its scene, its LinuxCNC files (gen_<name>.ini / .tbl) and the UI.</summary>
     [Export] public string MachineName = "Machine";
 
     /// <summary>LinuxCNC allows one running instance per WSL distro.</summary>
@@ -54,7 +56,9 @@ public partial class MachineSpec : Resource
     [Export] public bool ManualSetup;
 
     [ExportGroup("Spindle and speeds")]
+    /// <summary>Highest spindle speed the control allows (INI [SPINDLE_0]).</summary>
     [Export] public float SpindleMaxRpm = 4000f;
+    /// <summary>Lowest spindle speed the control allows.</summary>
     [Export] public float SpindleMinRpm;
     /// <summary>Top step of the console's jog feed dial (mm/min); the
     /// lower steps scale with it.</summary>
@@ -71,7 +75,9 @@ public partial class MachineSpec : Resource
     [Export] public float ThermalWarmUpMinutes = 15f;
 
     [ExportGroup("Structure")]
+    /// <summary>Build of a mill (used when Kind is Mill).</summary>
     [Export] public MillStructure Mill;
+    /// <summary>Build of a lathe (used when Kind is Lathe).</summary>
     [Export] public LatheStructure Lathe;
 
     public string ConfigStem => "gen_" + MachineName;

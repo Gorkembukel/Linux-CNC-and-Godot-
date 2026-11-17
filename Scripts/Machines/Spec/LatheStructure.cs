@@ -7,7 +7,9 @@ public enum TurretKind { Disc, ToolPost }
 [Tool, GlobalClass]
 public partial class LatheStructure : Resource
 {
+    /// <summary>Length of the bed along the spindle axis.</summary>
     [Export] public float BedLengthMm = 600f;
+    /// <summary>Depth of the bed and headstock across the machine.</summary>
     [Export] public float BedDepthMm = 300f;
     /// <summary>Direction the tool approaches the spindle centreline from:
     /// 0 = straight above, 30-60 = slant bed, 90 = flat bed with the tool
@@ -26,8 +28,11 @@ public partial class LatheStructure : Resource
     [Export] public bool DiameterMode;
 
     [ExportGroup("Chuck")]
+    /// <summary>Outside diameter of the chuck; the largest bar it grips is a little smaller.</summary>
     [Export] public float ChuckDiameterMm = 100f;
+    /// <summary>Number of jaws on the chuck.</summary>
     [Export] public int ChuckJawCount = 3;
+    /// <summary>Highest speed the chuck is rated for; the spindle is limited to it.</summary>
     [Export] public float ChuckMaxRpm = 4000f;
 
     /// <summary>Disc: every tool sits on an indexing turret. ToolPost: one
@@ -40,6 +45,7 @@ public partial class LatheStructure : Resource
     [Export] public float ToolReachMm = 75f;
 
     [ExportGroup("Stock")]
+    /// <summary>Diameter of the bar in the chuck at start (without hands-on setup).</summary>
     [Export] public float StockDiameterMm = 50f;
     /// <summary>Whole bar, including the part inside the jaws.</summary>
     [Export] public float StockLengthMm = 90f;

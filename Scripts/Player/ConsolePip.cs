@@ -11,8 +11,11 @@ namespace CncTrainer.Player;
 /// </summary>
 public partial class ConsolePip : TextureRect
 {
+    /// <summary>Size of the corner picture as a fraction of the screen height.</summary>
     [Export] public float HeightFraction = 0.4f;
+    /// <summary>Field of view of the corner camera (degrees).</summary>
     [Export] public float Fov = 30f;
+    /// <summary>Pixels per side the corner picture is rendered at.</summary>
     [Export] public int Resolution = 640;
 
     public PlayerController Player;

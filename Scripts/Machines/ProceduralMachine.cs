@@ -19,6 +19,7 @@ namespace CncTrainer;
 [Tool]
 public partial class ProceduralMachine : Node3D, IMachine
 {
+    /// <summary>Everything that defines this machine; its body, setup and LinuxCNC configuration are built from it.</summary>
     [Export] public MachineSpec Spec { get; set; }
 
     public MachineRig Rig { get; private set; }

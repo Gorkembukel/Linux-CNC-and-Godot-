@@ -25,10 +25,15 @@ namespace CncTrainer.Bridge;
 /// </summary>
 public partial class BridgeClient : Node
 {
+    /// <summary>UDP port the bridge sends this machine's state packets to.</summary>
     [Export] public int StatePort = 9200;
+    /// <summary>UDP port the bridge listens on for this machine's commands.</summary>
     [Export] public int CommandPort = 9201;
+    /// <summary>Where commands go when the endpoint file does not say otherwise.</summary>
     [Export] public string CommandHost = "127.0.0.1";
+    /// <summary>Without a state packet for this long the bridge counts as disconnected (s).</summary>
     [Export] public double ConnectionTimeoutSeconds = 1.0;
+    /// <summary>File the bridge writes its reachable address into when it starts.</summary>
     [Export] public string BridgeEndpointResourcePath = "res://bridge/.bridge_endpoint";
 
     public MachineState State { get; private set; } = new();

@@ -9,11 +9,17 @@ namespace CncTrainer;
 /// </summary>
 public partial class CameraController : Camera3D
 {
-    [Export] public Vector3 Pivot = new(-0.1f, 0f, 0f); // meters -- roughly the headstock/chuck area
+    /// <summary>Point the camera orbits around (scene metres): roughly the headstock and chuck.</summary>
+    [Export] public Vector3 Pivot = new(-0.1f, 0f, 0f);
+    /// <summary>Distance from the pivot at start (m).</summary>
     [Export] public float InitialDistance = 1.5f;
+    /// <summary>Closest the scroll wheel zooms in (m).</summary>
     [Export] public float MinDistance = 0.2f;
+    /// <summary>Farthest the scroll wheel zooms out (m).</summary>
     [Export] public float MaxDistance = 8f;
+    /// <summary>Radians turned per pixel of right-drag.</summary>
     [Export] public float OrbitSpeed = 0.01f;
+    /// <summary>Fraction of the distance one wheel notch zooms.</summary>
     [Export] public float ZoomSpeed = 0.1f;
 
     private float _yaw = -0.3f;

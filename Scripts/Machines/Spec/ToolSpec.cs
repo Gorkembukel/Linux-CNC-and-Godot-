@@ -9,8 +9,11 @@ public enum ToolKind { EndMill, FaceMill, Drill, ChamferMill, Turning, Parting, 
 [Tool, GlobalClass]
 public partial class ToolSpec : Resource
 {
+    /// <summary>Tool number (the T word); on a turret or a magazine also its station or pocket.</summary>
     [Export] public int Number = 1;
+    /// <summary>What sort of tool it is: decides which machines take it and how it cuts.</summary>
     [Export] public ToolKind Kind = ToolKind.EndMill;
+    /// <summary>Name in the tool table and in the UI.</summary>
     [Export] public string Description = "";
     /// <summary>Cutter diameter (mill tools, drills, boring bars).</summary>
     [Export] public float DiameterMm = 10f;

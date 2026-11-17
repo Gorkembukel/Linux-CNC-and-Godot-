@@ -20,6 +20,7 @@ public partial class CncMachineGeneratorPlugin : EditorPlugin
     private readonly record struct ExistingMachine(string File, string Name, string Distro, int StatePort, int CommandPort);
 
     private EditorDock _dock, _toolDock;
+    private DescriptionInspectorPlugin _descriptions;
     private OptionButton _presetSelect;
     private readonly List<System.Func<MachineSpec>> _presetFactories = new();
     private EditorInspector _inspector;
@@ -56,6 +57,9 @@ public partial class CncMachineGeneratorPlugin : EditorPlugin
         _toolDock = new EditorDock { Title = "Tool Designer", LayoutKey = "cnc_tool_designer", DefaultSlot = EditorDock.DockSlot.RightBl };
         _toolDock.AddChild(new ToolDesigner { AddToMachine = AddToolToDraft });
         AddDock(_toolDock);
+
+        _descriptions = new DescriptionInspectorPlugin();
+        AddInspectorPlugin(_descriptions);
     }
 
     /// <summary>Puts a designed tool into the machine being designed, as the next tool number.</summary>
@@ -81,6 +85,7 @@ public partial class CncMachineGeneratorPlugin : EditorPlugin
         _dock.QueueFree();
         RemoveDock(_toolDock);
         _toolDock.QueueFree();
+        RemoveInspectorPlugin(_descriptions);
     }
 
     private Control BuildDock()

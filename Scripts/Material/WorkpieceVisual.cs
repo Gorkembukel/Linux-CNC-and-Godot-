@@ -29,8 +29,11 @@ public partial class WorkpieceVisual : Node3D
 {
     // Demo stock: 50mm diameter (25mm radius) bar, matches linuxcnc-config's
     // demo_facing_turning.ngc comment ("Stock: 50mm diameter round bar").
+    /// <summary>Radius of the default bar (without hands-on setup).</summary>
     [Export] public float StockRadiusMm = 25.0f;
+    /// <summary>Machine Z of the default bar's chuck end (mm).</summary>
     [Export] public float StockZMin = -85.0f;
+    /// <summary>Machine Z of the default bar's free end (mm).</summary>
     [Export] public float StockZMax = 5.0f;
     /// <summary>No stock until SetProfile is called (hands-on setup).</summary>
     [Export] public bool StartEmpty;
