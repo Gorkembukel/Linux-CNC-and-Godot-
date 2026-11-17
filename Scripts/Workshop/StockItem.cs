@@ -12,6 +12,13 @@ public partial class StockItem : Carryable, IMeasurable
 {
     public StockBlank Blank { get; private set; }
 
+    /// <summary>A turned part going back into a chuck: its shape (radii from
+    /// the end in the jaws, bore radii, step), null for raw stock.</summary>
+    public (float[] RadiiMm, float[] InnerMm, float StepMm)? Turned;
+
+    /// <summary>Diameter the chuck jaws close on.</summary>
+    public float GripDiameterMm => Turned is { } t ? 2f * t.RadiiMm[0] : Blank.DiameterMm;
+
     /// <summary>Held by a fixture: not free to pick up.</summary>
     public bool Fixed;
     public override bool CanPickUp => !Fixed;

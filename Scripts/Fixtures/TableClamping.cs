@@ -29,7 +29,7 @@ public partial class TableClamping : Node3D, IInteractable, IStockFixture
     public int ClampCount => _clamps.Count;
     private bool AnyTight => _clamps.Any(c => c.Nut.IsTight);
     private bool AnySnug => _clamps.Any(c => c.Nut.IsSnug);
-    private Vector3 Bounds => Seat.Stock.Blank.BoundsM;
+    private Vector3 Bounds => Seat.ExtentsM;
 
     public bool HoldsFirmly => _clamps.Any(c => c.Side < 0 && c.Nut.IsTight) && _clamps.Any(c => c.Side > 0 && c.Nut.IsTight);
     public string LooseReason => _clamps.Count < 2
@@ -38,19 +38,21 @@ public partial class TableClamping : Node3D, IInteractable, IStockFixture
 
     /// <summary>Sets the stock down on the table at this spot (table frame).
     /// yawDeg null = the small random angle of something put down by hand.</summary>
-    public static TableClamping Place(MillTable table, StockItem item, Vector3 tablePoint, float? yawDeg = null)
+    public static TableClamping Place(MillTable table, StockItem item, Vector3 tablePoint, float? yawDeg = null, Basis? turn = null)
     {
+        var t = turn ?? Basis.Identity;
+        var extents = SquareTurn.Extents(t, item.Blank.BoundsM);
         var fixture = new TableClamping
         {
             Name = "Clamping",
             _table = table,
             _at = new Vector3(tablePoint.X, 0f, tablePoint.Z),
             _onChips = table.Dirty,
-            Tram = new Tram(item.Blank.SizeMm.X, yawDeg, 1.5f),
+            Tram = new Tram(extents.X / WorldScale.MmToM, yawDeg, 1.5f),
         };
         table.AddChild(fixture);
         fixture.ApplyPlacement();
-        fixture.Seat.Put(item, fixture, new Transform3D(Basis.Identity, new Vector3(0f, item.Blank.BoundsM.Y / 2f, 0f)));
+        fixture.Seat.Put(item, fixture, new Transform3D(t, new Vector3(0f, extents.Y / 2f, 0f)));
         return fixture;
     }
 

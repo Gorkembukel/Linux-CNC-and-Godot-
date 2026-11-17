@@ -173,6 +173,7 @@ public sealed class LatheCutting : CuttingProcess
         if (part == null)
             return;
         part.DisplayName += SurfaceNote();
+        part.Material = Material;
         PartFinished?.Invoke();
         _parts.AddChild(part);
         part.Position = new Vector3(centreZ * WorldScale.MmToM, 0f, 0f);

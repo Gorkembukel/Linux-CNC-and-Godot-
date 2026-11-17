@@ -59,7 +59,7 @@ public partial class LatheWorkholding : MachineSetup
         };
         cutting.Severed = () => Chuck.SetBarLength(LiveLengthMm());
         Chuck.Changed = OnBarChanged;
-        Chuck.TakeMachined = () => _cutting.HasCut ? MakePart() : null;
+        Chuck.TakeMachined = () => _cutting.HasCut || Chuck.Stock?.Turned != null ? MakePart() : null;
         Chuck.Measure = Measure;
     }
 
@@ -79,8 +79,16 @@ public partial class LatheWorkholding : MachineSetup
         float[] radii, inner = null;
         if (_workpiece.Profile == null)
         {
-            radii = new float[Mathf.Max(2, Mathf.RoundToInt(grip.BarLengthMm / ProfileStepMm) + 1)];
-            System.Array.Fill(radii, grip.BarDiameterMm / 2f);
+            if (Chuck.Stock.Turned is { } shaped)
+            {
+                radii = (float[])shaped.RadiiMm.Clone();
+                inner = (float[])shaped.InnerMm.Clone();
+            }
+            else
+            {
+                radii = new float[Mathf.Max(2, Mathf.RoundToInt(grip.BarLengthMm / ProfileStepMm) + 1)];
+                System.Array.Fill(radii, grip.BarDiameterMm / 2f);
+            }
             _cutting.Material = Chuck.Stock.Blank.Material;
             _cutting.ResetStock();
             _zOffsetAtPlacement = Bridge.State.WorkOffset.Z;
@@ -113,7 +121,10 @@ public partial class LatheWorkholding : MachineSetup
             part.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = new Vector3(0.003f, radius * 2f, radius * 2f) } });
         }
         else
+        {
             part.DisplayName += _cutting.SurfaceNote();
+            ((TurnedPart)part).Material = _cutting.Material;
+        }
         _cutting.PartFinished?.Invoke();
         GetTree().CurrentScene.AddChild(part);
         part.GlobalTransform = _body.GlobalTransform * new Transform3D(Basis.Identity, new Vector3(centreZ * M, 0f, 0f));

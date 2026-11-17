@@ -112,6 +112,7 @@ public partial class PlayerController : CharacterBody3D
     private void Hold(RigidBody3D body)
     {
         _heldPart = body;
+        _heldTurn = SquareTurn.Snap(GlobalBasis.Orthonormalized().Inverse() * body.GlobalBasis.Orthonormalized());
         body.Freeze = true;
         body.LinearVelocity = Vector3.Zero;
         body.AngularVelocity = Vector3.Zero;
@@ -133,6 +134,15 @@ public partial class PlayerController : CharacterBody3D
 
     /// <summary>What the player is carrying, or null.</summary>
     public RigidBody3D Held => _heldPart;
+
+    /// <summary>How the carried object is turned (quarter turns, Z / X keys)
+    /// relative to the way the player faces; it does not tilt with the head.</summary>
+    private Basis _heldTurn = Basis.Identity;
+
+    /// <summary>The carried object's orientation in a fixture's frame,
+    /// squared to the nearest quarter turns: how it will sit there.</summary>
+    public Basis HeldTurnIn(Node3D frame) =>
+        SquareTurn.Snap(frame.GlobalBasis.Orthonormalized().Inverse() * GlobalBasis.Orthonormalized() * _heldTurn);
     public HandTool HeldTool => _heldPart as HandTool;
 
     /// <summary>Takes the carried object out of the player's hands without
@@ -295,6 +305,12 @@ public partial class PlayerController : CharacterBody3D
                     break;
                 case Key.F when Input.MouseMode == Input.MouseModeEnum.Captured:
                     TogglePickup();
+                    break;
+                case Key.Z when _heldPart != null && !keyEvent.Echo:
+                    _heldTurn = SquareTurn.QuarterTurn(_heldTurn, Vector3.Up);
+                    break;
+                case Key.X when _heldPart != null && !keyEvent.Echo:
+                    _heldTurn = SquareTurn.QuarterTurn(_heldTurn, Vector3.Right);
                     break;
             }
         }
@@ -545,7 +561,7 @@ public partial class PlayerController : CharacterBody3D
     private void UpdateCarriedPart()
     {
         if (_heldPart != null)
-            _heldPart.GlobalTransform = _carryPoint.GlobalTransform;
+            _heldPart.GlobalTransform = new Transform3D(GlobalBasis.Orthonormalized() * _heldTurn, _carryPoint.GlobalPosition);
     }
 
     /// <summary>Console prompt takes priority (it's the proven, primary
@@ -567,7 +583,7 @@ public partial class PlayerController : CharacterBody3D
         _noticeTime -= GetPhysicsProcessDeltaTime();
         if (_noticeTime <= 0.0)
             _noticeLabel.Text = "";
-        _heldLabel.Text = _heldPart == null ? "" : "Elde: " + ((_heldPart as Carryable)?.DisplayName ?? "parça");
+        _heldLabel.Text = _heldPart == null ? "" : "Elde: " + ((_heldPart as Carryable)?.DisplayName ?? "parça") + "   [Z] yatay çevir  [X] dik çevir";
 
         _crosshair.Visible = !_focus.Active;
         if (_focus.Active)

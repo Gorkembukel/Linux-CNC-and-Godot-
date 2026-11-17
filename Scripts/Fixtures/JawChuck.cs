@@ -159,7 +159,7 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
 
     public bool InsertBar(StockItem item)
     {
-        if (item.Blank.Shape != StockShape.CylinderAlongX || !Grip.Insert(item.Blank.DiameterMm, item.Blank.LengthMm))
+        if (item.Blank.Shape != StockShape.CylinderAlongX || !Grip.Insert(item.GripDiameterMm, item.Blank.LengthMm))
             return false;
         Seat.Put(item, this, Transform3D.Identity);
         Refresh();
@@ -202,17 +202,21 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
         var g = Grip;
         if (tool == HandToolKind.ChuckKey)
             return "[Tık] Anahtarı aynaya tak";
-        if (player.Held is StockItem item)
+        if (player.Held is StockItem or TurnedPart)
         {
             if (g.HasBar)
                 return "Aynada zaten bir kütük var";
-            if (item.Blank.Shape != StockShape.CylinderAlongX)
+            if (player.Held is StockItem { Blank.Shape: not StockShape.CylinderAlongX })
                 return "Ayna yalnızca yuvarlak çubuk tutar";
-            if (item.Blank.DiameterMm > g.MaxOpeningMm)
-                return $"Kütük aynaya sığmaz (en fazla Ø{g.MaxOpeningMm:0} mm)";
-            return g.CanInsert(item.Blank.DiameterMm)
-                ? "[Tık] Kütüğü aynaya sür"
-                : $"Çeneler dar: Ø{g.OpeningMm:0} mm, kütük Ø{item.Blank.DiameterMm:0} mm (ayna anahtarıyla aç)";
+            if (AxisAlong(player) is not bool reversed)
+                return "Parçayı ayna ekseni doğrultusunda tut ([Z/X] ile çevir)";
+            float diameter = GripDiameter(player, reversed);
+            if (diameter > g.MaxOpeningMm)
+                return $"Parça aynaya sığmaz (en fazla Ø{g.MaxOpeningMm:0} mm)";
+            string end = player.Held is TurnedPart ? (reversed ? "  (ters uç aynaya)" : "  (kesilen uç aynaya)") : "";
+            return g.CanInsert(diameter)
+                ? "[Tık] Aynaya sür" + end
+                : $"Çeneler dar: Ø{g.OpeningMm:0} mm, tutulan uç Ø{diameter:0.#} mm (ayna anahtarıyla aç)";
         }
         if (player.Held != null)
             return null;
@@ -234,19 +238,39 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
             player.ReleaseHeld().QueueFree();
             InsertKey();
         }
-        else if (player.Held is StockItem item)
+        else if (player.Held is StockItem or TurnedPart && !Grip.HasBar && AxisAlong(player) is bool reversed
+                 && player.Held is not StockItem { Blank.Shape: not StockShape.CylinderAlongX } && Grip.CanInsert(GripDiameter(player, reversed)))
         {
-            if (item.Blank.Shape == StockShape.CylinderAlongX && Grip.CanInsert(item.Blank.DiameterMm))
+            var held = player.ReleaseHeld();
+            var item = held as StockItem;
+            if (held is TurnedPart part)
             {
-                player.ReleaseHeld();
-                InsertBar(item);
+                item = part.ToStock(reversed);
+                GetTree().CurrentScene.AddChild(item);
+                part.QueueFree();
             }
+            InsertBar(item);
         }
         else if (player.Held == null && Grip.KeyIn)
             player.Give(TakeKey());
         else if (player.Held == null && Grip.HasBar && Grip.Torque == 0)
             player.Give(TakeBar());
     }
+
+    /// <summary>Whether the carried part lies along the spindle: false = as
+    /// it is, true = end for end; null = across the axis.</summary>
+    private bool? AxisAlong(PlayerController player)
+    {
+        float along = (player.HeldTurnIn(this) * Vector3.Right).X;
+        return Mathf.Abs(along) < 0.5f ? null : along < 0f;
+    }
+
+    private static float GripDiameter(PlayerController player, bool reversed) => player.Held switch
+    {
+        TurnedPart part => 2f * part.EndRadiusMm(reversed),
+        StockItem item => item.GripDiameterMm,
+        _ => 0f,
+    };
 
     public void Turn(PlayerController player, int steps)
     {

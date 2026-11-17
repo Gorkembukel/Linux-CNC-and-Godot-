@@ -81,10 +81,11 @@ public partial class MillTable : StaticBody3D, IInteractable
         }
         else if (player.Held is StockItem item && item.Blank.Shape == StockShape.Block)
         {
+            var turn = player.HeldTurnIn(this);
             player.ReleaseHeld();
-            var half = item.Blank.BoundsM / 2f;
+            var half = SquareTurn.Extents(turn, item.Blank.BoundsM) / 2f;
             TableClamping.Place(this, item, new Vector3(
-                Mathf.Clamp(look.X, -_halfX + half.X, _halfX - half.X), 0f, Mathf.Clamp(look.Z, -_halfZ + half.Z, _halfZ - half.Z)));
+                Mathf.Clamp(look.X, -_halfX + half.X, _halfX - half.X), 0f, Mathf.Clamp(look.Z, -_halfZ + half.Z, _halfZ - half.Z)), turn: turn);
         }
     }
 }

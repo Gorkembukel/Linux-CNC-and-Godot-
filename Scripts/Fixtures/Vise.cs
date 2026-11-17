@@ -69,17 +69,22 @@ public partial class Vise : BoltedFixture, IInteractable, IStockFixture
         _movingJaw.Position = new Vector3(0f, (JawTopY + BedTopY) / 2f, MovingJawFaceZ + 0.015f);
         _parallels.Visible = HasParallels;
         if (Stock != null)
-            Stock.Transform = StockTransform(Stock);
+            Stock.Transform = StockTransform(Seat.Turn, Seat.ExtentsM);
     }
 
     /// <summary>Where the stock's centre sits: against the fixed jaw, on
     /// the parallels (or the bed), where along the jaws the player put it.</summary>
-    private Transform3D StockTransform(StockItem stock)
+    private Transform3D StockTransform(Basis turn, Vector3 extents)
     {
-        var bounds = stock.Blank.BoundsM;
-        float y = BedTopY + (HasParallels ? ParallelHeight : 0f) + bounds.Y / 2f + (Torque > 0 && !Seated ? LiftWhenNotSeated : 0f);
-        return new Transform3D(Basis.Identity, new Vector3(_stockX, y, FixedJawFaceZ + bounds.Z / 2f));
+        float y = BedTopY + (HasParallels ? ParallelHeight : 0f) + extents.Y / 2f + (Torque > 0 && !Seated ? LiftWhenNotSeated : 0f);
+        return new Transform3D(turn, new Vector3(_stockX, y, FixedJawFaceZ + extents.Z / 2f));
     }
+
+    /// <summary>Width across the jaws (mm) of the held stock turned the way it is held.</summary>
+    private float GripWidthMm(PlayerController player, StockItem item) =>
+        SquareTurn.Extents(player.HeldTurnIn(this), item.Blank.BoundsM).Z / WorldScale.MmToM;
+
+    private float ContactMm => Seat.ExtentsM.Z / WorldScale.MmToM;
 
     /// <summary>Sets the vise on the table at the given spot (table frame)
     /// and opens its bolt holes over the nearest T-slots. Set down by hand
@@ -140,7 +145,7 @@ public partial class Vise : BoltedFixture, IInteractable, IStockFixture
         if (!IsMounted)
             return null;
         var tool = player.HeldTool?.Kind;
-        float needed = Stock != null ? Stock.Blank.SizeMm.Y : 0f;
+        float needed = ContactMm;
 
         if (tool == HandToolKind.DialIndicator)
             return Tram.DialText;
@@ -153,13 +158,12 @@ public partial class Vise : BoltedFixture, IInteractable, IStockFixture
                 : $"[Tekerlek] Çeneyi aç / kapat   açıklık {OpeningMm:0} mm";
         if (player.Held is StockItem item && Stock == null)
         {
-            if (item.Blank.Shape != StockShape.Block)
-                return "Mengene yalnızca blok kütük tutar";
-            if (item.Blank.SizeMm.Y > MaxOpeningMm)
-                return $"Kütük mengeneye sığmaz (en fazla {MaxOpeningMm:0} mm)";
-            return OpeningMm >= item.Blank.SizeMm.Y + 1f
-                ? "[Tık] Kütüğü mengeneye koy"
-                : $"Çene açıklığı yetmiyor: {OpeningMm:0} mm, kütük {item.Blank.SizeMm.Y:0} mm (mengene koluyla aç)";
+            float width = GripWidthMm(player, item);
+            if (width > MaxOpeningMm)
+                return $"Bu yönde {width:0} mm: mengeneye sığmaz (en fazla {MaxOpeningMm:0} mm, [Z/X] ile çevir)";
+            return OpeningMm >= width + 1f
+                ? $"[Tık] Kütüğü mengeneye koy (çeneler arası {width:0} mm)"
+                : $"Çene açıklığı yetmiyor: {OpeningMm:0} mm, kütük bu yönde {width:0} mm (mengene koluyla aç)";
         }
         if (tool == HandToolKind.Parallels && !HasParallels && Stock == null)
             return "[Tık] Paralelleri yerleştir";
@@ -179,12 +183,12 @@ public partial class Vise : BoltedFixture, IInteractable, IStockFixture
         if (!IsMounted)
             return;
         var tool = player.HeldTool?.Kind;
-        if (player.Held is StockItem item && Stock == null && item.Blank.Shape == StockShape.Block
-            && item.Blank.SizeMm.Y <= MaxOpeningMm && OpeningMm >= item.Blank.SizeMm.Y + 1f)
+        if (player.Held is StockItem item && Stock == null && GripWidthMm(player, item) <= MaxOpeningMm && OpeningMm >= GripWidthMm(player, item) + 1f)
         {
+            var turn = player.HeldTurnIn(this);
             player.ReleaseHeld();
-            float reach = Mathf.Max(0f, item.Blank.BoundsM.X / 2f - 0.02f);
-            PlaceStock(item, Mathf.Clamp(ToLocal(player.LookPoint).X, -reach - JawWidth / 2f + 0.02f, reach + JawWidth / 2f - 0.02f));
+            float reach = Mathf.Max(0f, SquareTurn.Extents(turn, item.Blank.BoundsM).X / 2f - 0.02f);
+            PlaceStock(item, Mathf.Clamp(ToLocal(player.LookPoint).X, -reach - JawWidth / 2f + 0.02f, reach + JawWidth / 2f - 0.02f), turn);
         }
         else if (tool == HandToolKind.Parallels && !HasParallels && Stock == null)
         {
@@ -195,7 +199,7 @@ public partial class Vise : BoltedFixture, IInteractable, IStockFixture
             Tap(ToLocal(player.LookPoint).X);
         else if (tool == HandToolKind.Mallet)
             SeatWithMallet();
-        else if (player.Held == null && Stock != null && OpeningMm > Stock.Blank.SizeMm.Y)
+        else if (player.Held == null && Stock != null && OpeningMm > ContactMm)
             player.Give(TakeStock());
         else if (player.Held == null && HasParallels && Stock == null)
         {
@@ -216,7 +220,7 @@ public partial class Vise : BoltedFixture, IInteractable, IStockFixture
     /// <summary>One wheel notch on the screw: +1 closes / tightens.</summary>
     public void TurnScrew(int steps)
     {
-        float contact = Stock != null ? Stock.Blank.SizeMm.Y : 0f;
+        float contact = ContactMm;
         if (steps > 0)
         {
             if (OpeningMm > contact)
@@ -238,11 +242,12 @@ public partial class Vise : BoltedFixture, IInteractable, IStockFixture
         Refresh();
     }
 
-    public void PlaceStock(StockItem item, float x)
+    public void PlaceStock(StockItem item, float x, Basis? turn = null)
     {
         _stockX = x;
         Seated = false;
-        Seat.Put(item, this, StockTransform(item));
+        var t = turn ?? Basis.Identity;
+        Seat.Put(item, this, StockTransform(t, SquareTurn.Extents(t, item.Blank.BoundsM)));
     }
 
     public void PlaceParallels()
