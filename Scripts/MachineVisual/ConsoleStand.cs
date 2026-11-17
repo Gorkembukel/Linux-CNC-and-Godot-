@@ -45,7 +45,7 @@ public partial class ConsoleStand : Node3D
         set { _brandText = value; RebuildIfInTree(); }
     }
 
-    private float _postHeight = 0.95f;
+    private float _postHeight = 1.1f;
     private float _panelTiltDegrees = -8f;
     private string _brandText = "";
 
@@ -697,6 +697,21 @@ public partial class ConsoleStand : Node3D
     private static Color Hex(string hex) => Color.FromHtml(hex);
 
     // ------------------------------------------------------------------ operation
+
+    public Transform3D FaceTransform => GetNode<Node3D>("Face").GlobalTransform;
+
+    /// <summary>Camera pose straight in front of the panel at the distance
+    /// where the whole face fills a view of `fovDegrees` (vertical).</summary>
+    public Transform3D FocusTransform(float fovDegrees, float aspect)
+    {
+        var face = GetNode<Node3D>("Face").GlobalTransform;
+        float half = (FaceSize + 0.04f) / 2f * 1.04f;
+        float tan = Mathf.Tan(Mathf.DegToRad(fovDegrees / 2f));
+        float distance = Mathf.Max(half / tan, half / (tan * aspect));
+        var normal = face.Basis.Z.Normalized();
+        var position = face.Origin + normal * distance;
+        return new Transform3D(Basis.LookingAt(-normal, face.Basis.Y.Normalized()), position);
+    }
 
     /// <summary>Called by PlayerController when its crosshair ray hits a
     /// node; presses it if it is one of this console's keys.</summary>

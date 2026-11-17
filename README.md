@@ -86,7 +86,12 @@ CONNECTED.
 | F | pick up / drop what you are looking at |
 | Left click | use, place, press a console button |
 | Mouse wheel | turn a bolt or the vise screw (with the right tool in hand) |
+| Right mouse (hold) | zoom |
+| Ctrl (hold) / C | crouch |
+| Q / R | lean left / right |
+| Left Alt + mouse | move the head (peek into a machine); Alt + wheel: head forward / back; tap Alt to bring it back |
 | E | at a console: 2D operator panel; at the stock station: its panel |
+| Tab | at a console: close-up on the panel (mouse clicks keys, wheel zooms to the cursor or turns a dial, right-drag pans, Tab / Esc leaves) |
 | Esc | free / capture the mouse |
 | F3 | debug overlay |
 

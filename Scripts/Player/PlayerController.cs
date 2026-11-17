@@ -30,10 +30,30 @@ public partial class PlayerController : CharacterBody3D
     [Export] public float MouseSensitivity = 0.0025f;
     [Export] public float InteractRange = 1.2f;
     [Export] public float PickupRange = 2.0f; // longer reach than InteractRange -- grabbing, not pressing a button at arm's length
+    [Export] public float BaseFov = 75f;
+    [Export] public float ZoomFov = 22f;
+    [Export] public Key LeanLeftKey = Key.Q;
+    [Export] public Key LeanRightKey = Key.R;
+    [Export] public Key CrouchToggleKey = Key.C;
+    [Export] public Key FocusKey = Key.Tab;
 
     private const float CapsuleRadius = 0.3f;
     private const float CapsuleHeight = 1.8f;
     private const float EyeHeight = 1.65f;
+    private const float CrouchCapsuleHeight = 1.2f;
+    private const float CrouchEyeHeight = 1.0f;
+    private const float LeanSideways = 0.3f;
+    private const float LeanRollRadians = 0.18f;
+    private static readonly Vector3 HeadOffsetMin = new(-0.35f, -0.6f, -0.5f);
+    private static readonly Vector3 HeadOffsetMax = new(0.35f, 0.25f, 0.1f);
+
+    private CapsuleShape3D _capsule;
+    private CollisionShape3D _collision;
+    private ConsoleFocus _focus;
+    private bool _crouchToggled;
+    private float _crouch, _lean, _zoom;
+    private Vector3 _headOffset, _headOffsetShown;
+    private bool _altMovedHead;
 
     private Camera3D _fpCamera;
     private Camera3D _tpCamera;
@@ -58,6 +78,7 @@ public partial class PlayerController : CharacterBody3D
     public Vector3 LookPoint { get; private set; }
 
     private Label _noticeLabel;
+    private Label _crosshair;
     private Label _statusLabel;
     private Label _sheetLabel;
 
@@ -120,12 +141,15 @@ public partial class PlayerController : CharacterBody3D
 
     public override void _Ready()
     {
-        var collision = new CollisionShape3D
+        _capsule = new CapsuleShape3D { Radius = CapsuleRadius, Height = CapsuleHeight };
+        _collision = new CollisionShape3D
         {
-            Shape = new CapsuleShape3D { Radius = CapsuleRadius, Height = CapsuleHeight },
+            Shape = _capsule,
             Position = new Vector3(0f, CapsuleHeight / 2f, 0f), // body origin = feet, shape centered above it
         };
-        AddChild(collision);
+        AddChild(_collision);
+        _focus = new ConsoleFocus { Name = "ConsoleFocus", Player = this };
+        AddChild(_focus);
 
         BuildBodyVisual();
 
@@ -188,7 +212,7 @@ public partial class PlayerController : CharacterBody3D
         _heldLabel.AnchorLeft = _heldLabel.AnchorRight = 0.5f;
         _heldLabel.AnchorTop = _heldLabel.AnchorBottom = 0.92f;
 
-        var crosshair = new Label { Text = "+", HorizontalAlignment = HorizontalAlignment.Center };
+        var crosshair = _crosshair = new Label { Text = "+", HorizontalAlignment = HorizontalAlignment.Center };
         ui.AddChild(crosshair);
         crosshair.AnchorLeft = crosshair.AnchorRight = crosshair.AnchorTop = crosshair.AnchorBottom = 0.5f;
         crosshair.OffsetLeft = crosshair.OffsetTop = -8;
@@ -205,11 +229,25 @@ public partial class PlayerController : CharacterBody3D
     // look did nothing, WASD worked fine, which is exactly that symptom).
     public override void _Input(InputEvent @event)
     {
-        if (@event is InputEventMouseMotion mm && Input.MouseMode == Input.MouseModeEnum.Captured)
+        if (_focus.Active)
+            return;
+        if (@event is InputEventMouseMotion headMove && Input.MouseMode == Input.MouseModeEnum.Captured && Input.IsKeyPressed(Key.Alt))
         {
-            RotateY(-mm.Relative.X * MouseSensitivity);
-            _pitch = Mathf.Clamp(_pitch - mm.Relative.Y * MouseSensitivity, -1.3f, 1.3f);
-            _head.Rotation = new Vector3(_pitch, 0f, 0f);
+            // Alt + mouse moves the head itself (peek into a machine), not the view.
+            _headOffset = (_headOffset + new Vector3(headMove.Relative.X, -headMove.Relative.Y, 0f) * 0.0015f).Clamp(HeadOffsetMin, HeadOffsetMax);
+            _altMovedHead = true;
+        }
+        else if (@event is InputEventKey { Keycode: Key.Alt, Pressed: false })
+        {
+            if (!_altMovedHead)
+                _headOffset = Vector3.Zero; // a tap on Alt brings the head back
+            _altMovedHead = false;
+        }
+        else if (@event is InputEventMouseMotion mm && Input.MouseMode == Input.MouseModeEnum.Captured)
+        {
+            float sensitivity = MouseSensitivity * _fpCamera.Fov / BaseFov;
+            RotateY(-mm.Relative.X * sensitivity);
+            _pitch = Mathf.Clamp(_pitch - mm.Relative.Y * sensitivity, -1.3f, 1.3f);
             // Flat assignment (not a child rotation nested under _head): pitch
             // and the "face backward to look at the character" 180 both land
             // in one Euler value, computed the same consistent way Godot
@@ -223,6 +261,13 @@ public partial class PlayerController : CharacterBody3D
             {
                 case Key.V:
                     ToggleView();
+                    break;
+                case var k when k == CrouchToggleKey && !keyEvent.Echo:
+                    _crouchToggled = !_crouchToggled;
+                    break;
+                case var k when k == FocusKey && !keyEvent.Echo && _atConsole && _consoleStand != null:
+                    _focus.Enter(_consoleStand, _firstPerson ? _fpCamera : _tpCamera);
+                    GetViewport().SetInputAsHandled();
                     break;
                 case Key.Escape:
                     Input.MouseMode = Input.MouseMode == Input.MouseModeEnum.Captured
@@ -244,7 +289,14 @@ public partial class PlayerController : CharacterBody3D
         else if (@event is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.WheelUp or MouseButton.WheelDown } wheel
                  && Input.MouseMode == Input.MouseModeEnum.Captured)
         {
-            LookedAtInteractable()?.Turn(this, wheel.ButtonIndex == MouseButton.WheelUp ? 1 : -1);
+            int notch = wheel.ButtonIndex == MouseButton.WheelUp ? 1 : -1;
+            if (Input.IsKeyPressed(Key.Alt))
+            {
+                _headOffset = (_headOffset + new Vector3(0f, 0f, -0.04f * notch)).Clamp(HeadOffsetMin, HeadOffsetMax);
+                _altMovedHead = true;
+            }
+            else
+                LookedAtInteractable()?.Turn(this, notch);
         }
         else if (@event is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left } mb)
         {
@@ -315,6 +367,59 @@ public partial class PlayerController : CharacterBody3D
         }
     }
 
+    /// <summary>Ctrl held or C toggled crouches; standing back up waits
+    /// until there is room above the head.</summary>
+    private void UpdateCrouch(float delta)
+    {
+        bool want = (_crouchToggled || Input.IsKeyPressed(Key.Ctrl)) && !_focus.Active;
+        if (!want && _crouch > 0f && RayHit(GlobalPosition + Vector3.Up * (EyeHeightNow() - 0.1f), Vector3.Up * (CapsuleHeight - EyeHeightNow() + 0.25f)) != null)
+            want = true;
+        _crouch = Mathf.MoveToward(_crouch, want ? 1f : 0f, delta * 4f);
+        _capsule.Height = Mathf.Lerp(CapsuleHeight, CrouchCapsuleHeight, _crouch);
+        _collision.Position = new Vector3(0f, _capsule.Height / 2f, 0f);
+    }
+
+    private float EyeHeightNow() => Mathf.Lerp(EyeHeight, CrouchEyeHeight, _crouch);
+
+    private Vector3? RayHit(Vector3 from, Vector3 along)
+    {
+        var query = PhysicsRayQueryParameters3D.Create(from, from + along);
+        var exclude = new Godot.Collections.Array<Rid> { GetRid() };
+        if (_heldPart != null)
+            exclude.Add(_heldPart.GetRid());
+        query.Exclude = exclude;
+        var result = GetWorld3D().DirectSpaceState.IntersectRay(query);
+        return result.Count == 0 ? null : result["position"].AsVector3();
+    }
+
+    /// <summary>Head pose every frame: crouch height, lean (Q / R), the Alt
+    /// head offset, and right-mouse zoom. The head never ends up inside a
+    /// wall: it stops short of whatever is between the neck and where it
+    /// would go.</summary>
+    public override void _Process(double delta)
+    {
+        float dt = (float)delta;
+        bool looking = Input.MouseMode == Input.MouseModeEnum.Captured && !_focus.Active;
+        float leanTarget = !looking ? 0f
+            : (Input.IsKeyPressed(LeanRightKey) ? 1f : 0f) - (Input.IsKeyPressed(LeanLeftKey) ? 1f : 0f);
+        _lean = Mathf.MoveToward(_lean, leanTarget, dt * 4f);
+        _headOffsetShown = _headOffsetShown.Lerp(_headOffset, Mathf.Min(1f, dt * 10f));
+
+        float eye = EyeHeightNow();
+        var neck = new Vector3(0f, eye - 0.15f, 0f);
+        var wanted = new Vector3(_lean * LeanSideways + _headOffsetShown.X, eye - Mathf.Abs(_lean) * 0.04f + _headOffsetShown.Y, _headOffsetShown.Z);
+        var neckGlobal = ToGlobal(neck);
+        var along = ToGlobal(wanted) - neckGlobal;
+        if (along.Length() > 0.001f && RayHit(neckGlobal, along + along.Normalized() * 0.1f) is Vector3 hit)
+            wanted = ToLocal(neckGlobal + along.Normalized() * Mathf.Max(0f, neckGlobal.DistanceTo(hit) - 0.1f));
+        _head.Position = wanted;
+        _head.Rotation = new Vector3(_pitch, 0f, -_lean * LeanRollRadians);
+        _tpArm.Position = new Vector3(0f, eye, 0f);
+
+        _zoom = Mathf.MoveToward(_zoom, looking && Input.IsMouseButtonPressed(MouseButton.Right) ? 1f : 0f, dt * 5f);
+        _fpCamera.Fov = Mathf.Lerp(BaseFov, ZoomFov, Mathf.SmoothStep(0f, 1f, _zoom));
+    }
+
     private void ToggleView()
     {
         _firstPerson = !_firstPerson;
@@ -369,7 +474,12 @@ public partial class PlayerController : CharacterBody3D
             (Input.IsKeyPressed(Key.S) ? 1 : 0) - (Input.IsKeyPressed(Key.W) ? 1 : 0)
         );
         inputDir = inputDir.Normalized();
-        float speed = WalkSpeed * (Input.IsKeyPressed(Key.Shift) ? RunSpeedMultiplier : 1f);
+        if (_focus.Active)
+            inputDir = Vector2.Zero;
+        if (inputDir != Vector2.Zero)
+            _headOffset = Vector3.Zero;
+        UpdateCrouch((float)delta);
+        float speed = WalkSpeed * (Input.IsKeyPressed(Key.Shift) && _crouch < 0.5f ? RunSpeedMultiplier : 1f) * (1f - 0.5f * _crouch);
         var moveDir = (Transform.Basis * new Vector3(inputDir.X, 0f, inputDir.Y)).Normalized();
         velocity.X = moveDir.X * speed;
         velocity.Z = moveDir.Z * speed;
@@ -444,6 +554,13 @@ public partial class PlayerController : CharacterBody3D
             _noticeLabel.Text = "";
         _heldLabel.Text = _heldPart == null ? "" : "Elde: " + ((_heldPart as Carryable)?.DisplayName ?? "parça");
 
+        _crosshair.Visible = !_focus.Active;
+        if (_focus.Active)
+        {
+            _interactPrompt.Text = "[Tab/Esc] çık   [Tık] tuş   [Teker] yakınlaş / düğme çevir   [Sağ tık sürükle] kaydır";
+            _interactPrompt.Visible = true;
+            return;
+        }
         if (_atStation)
         {
             _interactPrompt.Text = "[E] Kütük istasyonu";
@@ -453,7 +570,7 @@ public partial class PlayerController : CharacterBody3D
 
         if (_atConsole)
         {
-            _interactPrompt.Text = "[E] 2D panel   [Tık] tuş   [Teker] düğme / el çarkı";
+            _interactPrompt.Text = "[E] 2D panel   [Tab] panele yaklaş   [Tık] tuş   [Teker] düğme / el çarkı";
             _interactPrompt.Visible = true;
             return;
         }

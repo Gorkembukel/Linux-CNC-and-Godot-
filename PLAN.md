@@ -37,6 +37,10 @@ Done, each verified through scripted operators on real LinuxCNC:
   (AUTO then runs `nc_files/_edit_<name>`, gitignored; the original is not
   touched), OFS/SET TOOL and WORK views with MEASURE / INPUT. Offset MDI lines
   are shared with the 2D panel (`OffsetCommands`).
+- Player: right-mouse zoom, crouch (Ctrl / C), lean (Q / R), Alt head offset
+  that stops short of walls, and Tab close-up on a console (`ConsoleFocus`:
+  the panel fills the screen, the wheel dollies toward the panel point under
+  the cursor). Consoles stand 15 cm higher (PostHeight 1.1).
 
 `Main.tscn`: BenchLathe (9200/9201), BenchMill (9206/9207), Trunnion5Axis,
 FlatBedLathe (9208/9209, uncommitted), tool carts, fixture carts, stock
@@ -48,7 +52,8 @@ door on enclosed machines.
 1. **User play-test** of every keyboard/mouse path. The agent has only
    called the methods behind them: carrying, placing by aim, wheel-turning
    bolts/screw, loading tools from the cart, length gauge, gauge readings
-   under the crosshair, door, COOLANT buttons, prompts.
+   under the crosshair, door, COOLANT buttons, prompts, the new console
+   (hold-to-jog, dials) and the new posture / zoom / console close-up.
 2. **User decision**: delete the legacy hand-written path (`LatheMachine`,
    `MillMachine`, `MachineBody`, `MillBody`, `MillHeightmap`,
    `MillStockVisual`, `Lathe.tscn`, `Mill.tscn`)? No scene in `Main.tscn`
