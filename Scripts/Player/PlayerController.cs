@@ -1,4 +1,4 @@
-﻿using Godot;
+using Godot;
 using CncTrainer.Interaction;
 using CncTrainer.Workshop;
 
@@ -112,7 +112,7 @@ public partial class PlayerController : CharacterBody3D
     private void Hold(RigidBody3D body)
     {
         _heldPart = body;
-        _heldTurn = SquareTurn.Snap(GlobalBasis.Orthonormalized().Inverse() * body.GlobalBasis.Orthonormalized());
+        _heldTurn = (GlobalBasis.Orthonormalized().Inverse() * body.GlobalBasis.Orthonormalized()).Orthonormalized();
         body.Freeze = true;
         body.LinearVelocity = Vector3.Zero;
         body.AngularVelocity = Vector3.Zero;
@@ -259,6 +259,10 @@ public partial class PlayerController : CharacterBody3D
                 _headOffset = Vector3.Zero; // a tap on Alt brings the head back
             _altMovedHead = false;
         }
+        else if (@event is InputEventMouseMotion spin && _heldPart != null && Input.IsMouseButtonPressed(MouseButton.Middle))
+        {
+            _heldTurn = (new Basis(Vector3.Up, spin.Relative.X * 0.01f) * new Basis(Vector3.Right, spin.Relative.Y * 0.01f) * _heldTurn).Orthonormalized();
+        }
         else if (@event is InputEventMouseMotion mm && Input.MouseMode == Input.MouseModeEnum.Captured)
         {
             float sensitivity = MouseSensitivity * _fpCamera.Fov / BaseFov;
@@ -307,10 +311,10 @@ public partial class PlayerController : CharacterBody3D
                     TogglePickup();
                     break;
                 case Key.Z when _heldPart != null && !keyEvent.Echo:
-                    _heldTurn = SquareTurn.QuarterTurn(_heldTurn, Vector3.Up);
+                    _heldTurn = (new Basis(Vector3.Up, Mathf.Pi / 2f) * _heldTurn).Orthonormalized();
                     break;
                 case Key.X when _heldPart != null && !keyEvent.Echo:
-                    _heldTurn = SquareTurn.QuarterTurn(_heldTurn, Vector3.Right);
+                    _heldTurn = (new Basis(Vector3.Right, Mathf.Pi / 2f) * _heldTurn).Orthonormalized();
                     break;
             }
         }
@@ -583,7 +587,7 @@ public partial class PlayerController : CharacterBody3D
         _noticeTime -= GetPhysicsProcessDeltaTime();
         if (_noticeTime <= 0.0)
             _noticeLabel.Text = "";
-        _heldLabel.Text = _heldPart == null ? "" : "Elde: " + ((_heldPart as Carryable)?.DisplayName ?? "parça") + "   [Z] yatay çevir  [X] dik çevir";
+        _heldLabel.Text = _heldPart == null ? "" : "Elde: " + ((_heldPart as Carryable)?.DisplayName ?? "parça") + "   [Z] yatay çevir  [X] dik çevir  [Orta tuş sürükle] serbest çevir";
 
         _crosshair.Visible = !_focus.Active;
         if (_focus.Active)

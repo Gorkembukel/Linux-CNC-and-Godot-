@@ -119,6 +119,8 @@ public partial class WorkpieceVisual : Node3D
 
         var st = new SurfaceTool();
         st.Begin(Mesh.PrimitiveType.Triangles);
+        var clip = Profile.SquareHalfMm * WorldScale.MmToM;
+        int segments = clip == Vector2.Zero ? AngularSegments : 64;
 
         for (int i = startBucket; i < endBucket; i++)
         {
@@ -126,15 +128,15 @@ public partial class WorkpieceVisual : Node3D
             // to meters here at the mesh-vertex boundary (see WorldScale.cs).
             const float m = WorldScale.MmToM;
             RevolutionMesh.AddSection(st, Profile.ZAt(i) * m, Profile.RadiusAt(i) * m, Profile.InnerAt(i) * m,
-                Profile.ZAt(i + 1) * m, Profile.RadiusAt(i + 1) * m, Profile.InnerAt(i + 1) * m, AngularSegments);
+                Profile.ZAt(i + 1) * m, Profile.RadiusAt(i + 1) * m, Profile.InnerAt(i + 1) * m, segments, clip);
         }
 
         if (startBucket == 0)
-            RevolutionMesh.AddCap(st, Profile.ZAt(startBucket) * WorldScale.MmToM, Profile.RadiusAt(startBucket) * WorldScale.MmToM, AngularSegments,
-                outwardNormalIsNegativeX: true, Profile.InnerAt(startBucket) * WorldScale.MmToM);
+            RevolutionMesh.AddCap(st, Profile.ZAt(startBucket) * WorldScale.MmToM, Profile.RadiusAt(startBucket) * WorldScale.MmToM, segments,
+                outwardNormalIsNegativeX: true, Profile.InnerAt(startBucket) * WorldScale.MmToM, clip);
         if (endBucket == Profile.BucketCount - 1)
-            RevolutionMesh.AddCap(st, Profile.ZAt(endBucket) * WorldScale.MmToM, Profile.RadiusAt(endBucket) * WorldScale.MmToM, AngularSegments,
-                outwardNormalIsNegativeX: false, Profile.InnerAt(endBucket) * WorldScale.MmToM);
+            RevolutionMesh.AddCap(st, Profile.ZAt(endBucket) * WorldScale.MmToM, Profile.RadiusAt(endBucket) * WorldScale.MmToM, segments,
+                outwardNormalIsNegativeX: false, Profile.InnerAt(endBucket) * WorldScale.MmToM, clip);
 
         st.GenerateNormals();
         _chunkMeshes[chunkIndex].Mesh = st.Commit();

@@ -111,8 +111,8 @@ public partial class MillWorkholding : MachineSetup
             float step = VoxelStock.StepFor(size, Spec.Mill.VoxelStepMm, 6_000_000);
             var visual = new VoxelStockVisual { Name = "Machined", Position = new Vector3(0f, blank.BoundsM.Y / 2f, 0f) };
             stock.AddChild(visual);
-            visual.Build(block ? VoxelStock.Block(size.X, size.Y, size.Z, step)
-                : stock.Turned is { } turned ? VoxelStock.Revolved(turned.RadiiMm, turned.InnerMm, turned.StepMm, step)
+            visual.Build(stock.Turned is { } turned ? VoxelStock.Revolved(turned.RadiiMm, turned.InnerMm, turned.StepMm, step, turned.SquareHalfMm)
+                : block ? VoxelStock.Block(size.X, size.Y, size.Z, step)
                 : VoxelStock.CylinderAlongX(size.X, size.Y, step));
             seat.ShowMachined(visual);
             _cutting.Material = blank.Material;

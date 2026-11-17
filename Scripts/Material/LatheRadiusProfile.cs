@@ -29,6 +29,10 @@ public class LatheRadiusProfile : IMaterialModel
 
     public int BucketCount => _radius.Length;
 
+    /// <summary>Stock that started as a block: its half sizes across the
+    /// axis (section Y, Z). (0, 0) = round bar. See LatheSection.</summary>
+    public Vector2 SquareHalfMm { get; private set; }
+
     public LatheRadiusProfile(float stockRadiusMm, float zMin, float zMax, float stepMm = 0.5f)
     {
         ZMin = zMin;
@@ -42,8 +46,9 @@ public class LatheRadiusProfile : IMaterialModel
     }
 
     /// <summary>A bar that already has a shape: radiiMm[0] is at zMin.</summary>
-    public LatheRadiusProfile(float[] radiiMm, float zMin, float stepMm = 0.5f, float[] innerMm = null)
+    public LatheRadiusProfile(float[] radiiMm, float zMin, float stepMm = 0.5f, float[] innerMm = null, Vector2 squareHalfMm = default)
     {
+        SquareHalfMm = squareHalfMm;
         ZMin = zMin;
         ZMax = zMin + (radiiMm.Length - 1) * stepMm;
         StepMm = stepMm;
@@ -109,7 +114,7 @@ public class LatheRadiusProfile : IMaterialModel
                 // Down to the bore the wall is gone: the ring falls away.
                 if (cutRadius <= _inner[i] + SeverEpsilonMm)
                     cutRadius = 0f;
-                maxDepthRemoved = Mathf.Max(maxDepthRemoved, _radius[i] - Mathf.Max(cutRadius, _inner[i]));
+                maxDepthRemoved = Mathf.Max(maxDepthRemoved, LatheSection.Reach(_radius[i], SquareHalfMm) - Mathf.Max(cutRadius, _inner[i]));
                 // _radius[i] can only cross from >epsilon to <=epsilon ONCE:
                 // cutRadius is clamped >=0, so once _radius[i] is already at
                 // or below the epsilon, "cutRadius < _radius[i]" can't make
@@ -117,7 +122,7 @@ public class LatheRadiusProfile : IMaterialModel
                 if (_radius[i] > SeverEpsilonMm && cutRadius <= SeverEpsilonMm)
                     severedIndex = severedIndex is int existing ? Mathf.Min(existing, i) : i;
                 float floor = Mathf.Max(cutRadius, _inner[i]);
-                volume += Mathf.Pi * (_radius[i] * _radius[i] - floor * floor) * StepMm;
+                volume += Mathf.Max(0f, LatheSection.Area(_radius[i], SquareHalfMm) - LatheSection.Area(floor, SquareHalfMm)) * StepMm;
                 _radius[i] = cutRadius;
                 if (cutRadius == 0f)
                     _inner[i] = 0f;
