@@ -32,6 +32,8 @@ public partial class ToolSpec : Resource
     [Export] public float BackAngleDeg = 155f;
     [ExportGroup("")]
     [Export] public Color Color = new(0.85f, 0.75f, 0.35f);
+    /// <summary>The real cutting shape (insert, form); null = the simple model above.</summary>
+    [Export] public ToolGeometry Geometry;
 
     public ToolSpec() { }
 
@@ -48,13 +50,28 @@ public partial class ToolSpec : Resource
     public bool IsLatheTool => Kind is ToolKind.Turning or ToolKind.Parting or ToolKind.Boring or ToolKind.Threading;
     public bool HasPoint => Kind is ToolKind.Drill or ToolKind.ChamferMill;
 
-    public CutterShape Cutter() => new(DiameterMm / 2f,
+    public CutterShape Cutter() => !IsLatheTool && Geometry is { MillProfileMm.Length: >= 2 } g
+        ? CutterShape.Form(g.MillProfileMm, LengthMm)
+        : new(DiameterMm / 2f,
         HasPoint ? 0f : Mathf.Min(TipRadiusMm, DiameterMm / 2f), LengthMm, HasPoint ? TipAngleDeg : 0f);
 
     public ToolLimits Limits() => new(IsLatheTool, Kind == ToolKind.Parting, DiameterMm, LengthMm, Flutes);
 
     /// <summary>The bridge reports the table's D column as the active
     /// tool's size: cutter diameter on a mill, nose radius on a lathe.</summary>
-    public ToolDef ToDef(bool lathe) => new(Number, lathe ? TipRadiusMm : DiameterMm, lathe,
-        FrontAngleDeg, BackAngleDeg, Orientation, Description);
+    public ToolDef ToDef(bool lathe)
+    {
+        if (!lathe || Geometry == null || Geometry.Params().IncludedDeg <= 0f)
+            return new(Number, lathe ? NoseRadiusMm : DiameterMm, lathe, FrontAngleDeg, BackAngleDeg, Orientation, Description);
+        float front = Geometry.ApproachDeg, back = front + Geometry.Params().IncludedDeg;
+        return new(Number, NoseRadiusMm, true, front, back, Orientation, Description);
+    }
+
+    /// <summary>Lathe nose radius: the insert's when there is one.</summary>
+    public float NoseRadiusMm => Geometry != null && IsLatheTool ? Geometry.NoseRadiusMm : TipRadiusMm;
+
+    /// <summary>The cutting outline when this is a lathe tool with a real insert.</summary>
+    public CncTrainer.Material.ToolProfile LatheProfile =>
+        Geometry != null && Kind is ToolKind.Turning or ToolKind.Parting or ToolKind.Threading or ToolKind.Boring
+            ? Geometry.Profile(Kind == ToolKind.Boring) : null;
 }

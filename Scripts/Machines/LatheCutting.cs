@@ -18,6 +18,10 @@ public sealed class LatheCutting : CuttingProcess
     private readonly Node3D _parts;
 
     private Vector2? _lastPosition;
+    /// <summary>Where the current threading pass started: every pass of a
+    /// thread starts at the same Z, which keeps them in phase.</summary>
+    private float? _threadAnchorZ;
+    private float _threadTravel, _threadRevs;
 
     /// <summary>Material has been removed since the last ResetStock.</summary>
     public bool HasCut { get; private set; }
@@ -76,8 +80,28 @@ public sealed class LatheCutting : CuttingProcess
             float feedPerRev = rpm > 1f ? tipSpeed * 60f / rpm : 0f;
             var kind = mounted.Spec.Kind;
             float drillRadius = kind == ToolKind.Drill ? mounted.Spec.DiameterMm / 2f : 0f;
-            var result = kind is ToolKind.Drill or ToolKind.Boring
-                ? profile.SweepBore(previous, position, s.ToolNoseRadius, drillRadius, mounted.Spec.TipAngleDeg)
+            var shape = mounted.Spec.LatheProfile;
+            bool threading = shape != null && mounted.Spec.Geometry.IsThreading && rpm > 1f && feedPerRev > 0.2f
+                             && Mathf.Abs(position.Y - previous.Y) > Mathf.Abs(position.X - previous.X);
+            if (!threading)
+                _threadAnchorZ = null;
+            else if (_threadAnchorZ == null)
+            {
+                _threadAnchorZ = previous.Y;
+                _threadTravel = _threadRevs = 0f;
+            }
+            float pitch = 0f;
+            if (threading)
+            {
+                // Sample-to-sample feed is noisy; over a pass the axis follows the spindle exactly.
+                _threadTravel += Mathf.Abs(position.Y - previous.Y);
+                _threadRevs += rpm / 60f * seconds;
+                pitch = Mathf.Snapped(_threadRevs > 0.3f ? _threadTravel / _threadRevs : feedPerRev, 0.05f);
+            }
+            var result = kind == ToolKind.Drill ? profile.SweepBore(previous, position, s.ToolNoseRadius, drillRadius, mounted.Spec.TipAngleDeg)
+                : shape != null && kind == ToolKind.Boring ? profile.SweepProfileBore(previous, position, shape)
+                : shape != null ? profile.SweepProfile(previous, position, shape, pitch, _threadAnchorZ ?? 0f)
+                : kind == ToolKind.Boring ? profile.SweepBore(previous, position, s.ToolNoseRadius, 0f)
                 : profile.Sweep(previous, position, s.ToolNoseRadius, feedPerRev, rpm);
             if (result.MaterialRemoved)
             {
@@ -110,8 +134,10 @@ public sealed class LatheCutting : CuttingProcess
         if (tool.Kind == ToolKind.Boring)
             return BoringBarInStock(profile, tip, tool);
         bool parting = tool.Kind == ToolKind.Parting;
-        float reach = parting ? 30f : 9f;
-        float from = parting ? tip.Y - 6f : tip.Y + 6f, to = parting ? tip.Y + 6f : tip.Y + 18f;
+        var shape = tool.LatheProfile;
+        float reach = parting ? (tool.Geometry?.DepthMm ?? 30f) : shape != null ? shape.Height : 9f;
+        float from = parting ? tip.Y - 6f : shape != null ? tip.Y : tip.Y + 6f;
+        float to = parting ? tip.Y + 6f : shape != null ? tip.Y + Mathf.Max(shape.ZMax, 12f) : tip.Y + 18f;
         for (float z = Mathf.Max(from, profile.ZMin); z <= Mathf.Min(to, profile.ZMax); z += profile.StepMm)
             if (profile.RadiusAt(profile.IndexAt(z)) > tip.X + reach + 0.3f)
                 return parting

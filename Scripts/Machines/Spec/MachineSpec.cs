@@ -238,10 +238,13 @@ public partial class MachineSpec : Resource
 
     /// <summary>Changes whenever any value in the spec or its
     /// sub-resources does.</summary>
-    public string Fingerprint()
+    public string Fingerprint() => FingerprintOf(this);
+
+    /// <summary>Changes whenever any value in this resource or its sub-resources does.</summary>
+    public static string FingerprintOf(Resource resource)
     {
         var sb = new StringBuilder();
-        AppendFingerprint(this, sb);
+        AppendFingerprint(resource, sb);
         return sb.ToString();
     }
 
