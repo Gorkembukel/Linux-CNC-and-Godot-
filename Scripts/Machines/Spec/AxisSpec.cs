@@ -24,6 +24,22 @@ public partial class AxisSpec : Resource
     /// machine X/Y/Z mm from work zero.</summary>
     [Export] public Vector3 PivotMm;
 
+    /// <summary>The sign is the direction the axis runs to find its home switch.</summary>
+    [ExportGroup("Homing")]
+    [Export] public float HomeSearchVelocity = 20f;
+    [Export] public float HomeLatchVelocity = 5f;
+
+    /// <summary>Real play in the drive: after a reversal the axis moves
+    /// this far before the tool does.</summary>
+    [ExportGroup("Accuracy")]
+    [Export] public float MechanicalBacklashMm;
+    /// <summary>What the control adds back on a reversal (INI BACKLASH).</summary>
+    [Export] public float BacklashCompensationMm;
+
+    /// <summary>Rotary only: turns endlessly, 0-360, shortest way round.</summary>
+    [ExportGroup("Rotary")]
+    [Export] public bool Wrapped;
+
     public AxisSpec() { }
 
     public AxisSpec(AxisId letter, AxisCarrier carrier, float min, float max, float home = 0f, int homeSequence = 1,
@@ -34,5 +50,9 @@ public partial class AxisSpec : Resource
     }
 
     public AxisDef ToDef() => new(Letter, Carrier == AxisCarrier.Workpiece, MinLimit, MaxLimit,
-        MaxVelocity, MaxAcceleration, Home, HomeSequence, PivotMm);
+        MaxVelocity, MaxAcceleration, Home, HomeSequence, PivotMm,
+        HomeSearchVelocity, HomeLatchVelocity, BacklashCompensationMm, Wrapped && Letter >= AxisId.A);
+
+    /// <summary>Play the control does not take out.</summary>
+    public float UncompensatedPlayMm => Mathf.Max(0f, MechanicalBacklashMm - BacklashCompensationMm);
 }

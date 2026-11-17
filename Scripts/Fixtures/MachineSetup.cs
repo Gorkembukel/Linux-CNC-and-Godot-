@@ -35,7 +35,7 @@ public abstract partial class MachineSetup : Node3D, ISetupSheet
         if (opening is not var (centre, size))
             return;
         Door = MachineDoor.Create(centre, size);
-        Door.Locked = () => Running;
+        Door.Locked = () => Spec.DoorInterlock && Running;
         body.AddChild(Door);
     }
 
@@ -43,7 +43,7 @@ public abstract partial class MachineSetup : Node3D, ISetupSheet
     /// door open stops the machine.</summary>
     protected void CheckDoorInterlock()
     {
-        bool violation = Door != null && Door.IsOpen && Running;
+        bool violation = Spec.DoorInterlock && Door != null && Door.IsOpen && Running;
         if (violation && !_ranWithDoorOpen)
             Safety.Trip(IncidentKind.Interlock, "KAPI AÇIK: makine kapı açıkken çalıştırıldı (önce kapıyı kapat)");
         _ranWithDoorOpen = violation;

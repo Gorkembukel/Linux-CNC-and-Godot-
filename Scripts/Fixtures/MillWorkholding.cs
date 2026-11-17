@@ -58,10 +58,24 @@ public partial class MillWorkholding : MachineSetup
             body.WorkEnd.AddChild(Table);
         }
 
-        Spindle = ToolSocket.Create(1, turret: false, new Vector3(0.09f, 0.2f, 0.09f), new Vector3(0f, 0.1f, 0f));
+        if (m.MagazinePockets > 0 && body.Magazine != null)
+        {
+            float size = body.MagazineRadius * 2f;
+            Spindle = ToolSocket.Create(m.MagazinePockets, turret: true, new Vector3(size, 0.15f, size), new Vector3(0f, -0.04f, 0f), latheTools: false);
+            Spindle.PocketOf = number => number - 1;
+            body.Magazine.AddChild(Spindle);
+        }
+        else
+        {
+            Spindle = ToolSocket.Create(1, turret: false, new Vector3(0.09f, 0.2f, 0.09f), new Vector3(0f, 0.1f, 0f));
+            body.ToolEnd.AddChild(Spindle);
+        }
         Spindle.ActiveNumber = () => Bridge.State.ToolNumber;
         Spindle.Turning = () => System.Math.Abs(Bridge.State.SpindleRpm) > 1.0;
-        body.ToolEnd.AddChild(Spindle);
+        Spindle.Refuse = tool =>
+            tool.DiameterMm > m.MaxToolDiameterMm ? $"Takım çok büyük: Ø{tool.DiameterMm:0} mm, iş mili en fazla Ø{m.MaxToolDiameterMm:0} mm alır"
+            : tool.LengthMm > m.MaxToolLengthMm ? $"Takım çok uzun: {tool.LengthMm:0} mm, en fazla {m.MaxToolLengthMm:0} mm"
+            : null;
         cutting.Tools = Spindle;
 
         AddDoor(body, body.DoorOpening);
@@ -117,11 +131,45 @@ public partial class MillWorkholding : MachineSetup
             _cutting.ClearStock();
 
         CheckDoorInterlock();
+        RunToolChanger(delta);
         CheckFixtureCrash(fixture);
         if (Chuck != null)
             CheckKeyLeftIn(Chuck, Mathf.Abs(Bridge.State.Velocity.A) > 0.01f, "ÇARPMA: ayna anahtarı aynada unutuldu, döner eksen çalıştı");
         CheckEdgeFinder();
         ShowPaperGap();
+    }
+
+    /// <summary>What really sits in the spindle now.</summary>
+    private MountedTool InSpindle => Spindle.Active(Spec.Mill.MagazinePockets > 0 ? Bridge.State.ToolNumber : 0);
+
+    private double _changeTimer;
+    private int _lastTool = -1;
+
+    /// <summary>With a magazine the change happens by itself after the
+    /// changer's time; an empty pocket leaves the spindle empty.</summary>
+    private void RunToolChanger(double delta)
+    {
+        if (Spec.Mill.MagazinePockets <= 0)
+            return;
+        var s = Bridge.State;
+        if (s.ToolChangePending && s.MachineOn)
+        {
+            _changeTimer += delta;
+            if (_changeTimer >= Spec.Mill.ToolChangeSeconds)
+            {
+                Bridge.ConfirmToolChange();
+                _changeTimer = double.NegativeInfinity;
+            }
+        }
+        else
+            _changeTimer = 0.0;
+
+        if (s.ToolNumber != _lastTool)
+        {
+            if (_lastTool >= 0 && s.ToolNumber > 0 && !Spindle.Active(s.ToolNumber).Present)
+                Safety.Warn($"T{s.ToolNumber}: magazinin {s.ToolNumber}. cebi boş, iş milinde takım yok");
+            _lastTool = s.ToolNumber;
+        }
     }
 
     /// <summary>The edge finder kicks sideways the moment it reaches the
@@ -131,7 +179,7 @@ public partial class MillWorkholding : MachineSetup
         float overtravel = _cutting.EdgeFinderOvertravelMm;
         bool touching = overtravel >= 0f;
         _body.SetToolKick(touching);
-        if (touching && !_edgeTouching && Spindle.Active(0).Spec is ToolSpec finder)
+        if (touching && !_edgeTouching && InSpindle.Spec is ToolSpec finder)
             Safety.Warn(System.FormattableString.Invariant(
                 $"Kenar bulucu attı: uç kenarda. İş mili ekseni kenardan {finder.DiameterMm / 2f:0.###} mm uzakta"));
         _edgeTouching = touching;
@@ -152,7 +200,7 @@ public partial class MillWorkholding : MachineSetup
         if (GetTree().GetFirstNodeInGroup("player") is not PlayerController player
             || player.HeldTool?.Kind != HandToolKind.PaperGauge || player.GlobalPosition.DistanceTo(GlobalPosition) > 4f)
             return;
-        var tool = Spindle.Active(0).Spec;
+        var tool = InSpindle.Spec;
         if (tool == null || tool.Kind == ToolKind.EdgeFinder)
             player.ToolStatus = "Kağıt mastar: iş milinde kesici takım yok";
         else if (_cutting.TipGapMm() is not float gap)
@@ -170,7 +218,7 @@ public partial class MillWorkholding : MachineSetup
         get
         {
             var fixture = Fixture;
-            var inSpindle = Spindle.Active(0);
+            var inSpindle = InSpindle;
             int wanted = Bridge.State.ToolNumber;
             string tools = !inSpindle.Present ? "[ ] İş mili boş: takım arabasından takım tak\n"
                 : wanted > 0 && inSpindle.Spec.Number != wanted
@@ -181,6 +229,9 @@ public partial class MillWorkholding : MachineSetup
                     ? "[ ] Bağlama yok\n    Merkezleme plakasını arabadan al,\n    tabla merkezine oturt"
                     : "[ ] Bağlama yok\n    Mengeneyi arabadan al, tablaya koy\n    (ya da kütüğü tablaya koy, pabuçla bağla)");
             string text = tools + fixture.SheetLines;
+            float loadKg = ((fixture as RigidBody3D)?.Mass ?? 0f) + (fixture.Seat.Stock?.Mass ?? 0f);
+            if (Table != null && loadKg > Spec.Mill.TableMaxLoadKg)
+                text += $"    Tabla yükü aşıldı: {loadKg:0} kg, en fazla {Spec.Mill.TableMaxLoadKg:0} kg\n";
             if (fixture.Seat.Occupied)
             {
                 var delta = Bridge.State.WorkOffset - _offsetAtPlacement;
@@ -210,7 +261,7 @@ public partial class MillWorkholding : MachineSetup
     private void CheckFixtureCrash(IStockFixture fixture)
     {
         string reason = null;
-        if (Spindle.Active(0) is { Present: true } mounted)
+        if (InSpindle is { Present: true } mounted)
         {
             float radius = mounted.Spec.DiameterMm / 2f * M;
             float length = (mounted.Spec.LengthMm + mounted.ErrorMm.Y) * M;

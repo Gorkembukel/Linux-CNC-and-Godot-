@@ -6,11 +6,10 @@ history of how it got here is in git (`git log`, and `PLAN.md` before
 
 ## Current state (2026-11-17)
 
-`main` (GitHub default) holds only the initial scaffold; all work is on
-`fanuc-style-console`, open as PR #1 into `main` (merge is the user's call).
-The older branches (`phase0-godot-bridge-client` ... `cutting-realism`) are
-ancestors of it, kept for now. 80 C# tests, 11 pytest (+2 LinuxCNC
-lifecycle tests, + preview test).
+`main` holds everything up to PR #4 (operator view). Branch
+`machine-limits-collisions` adds collisions, lathe drilling/boring and the
+machine settings below (PR into `main`, merge is the user's call).
+87 C# tests, 11 pytest (+2 LinuxCNC lifecycle tests, + preview test).
 
 Done, each verified through scripted operators on real LinuxCNC:
 - Bridge (Python in WSL) <-> Godot C# client, prediction, N-axis protocol,
@@ -50,6 +49,29 @@ Done, each verified through scripted operators on real LinuxCNC:
   sound (`Scripts/Audio`): key click, alarm beep, spindle motor, cutting,
   servos, coolant. The 2D panel and status text are debug-only (F2); E at a
   console opens the close-up.
+- Operator view (PR #4): within 2.5 m of a console a live picture of the real
+  3D panel sits in the bottom-right corner (`ConsolePip`, clickable with the
+  cursor free); arrows / PgUp / PgDn press the jog key in the same spot of the
+  jog block (held = jog), Enter = CYCLE START, Space = FEED HOLD, -/= = feed
+  override; keyboard presses glow on the panel.
+- Collisions: lathe body as Z stretches with a reach from the centreline
+  (`ProceduralLatheBody.Interference`): tool / turret / tool post vs chuck,
+  headstock, tailstock, enclosure, and the turret itself in the bar. Mill:
+  holder and spindle nose vs fixtures and table, vise base/ears/screw.
+- Lathe drilling and boring: `LatheRadiusProfile` keeps a bore radius per
+  bucket (`SweepBore`); mesh, finished parts, mass and caliper (bore vs
+  outside) know it. Drill deeper than its flutes and a boring bar in a hole
+  too small for it crash.
+- Machine settings in `MachineSpec` (plugin inspector): spindle min/max rpm
+  (+ chuck max rpm, INI `[SPINDLE_0]`), jog top speed (console dial scales),
+  flood coolant yes/no, door interlock on/off, thermal growth, per axis home
+  search/latch velocity (sign = direction), mechanical backlash and its
+  compensation (INI `BACKLASH`; the rest is play in `MachineErrors`), wrapped
+  rotary; lathe swing, max turning length, G7/G8 startup, tailstock Z; mill
+  magazine (automatic change after `ToolChangeSeconds`, tool N in pocket N,
+  random changer flag for LinuxCNC), max tool diameter/length, table load.
+  `Validate` checks them; the plugin warns about axis letters the machine
+  lacks and S above the max rpm in the demo program.
 
 `Main.tscn`: BenchLathe (9200/9201), BenchMill (9206/9207), Trunnion5Axis,
 FlatBedLathe (9208/9209, uncommitted), tool carts, fixture carts, stock
@@ -70,10 +92,13 @@ door on enclosed machines.
 3. **Training / scenario mode** (work order, drawing with tolerances, report
    card) — not started. Inputs exist: `IMeasurable`,
    `MachineSafety.Incidents`, `CutMonitor` (peak load, chatter, wear).
-4. Not modelled: turret / tailstock / enclosure collisions, mill head vs.
-   vise body sideways, guards on open bench machines, sound, tool magazine
-   logic (every mill tool change is by hand), lathe boring/drilling, RTCP,
-   G-code preview beyond X/Z, persistence of cut state across a restart.
+4. Not modelled: guards on open bench machines, RTCP, G-code preview beyond
+   X/Z, persistence of cut state across a restart, tool deflection, a
+   locking rotary brake (LinuxCNC `LOCKING_INDEXER` needs an unlock handshake
+   basic_sim does not wire), the random changer moving tools between pockets
+   on our side (LinuxCNC keeps its own pocket bookkeeping). The requested tool
+   is not in the STATE packet, so an empty magazine pocket is only reported
+   after the change.
 5. The eleven demo programs in `linuxcnc-config/nc_files/` have never all
    run end to end live (the statue program only offline + `rs274`).
 6. Side finding, not investigated: `BridgeClient.LastCommandRttMs` stays NaN.

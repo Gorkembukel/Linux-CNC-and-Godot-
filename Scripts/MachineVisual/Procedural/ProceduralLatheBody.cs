@@ -171,7 +171,9 @@ public partial class ProceduralLatheBody : Node3D
 
         if (l.Tailstock)
         {
-            float tailX = Mathf.Min(bedRight - 0.08f, Mathf.Max((zAxis?.MaxLimit ?? 50f) * M, l.StockZMax * M) + 0.2f);
+            float tailX = l.TailstockZMm != 0f
+                ? l.TailstockZMm * M + 0.19f
+                : Mathf.Min(bedRight - 0.08f, Mathf.Max((zAxis?.MaxLimit ?? 50f) * M, l.StockZMax * M) + 0.2f);
             Box(this, "Tailstock", new Vector3(0.14f, 0.06f - bedTop, 0.14f), new Vector3(tailX, (0.06f + bedTop) / 2f, 0f), bodyMat);
             Cylinder(this, "Quill", 0.02f, 0.1f, new Vector3(tailX - 0.11f, 0f, 0f), Vector3.Right, Steel);
             Cylinder(this, "LiveCentre", 0f, 0.03f, new Vector3(tailX - 0.175f, 0f, 0f), Vector3.Right, Steel, topRadius: 0.02f);

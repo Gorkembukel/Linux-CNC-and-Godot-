@@ -36,6 +36,7 @@ public sealed class LatheCutting : CuttingProcess
     /// <summary>Real tip position (radius, Z) for a machine position.</summary>
     public Vector2 TipAt(AxisVector v, int toolNumber)
     {
+        v = Errors.Apply(v);
         var mounted = Tools.Active(toolNumber);
         return mounted.Present
             ? new Vector2(v.X + mounted.State.EdgeLossMm + mounted.ErrorMm.X, v.Z + mounted.ErrorMm.Z)
@@ -182,7 +183,7 @@ public sealed class LatheCutting : CuttingProcess
         int tool = Bridge.State.ToolNumber;
         var position = TipAt(Bridge.Prediction.VisualPosition, tool);
         _body.SetPose(position.Y, position.X, tool, delta);
-        _body.SetCoolant(Bridge.State.Coolant);
+        _body.SetCoolant(Bridge.State.Coolant && Spec.FloodCoolant);
         _workpiece.RebuildDirtyChunks();
         return _body.TipLocal(position.Y, position.X);
     }

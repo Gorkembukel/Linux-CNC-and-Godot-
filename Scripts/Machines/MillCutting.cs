@@ -58,7 +58,7 @@ public sealed class MillCutting : CuttingProcess
     {
         if (_stock == null)
             return;
-        var inStock = _workToStock * _kinematics.ToolInWork(s.Position);
+        var inStock = _workToStock * _kinematics.ToolInWork(Errors.Apply(s.Position));
         var mounted = Tools.Active(s.ToolNumber);
         var tool = mounted.Spec;
         // A tool sticking out further than nominal has its tip that much
@@ -144,11 +144,11 @@ public sealed class MillCutting : CuttingProcess
 
     protected override Vector3 MoveBody(double delta)
     {
-        var position = Bridge.Prediction.VisualPosition;
+        var position = Errors.Apply(Bridge.Prediction.VisualPosition);
         _body.SetPose(position);
         var mounted = Tools.Active(Bridge.State.ToolNumber);
         _body.ShowTool(mounted.Cuts ? mounted.Spec : null, mounted.ErrorMm.Y);
-        _body.SetCoolant(Bridge.State.Coolant);
+        _body.SetCoolant(Bridge.State.Coolant && Spec.FloodCoolant);
         _stock?.RebuildDirtyChunks();
         return _kinematics.ToolTransform(position).Origin;
     }
