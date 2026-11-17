@@ -70,7 +70,7 @@ public partial class ConsoleFocus : Node
             return;
         switch (@event)
         {
-            case InputEventKey { Pressed: true, Echo: false, Keycode: Key.Tab or Key.Escape }:
+            case InputEventKey { Pressed: true, Echo: false, Keycode: Key.Tab or Key.Escape or Key.E }:
                 Exit();
                 break;
             case InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left } click:

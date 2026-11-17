@@ -81,6 +81,10 @@ class CommandKind(IntEnum):
     MACHINE_ON = 17
     MACHINE_OFF = 18
     UNHOME = 19  # the machine has lost its reference (after a crash)
+    SET_RAPID_OVERRIDE = 20  # f32 scale
+    SET_BLOCK_DELETE = 21  # u8 on/off: skip blocks starting with /
+    SET_OPTIONAL_STOP = 22  # u8 on/off: M1 stops
+    COOLANT_FLOOD = 23  # u8 on/off, works mid-program unlike M8/M9 over MDI
 
 
 # position velocity (f64 x AXIS_CAPACITY*2) | feed_rate spindle_rpm (f64 x2)

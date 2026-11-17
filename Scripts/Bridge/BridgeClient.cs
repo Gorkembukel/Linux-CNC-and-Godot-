@@ -297,6 +297,10 @@ public partial class BridgeClient : Node
     public void StepProgram() => SendCommand(CommandKind.ProgramStep);
     public void SetFeedOverride(float value) => SendCommand(CommandKind.SetFeedOverride, CommandPacket.ArgsF32(value));
     public void SetSpindleOverride(float value) => SendCommand(CommandKind.SetSpindleOverride, CommandPacket.ArgsF32(value));
+    public void SetRapidOverride(float value) => SendCommand(CommandKind.SetRapidOverride, CommandPacket.ArgsF32(value));
+    public void SetBlockDelete(bool on) => SendCommand(CommandKind.SetBlockDelete, CommandPacket.ArgsU8((byte)(on ? 1 : 0)));
+    public void SetOptionalStop(bool on) => SendCommand(CommandKind.SetOptionalStop, CommandPacket.ArgsU8((byte)(on ? 1 : 0)));
+    public void SetCoolant(bool on) => SendCommand(CommandKind.CoolantFlood, CommandPacket.ArgsU8((byte)(on ? 1 : 0)));
     public void SpindleOn(float rpm) => SendCommand(CommandKind.SpindleOn, CommandPacket.ArgsF32(rpm));
     public void SpindleOff() => SendCommand(CommandKind.SpindleOff);
     public void ConfirmToolChange() => SendCommand(CommandKind.ToolChangeConfirm);

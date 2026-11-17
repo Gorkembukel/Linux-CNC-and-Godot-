@@ -90,16 +90,18 @@ CONNECTED.
 | Ctrl (hold) / C | crouch |
 | Q / R | lean left / right |
 | Left Alt + mouse | move the head (peek into a machine); Alt + wheel: head forward / back; tap Alt to bring it back |
-| E | at a console: 2D operator panel; at the stock station: its panel |
+| E | at a console: close-up on the panel (same as Tab); at the stock station: its panel |
 | Tab | at a console: close-up on the panel (mouse clicks keys, wheel zooms to the cursor or turns a dial, right-drag pans, Tab / Esc leaves) |
 | Esc | free / capture the mouse |
+| F2 | debug: the old 2D operator panel and status text |
 | F3 | debug overlay |
 
 ### Running a program
 
-At a machine's console press **E**, then on the panel: **ON**, **HOME ALL**,
-**LOAD PROGRAM**, **CYCLE START**. Every tool change waits for
-**CONFIRM TC**. Jogging needs **MANUAL** mode. LinuxCNC's own error messages
+At a machine's console press **E** for the close-up, then: **ON** (POWER),
+**REF RETURN** + **ALL REF**, **PROG > DIR** + **SELECT** to pick a program,
+**AUTO**, **CYCLE START**. Every tool change waits for **TOOL CHG END**.
+Jogging: **JOG** (hold an axis key), **INC JOG** or **HANDLE**. LinuxCNC's own error messages
 appear in red in the middle of the screen.
 
 ### Setting up a part on the mill

@@ -36,6 +36,22 @@ public partial class Main : Node3D
         var panel = GetNode<OperatorPanel>("UI/OperatorPanel");
         panel.MachineSelected += OnMachineSelected;
         panel.SetMachines(_machines);
+        _panel = panel;
+        // Debug only: the 3D consoles are the real controls (F2 shows these).
+        panel.Visible = false;
+        _statusLabel.Visible = false;
+    }
+
+    private OperatorPanel _panel;
+
+    public override void _Input(InputEvent @event)
+    {
+        if (@event is not InputEventKey { Pressed: true, Echo: false, Keycode: Key.F2 })
+            return;
+        bool show = !_panel.Visible;
+        _panel.Visible = show;
+        _statusLabel.Visible = show;
+        Input.MouseMode = show ? Input.MouseModeEnum.Visible : Input.MouseModeEnum.Captured;
     }
 
     private void OnMachineSelected(IMachine machine)

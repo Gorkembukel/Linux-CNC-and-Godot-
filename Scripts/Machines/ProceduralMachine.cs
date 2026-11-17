@@ -117,6 +117,7 @@ public partial class ProceduralMachine : Node3D, IMachine
             Spec.RateHz, Spec.ConfigStem + ".ini", Spec.DemoProgram);
         Rig = new MachineRig(profile, bridge);
         Safety = new MachineSafety(this, bridge);
+        AddChild(new Audio.MachineAudio { Name = "MachineAudio", Rig = Rig, Position = new Vector3(0f, 1.2f, 0f) });
         MachineProcessController.StartBackingProcess(profile);
         GetNodeOrNull<ConsoleStand>("ConsoleStand")?.Configure(Rig);
 

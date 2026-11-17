@@ -120,6 +120,18 @@ class CommandServer:
             self.cmd.state(linuxcnc.STATE_ON)
         elif kind == CommandKind.MACHINE_OFF:
             self.cmd.state(linuxcnc.STATE_OFF)
+        elif kind == CommandKind.SET_RAPID_OVERRIDE:
+            (value,) = struct.unpack("<f", args)
+            self.cmd.rapidrate(value)
+        elif kind == CommandKind.SET_BLOCK_DELETE:
+            (on,) = struct.unpack("<B", args)
+            self.cmd.set_block_delete(bool(on))
+        elif kind == CommandKind.SET_OPTIONAL_STOP:
+            (on,) = struct.unpack("<B", args)
+            self.cmd.set_optional_stop(bool(on))
+        elif kind == CommandKind.COOLANT_FLOOD:
+            (on,) = struct.unpack("<B", args)
+            self.cmd.flood(linuxcnc.FLOOD_ON if on else linuxcnc.FLOOD_OFF)
         elif kind == CommandKind.UNHOME:
             # Motion only lets go of the reference once the drives are off.
             # (The MACHINE_OFF sent just before this needs a moment to land.)

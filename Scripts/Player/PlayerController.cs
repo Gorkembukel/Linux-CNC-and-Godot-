@@ -266,7 +266,7 @@ public partial class PlayerController : CharacterBody3D
                     _crouchToggled = !_crouchToggled;
                     break;
                 case var k when k == FocusKey && !keyEvent.Echo && _atConsole && _consoleStand != null:
-                    _focus.Enter(_consoleStand, _firstPerson ? _fpCamera : _tpCamera);
+                    EnterConsole();
                     GetViewport().SetInputAsHandled();
                     break;
                 case Key.Escape:
@@ -278,8 +278,9 @@ public partial class PlayerController : CharacterBody3D
                     _station.SetPanelOpen(!_station.PanelOpen);
                     Input.MouseMode = _station.PanelOpen ? Input.MouseModeEnum.Visible : Input.MouseModeEnum.Captured;
                     break;
-                case Key.E when _atConsole:
-                    ToggleConsoleUse();
+                case Key.E when _atConsole && _consoleStand != null && !keyEvent.Echo:
+                    EnterConsole();
+                    GetViewport().SetInputAsHandled();
                     break;
                 case Key.F when Input.MouseMode == Input.MouseModeEnum.Captured:
                     TogglePickup();
@@ -307,7 +308,7 @@ public partial class PlayerController : CharacterBody3D
                 else
                     TryPressConsoleButton(); // crosshair raycast -- see that method's doc comment
             }
-            else if (!_atConsole && !_atStation)
+            else if (!_atConsole && !_atStation && _operatorPanel is not { Visible: true })
             {
                 // Safety net for a focus-timing edge case: clicking back into
                 // the game window re-captures the mouse for looking around,
@@ -453,12 +454,13 @@ public partial class PlayerController : CharacterBody3D
         });
     }
 
-    private void ToggleConsoleUse()
+    /// <summary>Close-up on the nearest console; the debug 2D panel (F2)
+    /// follows the same machine.</summary>
+    private void EnterConsole()
     {
-        bool usingConsole = Input.MouseMode == Input.MouseModeEnum.Visible;
-        Input.MouseMode = usingConsole ? Input.MouseModeEnum.Captured : Input.MouseModeEnum.Visible;
-        if (!usingConsole && _consoleStand.Rig != null)
+        if (_consoleStand.Rig != null)
             (_operatorPanel as Panel.OperatorPanel)?.SelectMachine(_consoleStand.Rig);
+        _focus.Enter(_consoleStand, _firstPerson ? _fpCamera : _tpCamera);
     }
 
     public override void _PhysicsProcess(double delta)
@@ -557,7 +559,7 @@ public partial class PlayerController : CharacterBody3D
         _crosshair.Visible = !_focus.Active;
         if (_focus.Active)
         {
-            _interactPrompt.Text = "[Tab/Esc] çık   [Tık] tuş   [Teker] yakınlaş / düğme çevir   [Sağ tık sürükle] kaydır";
+            _interactPrompt.Text = "[E/Tab/Esc] çık   [Tık] tuş   [Teker] yakınlaş / düğme çevir   [Sağ tık sürükle] kaydır";
             _interactPrompt.Visible = true;
             return;
         }
@@ -570,7 +572,7 @@ public partial class PlayerController : CharacterBody3D
 
         if (_atConsole)
         {
-            _interactPrompt.Text = "[E] 2D panel   [Tab] panele yaklaş   [Tık] tuş   [Teker] düğme / el çarkı";
+            _interactPrompt.Text = "[E] panele yaklaş   [Tık] tuş   [Teker] düğme / el çarkı";
             _interactPrompt.Visible = true;
             return;
         }

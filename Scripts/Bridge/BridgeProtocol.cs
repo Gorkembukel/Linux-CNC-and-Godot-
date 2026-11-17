@@ -44,6 +44,10 @@ public enum CommandKind : byte
     MachineOn = 17,
     MachineOff = 18,
     Unhome = 19,
+    SetRapidOverride = 20,
+    SetBlockDelete = 21,
+    SetOptionalStop = 22,
+    CoolantFlood = 23,
 }
 
 public readonly struct PacketHeader

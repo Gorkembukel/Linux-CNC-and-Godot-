@@ -41,6 +41,13 @@ Done, each verified through scripted operators on real LinuxCNC:
   that stops short of walls, and Tab close-up on a console (`ConsoleFocus`:
   the panel fills the screen, the wheel dollies toward the panel point under
   the cursor). Consoles stand 15 cm higher (PostHeight 1.1).
+- Console immersion pass: BLOCK SKIP, OPT STOP, rapid override (new bridge
+  commands 20-23, also COOLANT_FLOOD so coolant works mid-program), PRG
+  RESTART (run from the PROG cursor line), WORK LIGHT, held jog key stays
+  down, GRAPH backplot on CSTM/GR, Fanuc-style alarm codes. Synthesised
+  sound (`Scripts/Audio`): key click, alarm beep, spindle motor, cutting,
+  servos, coolant. The 2D panel and status text are debug-only (F2); E at a
+  console opens the close-up.
 
 `Main.tscn`: BenchLathe (9200/9201), BenchMill (9206/9207), Trunnion5Axis,
 FlatBedLathe (9208/9209, uncommitted), tool carts, fixture carts, stock
@@ -68,10 +75,10 @@ door on enclosed machines.
 5. The eleven demo programs in `linuxcnc-config/nc_files/` have never all
    run end to end live (the statue program only offline + `rs274`).
 6. Side finding, not investigated: `BridgeClient.LastCommandRttMs` stays NaN.
-7. Console keys that only show "not wired": BLOCK SKIP, OPT STOP, DRY RUN,
-   MACH/Z/MST LOCK, PRG RESTART, rapid override (keys double as INC steps),
-   WORK LIGHT, CHIP CONV, AIR BLOW, AUTO PWR OFF; F1-F7 are unassigned
-   builder keys. Coolant key uses MDI M8/M9, so it does nothing in a cycle.
+7. Console: DRY RUN / machine lock and the conveyor / air keys were removed
+   (blank caps); F1-F7 are unassigned builder keys. PRG RESTART uses
+   LinuxCNC run-from-line, so tool / spindle set before that line are not
+   replayed.
 
 ## Design decisions that are easy to undo by accident
 

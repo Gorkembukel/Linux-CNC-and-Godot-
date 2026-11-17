@@ -67,6 +67,8 @@ public partial class ConsoleStand : Node3D
 
     public MachineRig Rig { get; private set; }
 
+    private AudioStreamPlayer3D _click, _beep;
+
     private BridgeClient _bridge;
     private MachineSafety _safety;
     private (AxisId Axis, byte Joint)[] _axes = { (AxisId.X, (byte)0), (AxisId.Z, (byte)1) };
@@ -81,7 +83,13 @@ public partial class ConsoleStand : Node3D
     private Mode _mode = Mode.Jog;
     private Page _page = Page.Pos;
     private int _subPage;
-    private bool _singleBlock, _rapid, _shift, _overridesSynced;
+    private bool _singleBlock, _rapid, _shift, _overridesSynced, _blockSkip, _optionalStop, _restartArmed;
+    private int _rapidIndex = 3;
+    private static readonly float[] RapidOverrides = { 0.05f, 0.25f, 0.5f, 1f };
+    private OmniLight3D _workLight;
+    private KeyEntry _heldKey;
+    private readonly List<(Vector2 Point, bool Rapid)> _trail = new();
+    private bool _wasAlarm;
     private int _step = 2;
     private int _jogHeldJoint = -1;
     private float _spindleRpm = 500f;
@@ -122,7 +130,7 @@ public partial class ConsoleStand : Node3D
         if (GetParent() is ProceduralMachine machine && machine.Safety != null)
         {
             _safety = machine.Safety;
-            _safety.Tripped += incident => AddLine(_alarms, incident.Text.Replace('\n', ' '));
+            _safety.Tripped += incident => RaiseAlarm($"EX{1001 + (int)incident.Kind} {incident.Text.Replace('\n', ' ')}");
         }
         RebuildGeometry();
     }
@@ -130,9 +138,27 @@ public partial class ConsoleStand : Node3D
     private void OnBridgeEvent(int kind, string text)
     {
         if ((EventKind)kind == EventKind.Alarm)
-            AddLine(_alarms, text);
+            RaiseAlarm($"{AlarmCode(text)} {text}");
         else
             AddLine(_messages, text);
+    }
+
+    private void RaiseAlarm(string text)
+    {
+        AddLine(_alarms, text);
+        _beep?.Play();
+    }
+
+    /// <summary>Fanuc-style alarm number for a LinuxCNC error: PS = program,
+    /// OT = overtravel; EX = machine-builder alarm for everything else.</summary>
+    private static string AlarmCode(string text)
+    {
+        string t = text.ToLowerInvariant();
+        if (t.Contains("limit") || t.Contains("exceed")) return "OT0500";
+        if (t.Contains("home") || t.Contains("homed")) return "PS0224";
+        if (t.Contains("unknown") || t.Contains("bad") || t.Contains("syntax") || t.Contains("g-code") || t.Contains("word")) return "PS0010";
+        if (t.Contains("tool")) return "PS0153";
+        return "EX1999";
     }
 
     private static void AddLine(List<string> list, string text)
@@ -178,6 +204,11 @@ public partial class ConsoleStand : Node3D
         housing.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = shellSize }, MaterialOverride = Mat(Hex("C9CCCF"), 0.1f, 0.6f), Position = new Vector3(0f, 0f, -0.07f) });
         housing.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = new Vector3(FaceSize, FaceSize, 0.01f) }, MaterialOverride = Mat(Housing, 0.1f, 0.7f), Position = new Vector3(0f, 0f, -0.004f) });
         housing.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = shellSize }, Position = new Vector3(0f, 0f, -0.07f) });
+
+        _click = new AudioStreamPlayer3D { Stream = Audio.SynthSounds.Click, VolumeDb = -4f, UnitSize = 1.5f };
+        _beep = new AudioStreamPlayer3D { Stream = Audio.SynthSounds.Beep, VolumeDb = -6f, UnitSize = 3f };
+        face.AddChild(_click);
+        face.AddChild(_beep);
 
         BuildCncUnit(face);
         BuildMop(face);
@@ -440,35 +471,32 @@ public partial class ConsoleStand : Node3D
         });
         Text(face, "SPINDLE", At(837, 1240, top + 0.001f), 0.0034f, Silkscreen);
 
-        Action notWired = () => PlayerController.Notify(this, "Bu fonksiyon simülatörde henüz bağlı değil");
-        Action builderKey = () => PlayerController.Notify(this, "Makine üreticisi tuşu: bu makinede atanmamış");
         KeyRow(face, top, left, 1408, new (string, Action, Func<bool>)[]
         {
             ("ALL\nREF", HomeAll, () => _axes.All(a => S.IsHomed(a.Axis))),
-            ("BLOCK\nSKIP", notWired, null), ("OPT\nSTOP", notWired, null), ("DRY\nRUN", notWired, null),
+            ("BLOCK\nSKIP", () => { _blockSkip = !_blockSkip; _bridge.SetBlockDelete(_blockSkip); }, () => _blockSkip),
+            ("OPT\nSTOP", () => { _optionalStop = !_optionalStop; _bridge.SetOptionalStop(_optionalStop); }, () => _optionalStop),
+            ("PRG\nRESTART", () => _restartArmed = !_restartArmed, () => _restartArmed),
         });
-        KeyRow(face, top, left, 1452, new (string, Action, Func<bool>)[]
-        {
-            ("MACH\nLOCK", notWired, null), ("Z\nLOCK", notWired, null), ("MST\nLOCK", notWired, null), ("PRG\nRESTART", notWired, null),
-        });
+        KeyRow(face, top, left, 1452, new (string, Action, Func<bool>)[] { ("", null, null), ("", null, null), ("", null, null), ("", null, null) });
         string[] steps = { "x1\nF0", "x10\n25%", "x100\n50%", "x1000\n100%" };
         KeyRow(face, top, left, 1497, Enumerable.Range(0, 4)
-            .Select(i => (steps[i], (Action)(() => _step = i), (Func<bool>)(() => _step == i))).ToArray());
+            .Select(i => (steps[i], (Action)(() => StepOrRapidKey(i)), (Func<bool>)(() => StepKeysSelectStep ? _step == i : _rapidIndex == i))).ToArray());
         Text(face, "PROGRAM", At(570, 1378, top + 0.001f), 0.0034f, Silkscreen);
         Text(face, "INC STEP / RAPID OVR", At(570, 1532, top + 0.001f), 0.0028f, Silkscreen);
 
         KeyRow(face, top, right, 1408, new (string, Action, Func<bool>)[]
         {
-            ("F1", builderKey, null), ("F2", builderKey, null), ("F3", builderKey, null),
+            ("F1", null, null), ("F2", null, null), ("F3", null, null),
             ("ALARM\nRESET", () => _alarms.Clear(), () => _alarms.Count > 0),
         });
         KeyRow(face, top, right, 1452, new (string, Action, Func<bool>)[]
         {
-            ("WORK\nLIGHT", notWired, null), ("CHIP\nCONV", notWired, null), ("AIR\nBLOW", notWired, null), ("AUTO\nPWR OFF", notWired, null),
+            ("WORK\nLIGHT", ToggleWorkLight, () => _workLight is { Visible: true }), ("", null, null), ("", null, null), ("", null, null),
         });
         KeyRow(face, top, right, 1497, new (string, Action, Func<bool>)[]
         {
-            ("F4", builderKey, null), ("F5", builderKey, null), ("F6", builderKey, null), ("F7", builderKey, null),
+            ("F4", null, null), ("F5", null, null), ("F6", null, null), ("F7", null, null),
         });
         Text(face, "AUX", At(837, 1378, top + 0.001f), 0.0034f, Silkscreen);
     }
@@ -719,11 +747,16 @@ public partial class ConsoleStand : Node3D
     {
         if (hit == null || !_keys.TryGetValue(hit.GetInstanceId(), out var key))
             return false;
-        var tween = key.Node.CreateTween();
-        tween.TweenProperty(key.Node, "position:z", key.BaseZ - 0.002f, 0.05);
-        tween.TweenProperty(key.Node, "position:z", key.BaseZ, 0.08);
+        int heldBefore = _jogHeldJoint;
         if (_bridge != null)
             key.Action?.Invoke();
+        _click?.Play();
+        var tween = key.Node.CreateTween();
+        tween.TweenProperty(key.Node, "position:z", key.BaseZ - 0.002f, 0.05);
+        if (_jogHeldJoint >= 0 && heldBefore < 0)
+            _heldKey = key; // stays down while the jog key is held
+        else
+            tween.TweenProperty(key.Node, "position:z", key.BaseZ, 0.08);
         return true;
     }
 
@@ -827,7 +860,13 @@ public partial class ConsoleStand : Node3D
                 return;
             }
             _bridge.OpenProgram(ProgramToRun());
-            if (_singleBlock) _bridge.StepProgram(); else _bridge.RunProgram();
+            if (_restartArmed)
+            {
+                _restartArmed = false;
+                _bridge.RunProgram(_progCursor + 1);
+            }
+            else if (_singleBlock) _bridge.StepProgram();
+            else _bridge.RunProgram();
         }
         else if (_mode == Mode.Mdi)
         {
@@ -869,11 +908,32 @@ public partial class ConsoleStand : Node3D
         _bridge.SetSpindleOverride(0.5f + _spindleKnob.Index * 0.1f);
     }
 
-    private void ToggleCoolant()
+    private void ToggleCoolant() => _bridge.SetCoolant(!S.Coolant);
+
+    private bool StepKeysSelectStep => _mode is Mode.Inc or Mode.Handle;
+
+    /// <summary>The four keys pick the INC / HANDLE step in those modes and
+    /// the rapid override (F0 / 25 / 50 / 100 %) otherwise, as on the real panel.</summary>
+    private void StepOrRapidKey(int index)
     {
-        if (S.InCycle)
-            return;
-        _bridge.SendMdi(S.Coolant ? "M9" : "M8");
+        if (StepKeysSelectStep)
+            _step = index;
+        else
+        {
+            _rapidIndex = index;
+            _bridge.SetRapidOverride(RapidOverrides[index]);
+        }
+    }
+
+    private void ToggleWorkLight()
+    {
+        if (_workLight == null)
+        {
+            _workLight = new OmniLight3D { Name = "WorkLight", LightEnergy = 1.6f, OmniRange = 2.2f, LightColor = new Color(1f, 0.96f, 0.88f), Visible = false };
+            (GetParent() as Node3D ?? this).AddChild(_workLight);
+            _workLight.Position = GetParent() is Node3D ? new Vector3(0f, 1.7f, 0f) : new Vector3(0f, 2f, 0.5f);
+        }
+        _workLight.Visible = !_workLight.Visible;
     }
 
     private void ResetKey()
@@ -1006,7 +1066,7 @@ public partial class ConsoleStand : Node3D
         _offsetCursor = 0;
     }
 
-    private int ViewCount() => _page switch { Page.Pos or Page.Prog => 3, Page.Offset or Page.Message => 2, _ => 1 };
+    private int ViewCount() => _page switch { Page.Pos or Page.Prog => 3, Page.Offset or Page.Message or Page.Custom => 2, _ => 1 };
 
     private (string Label, Action Act)[] Softkeys()
     {
@@ -1026,7 +1086,7 @@ public partial class ConsoleStand : Node3D
             },
             Page.Message => new (string, Action)[] { ("ALARM", View(0)), ("MSG", View(1)) },
             Page.System => new (string, Action)[] { ("LINK", null) },
-            Page.Custom => new (string, Action)[] { ("LOAD", null) },
+            Page.Custom => new (string, Action)[] { ("LOAD", View(0)), ("GRAPH", View(1)), ("", null), ("", null), ("ERASE", () => _trail.Clear()) },
             _ => new (string, Action)[] { ("HELP", null) },
         };
     }
@@ -1155,11 +1215,17 @@ public partial class ConsoleStand : Node3D
         {
             _bridge.JogStop((byte)_jogHeldJoint);
             _jogHeldJoint = -1;
+            if (_heldKey != null)
+                _heldKey.Node.CreateTween().TweenProperty(_heldKey.Node, "position:z", _heldKey.BaseZ, 0.08);
+            _heldKey = null;
         }
         if (!_overridesSynced && connected && s.SampleCount > 0)
         {
             _feedKnob.SetIndex(Mathf.Clamp(Mathf.RoundToInt(s.FeedOverride * 10f), 0, 15));
             _spindleKnob.SetIndex(Mathf.Clamp(Mathf.RoundToInt((s.SpindleOverride - 0.5f) * 10f), 0, 7));
+            _bridge.SetRapidOverride(RapidOverrides[_rapidIndex]);
+            _bridge.SetBlockDelete(_blockSkip);
+            _bridge.SetOptionalStop(_optionalStop);
             _overridesSynced = true;
         }
         if (s.SpindleEnabled && Mathf.Abs((float)s.SpindleRpm) > 1f && s.SpindleOverride > 0f)
@@ -1174,6 +1240,20 @@ public partial class ConsoleStand : Node3D
                 lamp.Material.AlbedoColor = on ? lamp.Color : lamp.Color * 0.25f;
         }
         _toolDisplay.Text = connected ? $"{s.ToolNumber:000}" : "---";
+
+        var tool = PlotPoint(s);
+        if (connected && (_trail.Count == 0 || _trail[^1].Point.DistanceTo(tool) > 0.05f))
+        {
+            _trail.Add((tool, s.Rapid));
+            if (_trail.Count > 6000)
+                _trail.RemoveRange(0, 1000);
+        }
+        _screen.SetPlot(connected && _page == Page.Custom && _subPage == 1 ? _trail : null, tool);
+
+        bool alarm = connected && s.Estop;
+        if (alarm && !_wasAlarm)
+            _beep?.Play();
+        _wasAlarm = alarm;
 
         _screen.SetSoftkeys(SoftkeyTexts());
         if (!connected)
@@ -1193,6 +1273,14 @@ public partial class ConsoleStand : Node3D
         {
             System.Globalization.CultureInfo.CurrentCulture = culture;
         }
+    }
+
+    /// <summary>The tool position as the GRAPH page draws it: lathe Z
+    /// across and X up, mill X across and Y up (work coordinates).</summary>
+    private Vector2 PlotPoint(MachineState s)
+    {
+        var w = s.WorkPosition;
+        return IsLathe ? new Vector2((float)w.Get(AxisId.Z), (float)w.Get(AxisId.X)) : new Vector2((float)w.Get(AxisId.X), (float)w.Get(AxisId.Y));
     }
 
     private string ProgramName()
@@ -1292,15 +1380,19 @@ public partial class ConsoleStand : Node3D
             case Page.Message:
             {
                 var lines = new List<string>();
-                if (s.Estop) lines.Add("EMERGENCY STOP");
-                if (!s.MachineOn) lines.Add("MACHINE OFF  (POWER ON)");
-                if (s.MachineOn && !_axes.All(a => s.IsHomed(a.Axis))) lines.Add("ZERO RETURN NOT FINISHED  (REF RETURN)");
-                if (s.ToolChangePending) lines.Add("TOOL CHANGE WAITING  (TOOL CHG END)");
+                if (s.Estop) lines.Add("EMG    EMERGENCY STOP");
+                if (!s.MachineOn) lines.Add("2000   MACHINE OFF  (POWER ON)");
+                if (s.MachineOn && !_axes.All(a => s.IsHomed(a.Axis))) lines.Add("PS0224 ZERO RETURN NOT FINISHED  (REF RETURN)");
+                if (s.ToolChangePending) lines.Add("2001   TOOL CHANGE WAITING  (TOOL CHG END)");
                 lines.AddRange(_alarms);
                 return ("ALARM", "", lines.Count == 0 ? "NO ALARM" : string.Join("\n", lines));
             }
             case Page.System:
                 return ("SYSTEM", "", $"MACHINE   {Rig?.Profile.Name}\nLINK      seq {s.LastSeq}  age {_bridge.LastPacketAgeSeconds * 1000:F0} ms\nJITTER    {_bridge.StateStreamJitterMs:F1} ms\nMODE      {s.TaskMode}\nINTERP    {s.InterpState}");
+            case Page.Custom when _subPage == 1:
+                return ("GRAPH", "", IsLathe
+                    ? $"Z ->  X ^   {_trail.Count} pts   feed cyan  rapid yellow"
+                    : $"X ->  Y ^   {_trail.Count} pts   feed cyan  rapid yellow");
             case Page.Custom:
             {
                 float load = Rig?.Monitor != null ? Rig.Monitor.Load.SpindleLoad : 0f;
