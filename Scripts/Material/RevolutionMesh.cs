@@ -48,9 +48,9 @@ public static class RevolutionMesh
             Vector3 p0 = new(x, r * Mathf.Cos(t0), r * Mathf.Sin(t0));
             Vector3 p1 = new(x, r * Mathf.Cos(t1), r * Mathf.Sin(t1));
             if (outwardNormalIsNegativeX)
-                AddTriangle(st, center, p1, p0);
-            else
                 AddTriangle(st, center, p0, p1);
+            else
+                AddTriangle(st, center, p1, p0);
         }
     }
 }
