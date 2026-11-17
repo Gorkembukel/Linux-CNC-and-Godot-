@@ -110,8 +110,8 @@ public partial class LatheWorkholding : MachineSetup
     {
         var profile = _workpiece.Profile;
         var radii = profile.LiveRadii();
-        Carryable part = TurnedPart.Build(radii, profile.StepMm, profile.ZMin, MaterialPreset.Get(_cutting.Material).DensityKgPerM3,
-            _workpiece.StockVisualMaterial.Duplicate() as Godot.Material, out float centreZ, profile.LiveInner());
+        Carryable part = StockItem.CreateTurned(radii, profile.LiveInner(), profile.StepMm, _cutting.Material);
+        float centreZ = profile.ZMin + (radii.Length - 1) * profile.StepMm / 2f;
         if (part == null)
         {
             // Too short a stub to revolve: a plain disc.
@@ -121,10 +121,7 @@ public partial class LatheWorkholding : MachineSetup
             part.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = new Vector3(0.003f, radius * 2f, radius * 2f) } });
         }
         else
-        {
             part.DisplayName += _cutting.SurfaceNote();
-            ((TurnedPart)part).Material = _cutting.Material;
-        }
         _cutting.PartFinished?.Invoke();
         GetTree().CurrentScene.AddChild(part);
         part.GlobalTransform = _body.GlobalTransform * new Transform3D(Basis.Identity, new Vector3(centreZ * M, 0f, 0f));
@@ -142,7 +139,7 @@ public partial class LatheWorkholding : MachineSetup
         float z = local.X;
         float fromTip = profile.ZMin + LiveLengthMm() - z;
         int index = profile.IndexAt(z);
-        return TurnedPart.BoreOrOutside(gauge, new Vector2(local.Y, local.Z).Length(), profile.RadiusAt(index), profile.InnerAt(index))
+        return StockItem.BoreOrOutside(gauge, new Vector2(local.Y, local.Z).Length(), profile.RadiusAt(index), profile.InnerAt(index))
             + System.FormattableString.Invariant($"   (uçtan {Mathf.Max(0f, fromTip):0} mm içeride)");
     }
 

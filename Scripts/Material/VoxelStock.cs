@@ -76,6 +76,30 @@ public class VoxelStock
         return stock;
     }
 
+    /// <summary>A turned part lying along X like CylinderAlongX: outside
+    /// radii (and bore radii, 0 = solid) every profileStepMm from -X to +X,
+    /// its top line at y = 0.</summary>
+    public static VoxelStock Revolved(float[] radiiMm, float[] innerMm, float profileStepMm, float stepMm)
+    {
+        float length = (radiiMm.Length - 1) * profileStepMm;
+        float radius = Mathf.Max(0.1f, System.Linq.Enumerable.Max(radiiMm));
+        var stock = new VoxelStock(new Vector3(-length / 2f, -2f * radius, -radius), new Vector3(length / 2f, 0f, radius), stepMm);
+        float At(float[] values, float x)
+        {
+            float t = Mathf.Clamp((x + length / 2f) / profileStepMm, 0f, values.Length - 1);
+            int i = Mathf.Min((int)t, values.Length - 2);
+            return Mathf.Lerp(values[i], values[i + 1], t - i);
+        }
+        stock.Fill(p =>
+        {
+            float r = Mathf.Sqrt((p.Y + radius) * (p.Y + radius) + p.Z * p.Z);
+            float bore = At(innerMm, p.X);
+            float d = Mathf.Min(length / 2f - Mathf.Abs(p.X), At(radiiMm, p.X) - r);
+            return bore > 0f ? Mathf.Min(d, r - bore) : d;
+        });
+        return stock;
+    }
+
     /// <summary>The largest step that keeps the grid under maxNodes, never
     /// finer than the requested one.</summary>
     public static float StepFor(Vector3 sizeMm, float requestedStepMm, int maxNodes = 8_000_000)

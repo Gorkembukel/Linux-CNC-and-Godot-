@@ -62,8 +62,10 @@ Done, each verified through scripted operators on real LinuxCNC:
   to the way the player faces); fixtures take it as held, squared to the
   nearest of the 24 orientations (`SquareTurn`, `StockSeat.Turn`). Machined
   stock stays a `StockItem` with its voxel field, so it goes back into any
-  fixture turned over; a `TurnedPart` goes back into a chuck either end
-  first (`TurnedPart.ToStock`). Not yet: a turned part in a mill fixture.
+  fixture turned over. A part off the lathe is a `StockItem` too, carrying
+  its outside / bore profile (`Turned`): it goes back into a chuck either end
+  first, and into a mill fixture, where its voxel field is built from the
+  profile (`VoxelStock.Revolved`).
 - Lathe drilling and boring: `LatheRadiusProfile` keeps a bore radius per
   bucket (`SweepBore`); mesh, finished parts, mass and caliper (bore vs
   outside) know it. Drill deeper than its flutes and a boring bar in a hole

@@ -2,21 +2,24 @@ using System.Linq;
 using Godot;
 using CncTrainer.Chips;
 using CncTrainer.Interaction;
+using CncTrainer.Material;
 using CncTrainer.Spec;
 
 namespace CncTrainer.Workshop;
 
-/// <summary>A piece of raw stock as a physical, carryable object. Local
-/// frame: X along the length, Y up, origin at the centre.</summary>
+/// <summary>A piece of stock as a physical, carryable object: raw, or a
+/// part already turned (Turned) or milled (a VoxelStockVisual child), ready
+/// to go into any fixture again. Local frame: X along the length, Y up,
+/// origin at the centre.</summary>
 public partial class StockItem : Carryable, IMeasurable
 {
     public StockBlank Blank { get; private set; }
 
-    /// <summary>A turned part going back into a chuck: its shape (radii from
-    /// the end in the jaws, bore radii, step), null for raw stock.</summary>
-    public (float[] RadiiMm, float[] InnerMm, float StepMm)? Turned;
+    /// <summary>A turned part: outside and bore radii every StepMm from the
+    /// -X end to the +X end. Null for raw or milled stock.</summary>
+    public (float[] RadiiMm, float[] InnerMm, float StepMm)? Turned { get; private set; }
 
-    /// <summary>Diameter the chuck jaws close on.</summary>
+    /// <summary>Diameter a chuck's jaws close on when the -X end goes in first.</summary>
     public float GripDiameterMm => Turned is { } t ? 2f * t.RadiiMm[0] : Blank.DiameterMm;
 
     /// <summary>Held by a fixture: not free to pick up.</summary>
@@ -25,10 +28,24 @@ public partial class StockItem : Carryable, IMeasurable
 
     /// <summary>Once machining has started the cut surface is measured;
     /// untouched stock simply has its nominal size.</summary>
-    public string Reading(HandToolKind gauge, Vector3 globalPoint) =>
-        GetChildren().OfType<VoxelStockVisual>().FirstOrDefault() is VoxelStockVisual machined ? machined.Reading(gauge, globalPoint)
-        : gauge == HandToolKind.Caliper ? "Kumpas: " + Blank.Describe()
-        : null;
+    public string Reading(HandToolKind gauge, Vector3 globalPoint)
+    {
+        if (GetChildren().OfType<VoxelStockVisual>().FirstOrDefault() is VoxelStockVisual machined)
+            return machined.Reading(gauge, globalPoint);
+        if (Turned is { } t)
+        {
+            var local = ToLocal(globalPoint) / WorldScale.MmToM;
+            int index = Mathf.Clamp(Mathf.RoundToInt((local.X + Blank.LengthMm / 2f) / t.StepMm), 0, t.RadiiMm.Length - 1);
+            return BoreOrOutside(gauge, new Vector2(local.Y, local.Z).Length(), t.RadiiMm[index], t.InnerMm[index]);
+        }
+        return gauge == HandToolKind.Caliper ? "Kumpas: " + Blank.Describe() : null;
+    }
+
+    /// <summary>A point nearer the bore than the outside reads the bore.</summary>
+    public static string BoreOrOutside(HandToolKind gauge, float pointRadiusMm, float outerMm, float innerMm) =>
+        innerMm > 0f && Mathf.Abs(pointRadiusMm - innerMm) < Mathf.Abs(pointRadiusMm - outerMm)
+            ? Gauges.Diameter(gauge, 2f * innerMm) is string bore ? "İç çap: " + bore : null
+            : Gauges.Diameter(gauge, 2f * outerMm);
 
     public static StockItem Create(StockBlank blank)
     {
@@ -51,6 +68,41 @@ public partial class StockItem : Carryable, IMeasurable
         }
         item.AddChild(shape);
         return item;
+    }
+
+    /// <summary>A part off the lathe (radii from its -X end). Null when it
+    /// is too short to be a part.</summary>
+    public static StockItem CreateTurned(float[] radiiMm, float[] innerMm, float stepMm, MaterialKind material)
+    {
+        float length = (radiiMm.Length - 1) * stepMm;
+        if (WorkpiecePartBuilder.Build(radiiMm, stepMm, -length / 2f, MaterialPreset.Get(material).DensityKgPerM3, innerMm: innerMm)
+            is not WorkpiecePartBuilder.BuiltPart built)
+            return null;
+        float diameter = 2f * Mathf.Max(radiiMm.Max(), 0.1f);
+        var item = new StockItem
+        {
+            Blank = new StockBlank(StockShape.CylinderAlongX, new Vector3(length, diameter, diameter), material),
+            Turned = (radiiMm, innerMm, stepMm),
+            Name = "TurnedPart",
+            DisplayName = "Tornalanmış parça",
+            Mass = Mathf.Max(0.01f, built.MassKg),
+        };
+        // The builder centres the part on its centre of mass; the stock frame is centred on its length.
+        var offset = new Vector3(built.CentroidZmm * WorldScale.MmToM, 0f, 0f);
+        item.AddChild(new MeshInstance3D { Mesh = built.Mesh, MaterialOverride = BuildMaterial(material), Position = offset });
+        item.AddChild(new CollisionShape3D { Shape = built.Collision, Position = offset });
+        return item;
+    }
+
+    /// <summary>Turns a turned part end for end in its own data, so its -X
+    /// end is the other one (a chuck takes the -X end).</summary>
+    public void ReverseTurned()
+    {
+        if (Turned is not { } t)
+            return;
+        var radii = t.RadiiMm.Reverse().ToArray();
+        var inner = t.InnerMm.Reverse().ToArray();
+        Turned = (radii, inner, t.StepMm);
     }
 
     /// <summary>Mesh in the stock's own frame (see the class comment).</summary>
