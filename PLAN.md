@@ -6,9 +6,11 @@ history of how it got here is in git (`git log`, and `PLAN.md` before
 
 ## Current state (2026-11-17)
 
-Branch `cutting-realism` (pushed to `origin`; stacked on
-`hands-on-lathe-and-fixtures` -> `single-distro-namespaces` -> ...; nothing
-merged, no PR). 80 C# tests, 12 pytest (+2 LinuxCNC lifecycle tests).
+`main` (GitHub default) holds only the initial scaffold; all work is on
+`fanuc-style-console`, open as PR #1 into `main` (merge is the user's call).
+The older branches (`phase0-godot-bridge-client` ... `cutting-realism`) are
+ancestors of it, kept for now. 80 C# tests, 11 pytest (+2 LinuxCNC
+lifecycle tests, + preview test).
 
 Done, each verified through scripted operators on real LinuxCNC:
 - Bridge (Python in WSL) <-> Godot C# client, prediction, N-axis protocol,
