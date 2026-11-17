@@ -77,17 +77,26 @@ public partial class LatheWorkholding : MachineSetup
         }
 
         float[] radii, inner = null;
+        var square = _workpiece.Profile?.SquareHalfMm ?? Vector2.Zero;
         if (_workpiece.Profile == null)
         {
             if (Chuck.Stock.Turned is { } shaped)
             {
                 radii = (float[])shaped.RadiiMm.Clone();
                 inner = (float[])shaped.InnerMm.Clone();
+                square = shaped.SquareHalfMm;
             }
             else
             {
                 radii = new float[Mathf.Max(2, Mathf.RoundToInt(grip.BarLengthMm / ProfileStepMm) + 1)];
-                System.Array.Fill(radii, grip.BarDiameterMm / 2f);
+                float radius = grip.BarDiameterMm / 2f;
+                if (Chuck.Stock.Blank.Shape == StockShape.Block)
+                {
+                    var across = Chuck.Seat.ExtentsM / M;
+                    square = new Vector2(across.Y, across.Z) / 2f;
+                    radius = LatheSection.Corner(square);
+                }
+                System.Array.Fill(radii, radius);
             }
             _cutting.Material = Chuck.Stock.Blank.Material;
             _cutting.ResetStock();
@@ -100,7 +109,7 @@ public partial class LatheWorkholding : MachineSetup
         }
 
         _workpiece.SetProfile(new LatheRadiusProfile(radii,
-            _body.JawFrontZMm + grip.StickOutMm - (radii.Length - 1) * ProfileStepMm, ProfileStepMm, inner));
+            _body.JawFrontZMm + grip.StickOutMm - (radii.Length - 1) * ProfileStepMm, ProfileStepMm, inner, square));
         _workpiece.StockVisualMaterial.AlbedoColor = MaterialPreset.Get(_cutting.Material).BaseColor;
         Chuck.ShowRawStock(false);
     }
@@ -110,7 +119,7 @@ public partial class LatheWorkholding : MachineSetup
     {
         var profile = _workpiece.Profile;
         var radii = profile.LiveRadii();
-        Carryable part = StockItem.CreateTurned(radii, profile.LiveInner(), profile.StepMm, _cutting.Material);
+        Carryable part = StockItem.CreateTurned(radii, profile.LiveInner(), profile.StepMm, _cutting.Material, profile.SquareHalfMm);
         float centreZ = profile.ZMin + (radii.Length - 1) * profile.StepMm / 2f;
         if (part == null)
         {
@@ -135,11 +144,11 @@ public partial class LatheWorkholding : MachineSetup
         if (System.Math.Abs(Bridge.State.SpindleRpm) > 1.0)
             return "İş mili dönerken ölçülmez";
         var profile = _workpiece.Profile;
-        var local = _body.ToLocal(globalPoint) / M;
-        float z = local.X;
+        var local = _workpiece.ToLocal(globalPoint) / M;
+        float z = _body.ToLocal(globalPoint).X / M;
         float fromTip = profile.ZMin + LiveLengthMm() - z;
         int index = profile.IndexAt(z);
-        return StockItem.BoreOrOutside(gauge, new Vector2(local.Y, local.Z).Length(), profile.RadiusAt(index), profile.InnerAt(index))
+        return StockItem.SectionReading(gauge, new Vector2(local.Y, local.Z).Length(), profile.RadiusAt(index), profile.InnerAt(index), profile.SquareHalfMm)
             + System.FormattableString.Invariant($"   (uçtan {Mathf.Max(0f, fromTip):0} mm içeride)");
     }
 
@@ -151,7 +160,9 @@ public partial class LatheWorkholding : MachineSetup
     {
         var s = Bridge.State;
         float rpm = (float)System.Math.Abs(s.SpindleRpm);
-        Chuck.Spin(Mathf.Min(rpm * 6f, MaxSpinDegPerSec) * (float)delta);
+        float spin = Mathf.Min(rpm * 6f, MaxSpinDegPerSec) * (float)delta;
+        Chuck.Spin(spin);
+        _workpiece.RotateX(Mathf.DegToRad(spin));
         CheckDoorInterlock();
         CheckKeyLeftIn(Chuck, rpm > 1f, "AYNA ANAHTARI FIRLADI: anahtar aynada unutuldu, iş mili çalıştırıldı");
     }

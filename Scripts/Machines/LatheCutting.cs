@@ -168,7 +168,7 @@ public sealed class LatheCutting : CuttingProcess
         var removedRadii = profile.Sever(severedIndex, out var removedInner);
         _workpiece.MarkDirty(severedIndex, profile.BucketCount - 1);
 
-        var part = StockItem.CreateTurned(removedRadii, removedInner, profile.StepMm, Material);
+        var part = StockItem.CreateTurned(removedRadii, removedInner, profile.StepMm, Material, profile.SquareHalfMm);
         if (part == null)
             return;
         part.DisplayName += SurfaceNote();

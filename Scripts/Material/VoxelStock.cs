@@ -78,12 +78,15 @@ public class VoxelStock
 
     /// <summary>A turned part lying along X like CylinderAlongX: outside
     /// radii (and bore radii, 0 = solid) every profileStepMm from -X to +X,
-    /// its top line at y = 0.</summary>
-    public static VoxelStock Revolved(float[] radiiMm, float[] innerMm, float profileStepMm, float stepMm)
+    /// its top line at y = 0. squareHalfMm: the flats of the block it was
+    /// turned from (LatheSection), (0, 0) = round.</summary>
+    public static VoxelStock Revolved(float[] radiiMm, float[] innerMm, float profileStepMm, float stepMm, Vector2 squareHalfMm = default)
     {
         float length = (radiiMm.Length - 1) * profileStepMm;
-        float radius = Mathf.Max(0.1f, System.Linq.Enumerable.Max(radiiMm));
-        var stock = new VoxelStock(new Vector3(-length / 2f, -2f * radius, -radius), new Vector3(length / 2f, 0f, radius), stepMm);
+        float maxR = Mathf.Max(0.1f, System.Linq.Enumerable.Max(radiiMm));
+        float radius = squareHalfMm == Vector2.Zero ? maxR : Mathf.Min(maxR, squareHalfMm.X);
+        float halfZ = squareHalfMm == Vector2.Zero ? maxR : Mathf.Min(maxR, squareHalfMm.Y);
+        var stock = new VoxelStock(new Vector3(-length / 2f, -2f * radius, -halfZ), new Vector3(length / 2f, 0f, halfZ), stepMm);
         float At(float[] values, float x)
         {
             float t = Mathf.Clamp((x + length / 2f) / profileStepMm, 0f, values.Length - 1);
@@ -95,6 +98,8 @@ public class VoxelStock
             float r = Mathf.Sqrt((p.Y + radius) * (p.Y + radius) + p.Z * p.Z);
             float bore = At(innerMm, p.X);
             float d = Mathf.Min(length / 2f - Mathf.Abs(p.X), At(radiiMm, p.X) - r);
+            if (squareHalfMm != Vector2.Zero)
+                d = Mathf.Min(d, Mathf.Min(squareHalfMm.X - Mathf.Abs(p.Y + radius), squareHalfMm.Y - Mathf.Abs(p.Z)));
             return bore > 0f ? Mathf.Min(d, r - bore) : d;
         });
         return stock;

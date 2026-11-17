@@ -16,11 +16,12 @@ public partial class StockItem : Carryable, IMeasurable
     public StockBlank Blank { get; private set; }
 
     /// <summary>A turned part: outside and bore radii every StepMm from the
-    /// -X end to the +X end. Null for raw or milled stock.</summary>
-    public (float[] RadiiMm, float[] InnerMm, float StepMm)? Turned { get; private set; }
+    /// -X end to the +X end, and the half sizes across the axis of the block
+    /// it was turned from ((0, 0) = round bar). Null for raw or milled stock.</summary>
+    public (float[] RadiiMm, float[] InnerMm, float StepMm, Vector2 SquareHalfMm)? Turned { get; private set; }
 
-    /// <summary>Diameter a chuck's jaws close on when the -X end goes in first.</summary>
-    public float GripDiameterMm => Turned is { } t ? 2f * t.RadiiMm[0] : Blank.DiameterMm;
+    /// <summary>Size a chuck's jaws close on when the -X end goes in first.</summary>
+    public float GripDiameterMm => Turned is { } t ? 2f * LatheSection.Reach(t.RadiiMm[0], t.SquareHalfMm) : Blank.DiameterMm;
 
     /// <summary>Held by a fixture: not free to pick up.</summary>
     public bool Fixed;
@@ -36,9 +37,22 @@ public partial class StockItem : Carryable, IMeasurable
         {
             var local = ToLocal(globalPoint) / WorldScale.MmToM;
             int index = Mathf.Clamp(Mathf.RoundToInt((local.X + Blank.LengthMm / 2f) / t.StepMm), 0, t.RadiiMm.Length - 1);
-            return BoreOrOutside(gauge, new Vector2(local.Y, local.Z).Length(), t.RadiiMm[index], t.InnerMm[index]);
+            return SectionReading(gauge, new Vector2(local.Y, local.Z).Length(), t.RadiiMm[index], t.InnerMm[index], t.SquareHalfMm);
         }
         return gauge == HandToolKind.Caliper ? "Kumpas: " + Blank.Describe() : null;
+    }
+
+    /// <summary>Like BoreOrOutside, for a section that may still have the
+    /// block's flats: then the caliper reads across them.</summary>
+    public static string SectionReading(HandToolKind gauge, float pointRadiusMm, float outerMm, float innerMm, Vector2 squareHalfMm)
+    {
+        if (squareHalfMm == Vector2.Zero || outerMm <= Mathf.Min(squareHalfMm.X, squareHalfMm.Y)
+            || (innerMm > 0f && Mathf.Abs(pointRadiusMm - innerMm) < Mathf.Abs(pointRadiusMm - outerMm)))
+            return BoreOrOutside(gauge, pointRadiusMm, outerMm, innerMm);
+        var across = 2f * new Vector2(Mathf.Min(outerMm, squareHalfMm.X), Mathf.Min(outerMm, squareHalfMm.Y));
+        return Gauges.Diameter(gauge, across.X) is string reading
+            ? System.FormattableString.Invariant($"{reading} (köşeli kesit {across.X:0.00} x {across.Y:0.00} mm, köşelerde Ø{2f * Mathf.Min(outerMm, LatheSection.Corner(squareHalfMm)):0.00})")
+            : null;
     }
 
     /// <summary>A point nearer the bore than the outside reads the bore.</summary>
@@ -72,17 +86,22 @@ public partial class StockItem : Carryable, IMeasurable
 
     /// <summary>A part off the lathe (radii from its -X end). Null when it
     /// is too short to be a part.</summary>
-    public static StockItem CreateTurned(float[] radiiMm, float[] innerMm, float stepMm, MaterialKind material)
+    public static StockItem CreateTurned(float[] radiiMm, float[] innerMm, float stepMm, MaterialKind material, Vector2 squareHalfMm = default)
     {
         float length = (radiiMm.Length - 1) * stepMm;
-        if (WorkpiecePartBuilder.Build(radiiMm, stepMm, -length / 2f, MaterialPreset.Get(material).DensityKgPerM3, innerMm: innerMm)
+        if (WorkpiecePartBuilder.Build(radiiMm, stepMm, -length / 2f, MaterialPreset.Get(material).DensityKgPerM3, innerMm: innerMm, squareHalfMm: squareHalfMm)
             is not WorkpiecePartBuilder.BuiltPart built)
             return null;
-        float diameter = 2f * Mathf.Max(radiiMm.Max(), 0.1f);
+        float radius = Mathf.Max(radiiMm.Max(), 0.1f);
+        bool flats = squareHalfMm != Vector2.Zero && radius > Mathf.Min(squareHalfMm.X, squareHalfMm.Y);
+        // Block sizes: X length, Y across the jaws (stock Z), Z height (stock Y).
+        var blank = flats
+            ? new StockBlank(StockShape.Block, new Vector3(length, 2f * Mathf.Min(radius, squareHalfMm.Y), 2f * Mathf.Min(radius, squareHalfMm.X)), material)
+            : new StockBlank(StockShape.CylinderAlongX, new Vector3(length, 2f * radius, 2f * radius), material);
         var item = new StockItem
         {
-            Blank = new StockBlank(StockShape.CylinderAlongX, new Vector3(length, diameter, diameter), material),
-            Turned = (radiiMm, innerMm, stepMm),
+            Blank = blank,
+            Turned = (radiiMm, innerMm, stepMm, flats ? squareHalfMm : Vector2.Zero),
             Name = "TurnedPart",
             DisplayName = "Tornalanmış parça",
             Mass = Mathf.Max(0.01f, built.MassKg),
@@ -100,9 +119,7 @@ public partial class StockItem : Carryable, IMeasurable
     {
         if (Turned is not { } t)
             return;
-        var radii = t.RadiiMm.Reverse().ToArray();
-        var inner = t.InnerMm.Reverse().ToArray();
-        Turned = (radii, inner, t.StepMm);
+        Turned = (t.RadiiMm.Reverse().ToArray(), t.InnerMm.Reverse().ToArray(), t.StepMm, t.SquareHalfMm);
     }
 
     /// <summary>Mesh in the stock's own frame (see the class comment).</summary>

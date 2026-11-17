@@ -66,6 +66,12 @@ Done, each verified through scripted operators on real LinuxCNC:
   its outside / bore profile (`Turned`): it goes back into a chuck either end
   first, and into a mill fixture, where its voxel field is built from the
   profile (`VoxelStock.Revolved`).
+- Middle-drag turns the carried object freely (fixtures still square it).
+  A block goes into a lathe chuck in any orientation: the profile starts at
+  the corner radius and keeps the block's half sizes (`LatheSection`), so
+  the section is circle-cut-by-rectangle: mesh, chip volume, depth of cut,
+  caliper, parted/removed parts and their mill voxel field all follow it,
+  and the workpiece turns with the chuck.
 - Lathe drilling and boring: `LatheRadiusProfile` keeps a bore radius per
   bucket (`SweepBore`); mesh, finished parts, mass and caliper (bore vs
   outside) know it. Drill deeper than its flutes and a boring bar in a hole
