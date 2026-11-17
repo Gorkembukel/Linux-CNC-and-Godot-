@@ -33,6 +33,7 @@ public enum StockShape
     CylinderAlongX,
 }
 
+/// <summary>How a mill is built: frame, table, tool changer, workholding and the stock it starts with.</summary>
 [Tool, GlobalClass]
 public partial class MillStructure : Resource
 {

@@ -27,6 +27,7 @@ public enum ToolKind
     EdgeFinder,
 }
 
+/// <summary>One tool of a machine: its number, kind and size, the LinuxCNC tool table values, and optionally its real cutting shape (Geometry).</summary>
 [Tool, GlobalClass]
 public partial class ToolSpec : Resource
 {

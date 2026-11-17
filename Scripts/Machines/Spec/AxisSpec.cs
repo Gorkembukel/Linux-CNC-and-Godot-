@@ -12,6 +12,7 @@ public enum AxisCarrier
     Workpiece,
 }
 
+/// <summary>One axis of a machine: its letter, what it moves, its travel, speed and homing, and its accuracy.</summary>
 [Tool, GlobalClass]
 public partial class AxisSpec : Resource
 {

@@ -22,7 +22,6 @@ public partial class DescriptionInspectorPlugin : EditorInspectorPlugin
     // Type name -> its documented fields in order: for an enum, its values.
     private readonly Dictionary<string, List<(string Name, string Text)>> _fields = new();
     private ulong _loadedStamp;
-    private List<string> _classes = new();
 
     private void Reload()
     {
@@ -79,25 +78,56 @@ public partial class DescriptionInspectorPlugin : EditorInspectorPlugin
 
     public override bool _CanHandle(GodotObject @object) => ClassChain(@object).Count > 0;
 
+    // A property's description goes in under the property, so it is added
+    // when the inspector moves on to whatever comes next.
+    // Kept per object: one plugin serves every inspector, nested ones included.
+    private readonly Dictionary<ulong, List<Control>> _pending = new();
+
+    private List<Control> Pending(GodotObject obj)
+    {
+        if (!_pending.TryGetValue(obj.GetInstanceId(), out var list))
+            _pending[obj.GetInstanceId()] = list = new List<Control>();
+        return list;
+    }
+
+    private void Flush(GodotObject obj)
+    {
+        var list = Pending(obj);
+        foreach (var control in list)
+            AddCustomControl(control);
+        list.Clear();
+    }
+
     public override void _ParseBegin(GodotObject @object)
     {
         Reload();
-        _classes = ClassChain(@object);
-        if (_classes.Select(c => _summaries.GetValueOrDefault(c)).FirstOrDefault(s => s != null) is string about)
+        Pending(@object).Clear();
+        if (ClassChain(@object).Select(c => _summaries.GetValueOrDefault(c)).FirstOrDefault(s => s != null) is string about)
             AddCustomControl(Line(about, 0.75f));
+    }
+
+    public override void _ParseCategory(GodotObject @object, string category) => Flush(@object);
+
+    public override void _ParseGroup(GodotObject @object, string group) => Flush(@object);
+
+    public override void _ParseEnd(GodotObject @object)
+    {
+        Flush(@object);
+        _pending.Remove(@object.GetInstanceId());
     }
 
     public override bool _ParseProperty(GodotObject @object, Variant.Type type, string name, PropertyHint hintType, string hintString,
         PropertyUsageFlags usageFlags, bool wide)
     {
-        foreach (string owner in _classes)
+        Flush(@object);
+        foreach (string owner in ClassChain(@object))
             if (_summaries.TryGetValue($"{owner}.{name}", out string text))
             {
-                AddCustomControl(Line(text, 0.6f));
+                Pending(@object).Add(Line(text, 0.6f));
                 break;
             }
         if (hintType == PropertyHint.Enum && EnumValues(hintString) is { Count: > 0 } values)
-            AddCustomControl(Line(string.Join("\n", values.Select(v => $"   {v.Name}: {v.Text}")), 0.5f));
+            Pending(@object).Add(Line(string.Join("\n", values.Select(v => $"   {v.Name}: {v.Text}")), 0.5f));
         return false;
     }
 

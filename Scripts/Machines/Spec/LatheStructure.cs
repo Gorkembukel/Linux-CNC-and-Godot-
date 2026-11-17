@@ -11,6 +11,7 @@ public enum TurretKind
     ToolPost,
 }
 
+/// <summary>How a lathe is built: bed, headstock, chuck, tailstock, turret and the stock it starts with.</summary>
 [Tool, GlobalClass]
 public partial class LatheStructure : Resource
 {
