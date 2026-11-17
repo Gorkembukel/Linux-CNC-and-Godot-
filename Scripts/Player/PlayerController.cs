@@ -29,6 +29,7 @@ public partial class PlayerController : CharacterBody3D
     [Export] public float Gravity = 9.8f;
     [Export] public float MouseSensitivity = 0.0025f;
     [Export] public float InteractRange = 1.2f;
+    [Export] public float OperateRange = 2.5f; // shortcuts + corner panel: hand on the panel, eyes on the part
     [Export] public float PickupRange = 2.0f; // longer reach than InteractRange -- grabbing, not pressing a button at arm's length
     [Export] public float BaseFov = 75f;
     [Export] public float ZoomFov = 22f;
@@ -50,6 +51,8 @@ public partial class PlayerController : CharacterBody3D
     private CapsuleShape3D _capsule;
     private CollisionShape3D _collision;
     private ConsoleFocus _focus;
+    private ConsolePip _pip;
+    private bool _nearConsole;
     private bool _crouchToggled;
     private float _crouch, _lean, _zoom;
     private Vector3 _headOffset, _headOffsetShown;
@@ -178,11 +181,14 @@ public partial class PlayerController : CharacterBody3D
 
         var ui = new CanvasLayer();
         AddChild(ui);
+        _pip = new ConsolePip { Name = "ConsolePip", Player = this };
+        ui.AddChild(_pip);
 
         _interactPrompt = new Label { Text = "[E] 2D panel   [Tık] tuş   [Teker] düğme / el çarkı", Visible = false };
         ui.AddChild(_interactPrompt);
         _interactPrompt.AnchorLeft = _interactPrompt.AnchorRight = 0.5f;
         _interactPrompt.AnchorTop = _interactPrompt.AnchorBottom = 0.85f;
+        _interactPrompt.GrowHorizontal = Control.GrowDirection.Both;
 
         AddToGroup("player");
         _noticeLabel = new Label { HorizontalAlignment = HorizontalAlignment.Center };
@@ -257,6 +263,11 @@ public partial class PlayerController : CharacterBody3D
         }
         else if (@event is InputEventKey keyEvent && keyEvent.Pressed)
         {
+            if (_nearConsole && !keyEvent.Echo && _consoleStand.TryShortcut(keyEvent.Keycode))
+            {
+                GetViewport().SetInputAsHandled();
+                return;
+            }
             switch (keyEvent.Keycode)
             {
                 case Key.V:
@@ -308,7 +319,7 @@ public partial class PlayerController : CharacterBody3D
                 else
                     TryPressConsoleButton(); // crosshair raycast -- see that method's doc comment
             }
-            else if (!_atConsole && !_atStation && _operatorPanel is not { Visible: true })
+            else if (!_nearConsole && !_atStation && _operatorPanel is not { Visible: true })
             {
                 // Safety net for a focus-timing edge case: clicking back into
                 // the game window re-captures the mouse for looking around,
@@ -468,7 +479,7 @@ public partial class PlayerController : CharacterBody3D
         var velocity = Velocity;
         if (!IsOnFloor())
             velocity.Y -= Gravity * (float)delta;
-        else if (Input.IsKeyPressed(Key.Space))
+        else if (Input.IsKeyPressed(Key.Space) && !_nearConsole)
             velocity.Y = JumpVelocity;
 
         Vector2 inputDir = new(
@@ -502,6 +513,8 @@ public partial class PlayerController : CharacterBody3D
             if (node is ConsoleStand stand && (_consoleStand == null ||
                 GlobalPosition.DistanceTo(stand.GlobalPosition) < GlobalPosition.DistanceTo(_consoleStand.GlobalPosition)))
                 _consoleStand = stand;
+        _nearConsole = _consoleStand != null && GlobalPosition.DistanceTo(_consoleStand.GlobalPosition) <= OperateRange;
+        _pip.Show(_nearConsole && !_focus.Active ? _consoleStand : null);
         if (_consoleStand == null)
             return;
         bool inRange =GlobalPosition.DistanceTo(_consoleStand.GlobalPosition) <= InteractRange;
@@ -572,7 +585,7 @@ public partial class PlayerController : CharacterBody3D
 
         if (_atConsole)
         {
-            _interactPrompt.Text = "[E] panele yaklaş   [Tık] tuş   [Teker] düğme / el çarkı";
+            _interactPrompt.Text = "[E/Tab] panele yaklaş   " + ConsoleKeysHint;
             _interactPrompt.Visible = true;
             return;
         }
@@ -598,6 +611,10 @@ public partial class PlayerController : CharacterBody3D
             return;
         }
 
-        _interactPrompt.Visible = false;
+        _interactPrompt.Text = ConsoleKeysHint;
+        _interactPrompt.Visible = _nearConsole;
     }
+
+    private const string ConsoleKeysHint =
+        "[Oklar/PgUp/PgDn] jog   [Enter] CYCLE START   [Boşluk] FEED HOLD   [-/=] feed override   [Esc] imleç: köşedeki panele tıkla";
 }

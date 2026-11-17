@@ -78,7 +78,10 @@ public partial class ConsoleStand : Node3D
     private Label3D _toolDisplay;
     private ConsoleKnob _feedKnob, _spindleKnob, _mpgAxisKnob;
     private readonly Dictionary<ulong, KeyEntry> _keys = new();
+    private readonly Dictionary<string, StaticBody3D> _byLegend = new();
     private readonly List<Lamp> _lamps = new();
+    private readonly StaticBody3D[,] _jogGrid = new StaticBody3D[3, 3];
+    private Key _jogHeldBy = Key.None;
 
     private Mode _mode = Mode.Jog;
     private Page _page = Page.Pos;
@@ -181,6 +184,8 @@ public partial class ConsoleStand : Node3D
             child.QueueFree();
         }
         _keys.Clear();
+        _byLegend.Clear();
+        Array.Clear(_jogGrid);
         _lamps.Clear();
 
         var post = new StaticBody3D { Name = "Post", Position = new Vector3(0f, PostHeight / 2f, 0f) };
@@ -382,10 +387,9 @@ public partial class ConsoleStand : Node3D
                 if (grid[r, c] is not { } slot)
                     continue;
                 var (label, axis, dir) = slot;
-                if (dir == 0)
-                    AddKey(face, At(xs[c], ys[r], top), PxSize(42, 34), 0.007f, keyMat, "RAPID", 0.0028f, () => _rapid = !_rapid, lamp: () => _rapid);
-                else
-                    AddKey(face, At(xs[c], ys[r], top), PxSize(42, 34), 0.007f, keyMat, label, 0.0055f, () => JogKey(axis, dir));
+                _jogGrid[r, c] = dir == 0
+                    ? AddKey(face, At(xs[c], ys[r], top), PxSize(42, 34), 0.007f, keyMat, "RAPID", 0.0028f, () => _rapid = !_rapid, lamp: () => _rapid)
+                    : AddKey(face, At(xs[c], ys[r], top), PxSize(42, 34), 0.007f, keyMat, label, 0.0055f, () => JogKey(axis, dir));
             }
 
         bool fifth = rotary.Count > 1;
@@ -561,6 +565,8 @@ public partial class ConsoleStand : Node3D
         if (lamp != null)
             AddLamp(body, new Vector3(-size.X * 0.36f, size.Y * 0.34f, depth + 0.0003f), 0.0018f, LampGreen, lamp);
         Register(body, action);
+        if (legend.Length > 0)
+            _byLegend.TryAdd(legend, body);
         return body;
     }
 
@@ -574,6 +580,7 @@ public partial class ConsoleStand : Node3D
         body.AddChild(new CollisionShape3D { Shape = new CylinderShape3D { Radius = radius, Height = 0.01f }, RotationDegrees = new Vector3(90f, 0f, 0f), Position = new Vector3(0f, 0f, 0.005f) });
         _lamps.Add(new Lamp(cap, lit, false, glow, true));
         Register(body, action);
+        _byLegend.TryAdd(name, body);
     }
 
     private ConsoleKnob AddKnob(Node3D parent, Vector3 center, float radius, int count, float start, float step,
@@ -743,7 +750,12 @@ public partial class ConsoleStand : Node3D
 
     /// <summary>Called by PlayerController when its crosshair ray hits a
     /// node; presses it if it is one of this console's keys.</summary>
-    public bool TryPress(Node3D hit)
+    public bool TryPress(Node3D hit) => TryPress(hit, Key.None, false);
+
+    /// <summary>`heldBy`: the keyboard key standing in for the finger, so a
+    /// jog lasts while that key (not the mouse button) is held. `glow` lights
+    /// the key so a keyboard press shows where that key sits on the panel.</summary>
+    private bool TryPress(Node3D hit, Key heldBy, bool glow)
     {
         if (hit == null || !_keys.TryGetValue(hit.GetInstanceId(), out var key))
             return false;
@@ -751,13 +763,62 @@ public partial class ConsoleStand : Node3D
         if (_bridge != null)
             key.Action?.Invoke();
         _click?.Play();
+        var cap = glow ? key.Node.GetChildren().OfType<MeshInstance3D>().FirstOrDefault() : null;
+        if (cap != null)
+            cap.MaterialOverlay = PressGlow;
         var tween = key.Node.CreateTween();
         tween.TweenProperty(key.Node, "position:z", key.BaseZ - 0.002f, 0.05);
         if (_jogHeldJoint >= 0 && heldBefore < 0)
+        {
             _heldKey = key; // stays down while the jog key is held
+            _jogHeldBy = heldBy;
+        }
         else
+        {
             tween.TweenProperty(key.Node, "position:z", key.BaseZ, 0.08);
+            if (cap != null)
+                tween.TweenInterval(0.25);
+        }
+        if (cap != null && _heldKey != key)
+            tween.TweenCallback(Callable.From(() => cap.MaterialOverlay = null));
         return true;
+    }
+
+    private static readonly StandardMaterial3D PressGlow = new()
+    {
+        ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+        Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+        AlbedoColor = new Color(1f, 0.82f, 0.2f, 0.55f),
+    };
+
+    /// <summary>Keyboard stand-ins for the keys an operator works while
+    /// watching the part. Arrows / PgUp / PgDn press the jog key in the same
+    /// spot of the 3x3 jog block, so the keyboard teaches the panel layout.</summary>
+    public bool TryShortcut(Key key)
+    {
+        (int r, int c)? jog = key switch
+        {
+            Key.Up => (0, 1), Key.Down => (2, 1), Key.Left => (1, 0), Key.Right => (1, 2),
+            Key.Pageup => (0, 2), Key.Pagedown => (2, 2),
+            _ => null,
+        };
+        if (jog is var (r, c))
+            return TryPress(_jogGrid[r, c], key, true);
+        switch (key)
+        {
+            case Key.Enter or Key.KpEnter:
+                return TryPress(_byLegend.GetValueOrDefault("CycleStart"), Key.None, true);
+            case Key.Space:
+                return TryPress(_byLegend.GetValueOrDefault("FeedHold"), Key.None, true);
+            case Key.Minus or Key.KpSubtract:
+                _feedKnob?.Turn(null, -1);
+                return _feedKnob != null;
+            case Key.Equal or Key.KpAdd:
+                _feedKnob?.Turn(null, 1);
+                return _feedKnob != null;
+            default:
+                return false;
+        }
     }
 
     private void SelectMode(Mode mode)
@@ -1211,12 +1272,17 @@ public partial class ConsoleStand : Node3D
         var s = S;
         bool connected = _bridge.IsBridgeConnected;
 
-        if (_jogHeldJoint >= 0 && !Input.IsMouseButtonPressed(MouseButton.Left))
+        if (_jogHeldJoint >= 0 && (_jogHeldBy == Key.None ? !Input.IsMouseButtonPressed(MouseButton.Left) : !Input.IsKeyPressed(_jogHeldBy)))
         {
             _bridge.JogStop((byte)_jogHeldJoint);
             _jogHeldJoint = -1;
+            _jogHeldBy = Key.None;
             if (_heldKey != null)
+            {
                 _heldKey.Node.CreateTween().TweenProperty(_heldKey.Node, "position:z", _heldKey.BaseZ, 0.08);
+                foreach (var mesh in _heldKey.Node.GetChildren().OfType<MeshInstance3D>())
+                    mesh.MaterialOverlay = null;
+            }
             _heldKey = null;
         }
         if (!_overridesSynced && connected && s.SampleCount > 0)
