@@ -183,20 +183,18 @@ Scenes/                  Main.tscn (workshop), Machines/
 tests/                   C# (xUnit) and Python (pytest)
 tools/                   record_replay.py, statue_cam.py
 docs/screenshots/        images used here
-PLAN.md                  development log: every decision and every problem found
+PLAN.md                  current status, open work, environment gotchas
 ```
 
 ## Status and limits
 
-Working: everything above. In progress: the lathe chuck (key, jaws, caliper
-measuring), step clamps and a centring plate for the 5-axis machine, vise
-tramming with a dial indicator.
+Working: everything above, plus cutting load and tool wear, physical tools
+with their own lengths, holder/spindle/shank collisions, measuring gauges,
+door interlock and coolant. Not started: training/scenario mode.
 
-- Kinematics are plain trivkins; tool length offsets are not modelled (the
-  tip is always where LinuxCNC reports it); lathes are X/Z only.
-- No holder or spindle collision detection; only the cutter against the vise
-  jaws is checked.
+- Kinematics are plain trivkins (no tool-centre-point control); lathes are
+  X/Z only.
 - The cut state lives in Godot's memory and is lost when the game closes.
 - Chips are simple pooled boxes, sized up to be visible.
 
-`PLAN.md` is the full, dated development log.
+`PLAN.md` holds the current status and open work.

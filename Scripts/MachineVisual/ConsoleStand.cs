@@ -140,31 +140,39 @@ public partial class ConsoleStand : Node3D
     /// reading the screen -- power/running/alarm at a glance. Dim when off,
     /// lit (emissive) when the corresponding state is true; updated in
     /// _Process alongside the screen text.</summary>
-    private void BuildStatusLeds(Node3D panel)
+   private void BuildStatusLeds(Node3D panel)
+{
+    (string label, Color color, System.Action<StandardMaterial3D> store)[] leds =
     {
-        (string label, Color color, System.Action<StandardMaterial3D> store)[] leds =
+        ("POWER", new Color(0.2f, 1f, 0.3f), m => _ledPowerMat = m),
+        ("CYCLE", new Color(1f, 0.75f, 0.1f), m => _ledCycleMat = m),
+        ("ALARM", new Color(1f, 0.15f, 0.1f), m => _ledAlarmMat = m),
+    };
+
+    for (int i = 0; i < leds.Length; i++)
+    {
+        var mat = new StandardMaterial3D
         {
-            ("POWER", new Color(0.2f, 1f, 0.3f), m => _ledPowerMat = m),
-            ("CYCLE", new Color(1f, 0.75f, 0.1f), m => _ledCycleMat = m),
-            ("ALARM", new Color(1f, 0.15f, 0.1f), m => _ledAlarmMat = m),
+            AlbedoColor = leds[i].color * 0.25f, // dim = off
+            EmissionEnabled = true,
+            Emission = leds[i].color,
+            EmissionEnergyMultiplier = 0.1f,
+        };
+        leds[i].store(mat);
+
+        var pos = new Vector3(-0.16f + i * 0.08f, 0.205f, 0.045f);
+        
+        // Height değerini Radius'un 2 katı (0.02f) yaparak tam küre elde ediyoruz
+        var sphereMesh = new SphereMesh 
+        { 
+            Radius = 0.01f, 
+            Height = 0.02f 
         };
 
-        for (int i = 0; i < leds.Length; i++)
-        {
-            var mat = new StandardMaterial3D
-            {
-                AlbedoColor = leds[i].color * 0.25f, // dim = off
-                EmissionEnabled = true,
-                Emission = leds[i].color,
-                EmissionEnergyMultiplier = 0.1f,
-            };
-            leds[i].store(mat);
-
-            var pos = new Vector3(-0.16f + i * 0.08f, 0.205f, 0.045f);
-            panel.AddChild(new MeshInstance3D { Mesh = new SphereMesh { Radius = 0.01f }, MaterialOverride = mat, Position = pos });
-            AddButtonCaption(panel, leds[i].label, pos + new Vector3(0f, 0.016f, -0.005f));
-        }
+        panel.AddChild(new MeshInstance3D { Mesh = sphereMesh, MaterialOverride = mat, Position = pos });
+        AddButtonCaption(panel, leds[i].label, pos + new Vector3(0f, 0.016f, -0.005f));
     }
+}
 
     private void BuildScreen(Node3D panel)
     {

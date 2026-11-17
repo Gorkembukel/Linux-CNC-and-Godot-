@@ -7,11 +7,88 @@
 [ext_resource type="PackedScene" path="res://Scenes/Machines/BenchLathe.tscn" id="11"]
 [ext_resource type="PackedScene" uid="uid://ddlr61u8q7x3p" path="res://Scenes/Player.tscn" id="12"]
 [ext_resource type="PackedScene" path="res://Scenes/Workshop/Floor.tscn" id="13"]
+[ext_resource type="PackedScene" uid="uid://cx6t7qg2ql6t1" path="res://Scenes/Machines/FlatBedLathe.tscn" id="13_346fj"]
 [ext_resource type="PackedScene" path="res://Scenes/UI/Hud.tscn" id="14"]
 [ext_resource type="PackedScene" path="res://Scenes/Workshop/StockStation.tscn" id="15"]
+[ext_resource type="Script" uid="uid://dxs4voavg7lkd" path="res://Scripts/Machines/Spec/AxisSpec.cs" id="15_sxkr1"]
 [ext_resource type="PackedScene" path="res://Scenes/Workshop/ToolBench.tscn" id="16"]
-[ext_resource type="PackedScene" path="res://Scenes/Workshop/FixtureCart.tscn" id="17"]
+[ext_resource type="Script" uid="uid://du6s3andarck1" path="res://Scripts/Machines/Spec/LatheStructure.cs" id="16_fq0cl"]
+[ext_resource type="PackedScene" uid="uid://csibpo1is3et" path="res://Scenes/Workshop/FixtureCart.tscn" id="17"]
+[ext_resource type="Script" uid="uid://cm82lwoqeh5ky" path="res://Scripts/Machines/Spec/ToolSpec.cs" id="17_hwpts"]
 [ext_resource type="PackedScene" path="res://Scenes/Workshop/ToolCart.tscn" id="18"]
+[ext_resource type="Script" uid="uid://do382wrytnimu" path="res://Scripts/Machines/Spec/MachineSpec.cs" id="18_jyqft"]
+
+[sub_resource type="Resource" id="Resource_kae0g"]
+script = ExtResource("15_sxkr1")
+MinLimit = -5.0
+MaxLimit = 180.0
+HomeSequence = 0
+
+[sub_resource type="Resource" id="Resource_7gmuy"]
+script = ExtResource("15_sxkr1")
+Letter = 2
+MinLimit = -700.0
+MaxLimit = 80.0
+
+[sub_resource type="Resource" id="Resource_22ll7"]
+script = ExtResource("16_fq0cl")
+BedLengthMm = 1500.0
+BedDepthMm = 450.0
+CrossSlideAngleDeg = -90.0
+HeadstockLengthMm = 450.0
+HeadstockHeightMm = 400.0
+Tailstock = true
+ChuckDiameterMm = 200.0
+Turret = 1
+ToolReachMm = 70.0
+StockDiameterMm = 60.0
+StockLengthMm = 250.0
+GripLengthMm = 50.0
+
+[sub_resource type="Resource" id="Resource_e34dk"]
+script = ExtResource("17_hwpts")
+Kind = 4
+Description = "roughing turn tool, 0.8mm nose radius"
+DiameterMm = 0.0
+TipRadiusMm = 0.8
+Color = Color(0.85, 0.65, 0.2, 1)
+
+[sub_resource type="Resource" id="Resource_bihcf"]
+script = ExtResource("17_hwpts")
+Number = 2
+Kind = 4
+Description = "finishing turn tool, 0.4mm nose radius"
+DiameterMm = 0.0
+TipRadiusMm = 0.4
+Color = Color(0.3, 0.8, 0.9, 1)
+
+[sub_resource type="Resource" id="Resource_s57co"]
+script = ExtResource("17_hwpts")
+Number = 3
+Kind = 5
+Description = "parting / grooving tool, 3mm wide"
+DiameterMm = 0.0
+TipRadiusMm = 0.2
+Orientation = 3
+FrontAngleDeg = 0.0
+BackAngleDeg = 90.0
+Color = Color(0.9, 0.9, 0.95, 1)
+
+[sub_resource type="Resource" id="Resource_l2gp3"]
+script = ExtResource("18_jyqft")
+Kind = 1
+MachineName = "FlatBedLathe"
+StatePort = 9208
+CommandPort = 9209
+UseToolChangePosition = true
+ToolChangePosition = Vector3(120, 0, 60)
+Axes = Array[ExtResource("15_sxkr1")]([SubResource("Resource_kae0g"), SubResource("Resource_7gmuy")])
+Tools = Array[ExtResource("17_hwpts")]([SubResource("Resource_e34dk"), SubResource("Resource_bihcf"), SubResource("Resource_s57co")])
+WorkHeightMm = 1050.0
+BodyColor = Color(0.25, 0.33, 0.4, 1)
+StockMaterial = 0
+SpindlePowerKw = 7.5
+Lathe = SubResource("Resource_22ll7")
 
 [node name="Main" type="Node3D" unique_id=933770483]
 script = ExtResource("1")
@@ -25,23 +102,24 @@ script = ExtResource("6")
 transform = Transform3D(0.707107, -0.5, 0.5, 0, 0.707107, 0.707107, -0.707107, -0.5, 0.5, 0, 50, 0)
 
 [node name="Floor" parent="." unique_id=495725792 instance=ExtResource("13")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1.15, 1)
+transform = Transform3D(1.9497733, 0, 0, 0, 1, 0, 0, 0, 1.7194927, 0, -1.15, 1)
 
 [node name="Player" parent="." unique_id=1327845567 instance=ExtResource("12")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.15, -1.1, 1.3)
+visible = true
 
 [node name="UI" parent="." unique_id=1928220117 instance=ExtResource("14")]
 
 [node name="StockStation" parent="." unique_id=604508160 instance=ExtResource("15")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.4, -1.1, 0.6)
+transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, -1.90717, -1.1, 5.430218)
 
 [node name="ToolBench" parent="." unique_id=1770567236 instance=ExtResource("16")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.119312, -1.1, 3.4)
 
-[node name="MillFixtureCart" parent="." instance=ExtResource("17")]
+[node name="MillFixtureCart" parent="." unique_id=1308724877 instance=ExtResource("17")]
 transform = Transform3D(-0.15264097, 0, 0.9882817, 0, 1, 0, -0.9882817, 0, -0.15264097, -3.372, -1.1, 2.283)
 
-[node name="TrunnionFixtureCart" parent="." instance=ExtResource("17")]
+[node name="TrunnionFixtureCart" parent="." unique_id=17037664 instance=ExtResource("17")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.35, -1.1, 1.3)
 Vise = false
 CentringPlate = true
@@ -56,14 +134,18 @@ transform = Transform3D(-0.15264097, 0, 0.9882817, 0, 1, 0, -0.9882817, 0, -0.15
 [node name="Trunnion5Axis" parent="." unique_id=697169260 instance=ExtResource("10_bmxlf")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.1454544, -1.0999997, -0.023239613)
 
-[node name="LatheToolCart" parent="." instance=ExtResource("18")]
+[node name="LatheToolCart" parent="." unique_id=132474202 instance=ExtResource("18")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.75, -1.1, 0.75)
 Machine = NodePath("../BenchLathe")
 
-[node name="MillToolCart" parent="." instance=ExtResource("18")]
+[node name="MillToolCart" parent="." unique_id=194199973 instance=ExtResource("18")]
 transform = Transform3D(-0.15264097, 0, 0.9882817, 0, 1, 0, -0.9882817, 0, -0.15264097, -4.9, -1.1, 2.3)
 Machine = NodePath("../BenchMill")
 
-[node name="TrunnionToolCart" parent="." instance=ExtResource("18")]
+[node name="TrunnionToolCart" parent="." unique_id=34675056 instance=ExtResource("18")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.4, -1.1, 1.3)
 Machine = NodePath("../Trunnion5Axis")
+
+[node name="FlatBedLathe" parent="." unique_id=108347737 instance=ExtResource("13_346fj")]
+transform = Transform3D(-0.9865704, 0, 0.16333634, 0, 1, 0, -0.16333634, 0, -0.9865704, 2.8663445, -1.1, 4.8779163)
+Spec = SubResource("Resource_l2gp3")
