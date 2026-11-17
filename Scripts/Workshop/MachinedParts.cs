@@ -18,16 +18,18 @@ public partial class MilledPart : Carryable, IMeasurable
 /// at the centre of mass.</summary>
 public partial class TurnedPart : Carryable, IMeasurable
 {
-    private float[] _radiiMm;
+    private float[] _radiiMm, _innerMm;
     private float _stepMm, _startMm;
 
     /// <summary>Builds the part for a run of radii (radiiMm[0] at machine
     /// Z = startZmm). Null when it is too short to be a part; centreZmm is
     /// where its origin belongs along the machine's Z.</summary>
-    public static TurnedPart Build(float[] radiiMm, float stepMm, float startZmm, float densityKgPerM3, Godot.Material look, out float centreZmm)
+    public static TurnedPart Build(float[] radiiMm, float stepMm, float startZmm, float densityKgPerM3, Godot.Material look, out float centreZmm,
+        float[] innerMm = null)
     {
         centreZmm = startZmm;
-        if (WorkpiecePartBuilder.Build(radiiMm, stepMm, startZmm, densityKgPerM3) is not WorkpiecePartBuilder.BuiltPart built)
+        innerMm ??= new float[radiiMm.Length];
+        if (WorkpiecePartBuilder.Build(radiiMm, stepMm, startZmm, densityKgPerM3, innerMm: innerMm) is not WorkpiecePartBuilder.BuiltPart built)
             return null;
         centreZmm = built.CentroidZmm;
         var part = new TurnedPart
@@ -36,6 +38,7 @@ public partial class TurnedPart : Carryable, IMeasurable
             DisplayName = "Tornalanmış parça",
             Mass = Mathf.Max(0.01f, built.MassKg),
             _radiiMm = radiiMm,
+            _innerMm = innerMm,
             _stepMm = stepMm,
             _startMm = startZmm - built.CentroidZmm,
         };
@@ -46,8 +49,14 @@ public partial class TurnedPart : Carryable, IMeasurable
 
     public string Reading(HandToolKind gauge, Vector3 globalPoint)
     {
-        float along = ToLocal(globalPoint).X / WorldScale.MmToM;
-        int index = Mathf.Clamp(Mathf.RoundToInt((along - _startMm) / _stepMm), 0, _radiiMm.Length - 1);
-        return Gauges.Diameter(gauge, 2f * _radiiMm[index]);
+        var local = ToLocal(globalPoint) / WorldScale.MmToM;
+        int index = Mathf.Clamp(Mathf.RoundToInt((local.X - _startMm) / _stepMm), 0, _radiiMm.Length - 1);
+        return BoreOrOutside(gauge, new Vector2(local.Y, local.Z).Length(), _radiiMm[index], _innerMm[index]);
     }
+
+    /// <summary>A point nearer the bore than the outside reads the bore.</summary>
+    public static string BoreOrOutside(HandToolKind gauge, float pointRadiusMm, float outerMm, float innerMm) =>
+        innerMm > 0f && Mathf.Abs(pointRadiusMm - innerMm) < Mathf.Abs(pointRadiusMm - outerMm)
+            ? Gauges.Diameter(gauge, 2f * innerMm) is string bore ? "İç çap: " + bore : null
+            : Gauges.Diameter(gauge, 2f * outerMm);
 }

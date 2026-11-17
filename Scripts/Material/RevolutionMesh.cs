@@ -37,20 +37,54 @@ public static class RevolutionMesh
         }
     }
 
-    /// <summary>A flat end cap at axial position x, radius r.</summary>
-    public static void AddCap(SurfaceTool st, float x, float r, int angularSegments, bool outwardNormalIsNegativeX)
+    /// <summary>A band of a bore: like AddRingSegment, facing the axis.</summary>
+    public static void AddBoreSegment(SurfaceTool st, float x0, float r0, float x1, float r1, int angularSegments) =>
+        AddRingSegment(st, x1, r1, x0, r0, angularSegments);
+
+    /// <summary>A flat end cap at axial position x, radius r; a ring when
+    /// there is a bore of radius innerR.</summary>
+    public static void AddCap(SurfaceTool st, float x, float r, int angularSegments, bool outwardNormalIsNegativeX, float innerR = 0f)
     {
-        var center = new Vector3(x, 0, 0);
         for (int a = 0; a < angularSegments; a++)
         {
             float t0 = a * Mathf.Tau / angularSegments;
             float t1 = (a + 1) * Mathf.Tau / angularSegments;
             Vector3 p0 = new(x, r * Mathf.Cos(t0), r * Mathf.Sin(t0));
             Vector3 p1 = new(x, r * Mathf.Cos(t1), r * Mathf.Sin(t1));
+            Vector3 q0 = new(x, innerR * Mathf.Cos(t0), innerR * Mathf.Sin(t0));
+            Vector3 q1 = new(x, innerR * Mathf.Cos(t1), innerR * Mathf.Sin(t1));
             if (outwardNormalIsNegativeX)
-                AddTriangle(st, center, p0, p1);
+            {
+                AddTriangle(st, q0, p0, p1);
+                if (innerR > 0f)
+                    AddTriangle(st, q0, p1, q1);
+            }
             else
-                AddTriangle(st, center, p1, p0);
+            {
+                AddTriangle(st, q0, p1, p0);
+                if (innerR > 0f)
+                    AddTriangle(st, q0, q1, p1);
+            }
         }
+    }
+
+    /// <summary>The surfaces between two neighbouring profile samples: the
+    /// outside, the bore, and where the bar ends after a bore, the end ring.</summary>
+    public static void AddSection(SurfaceTool st, float x0, float r0, float in0, float x1, float r1, float in1, int angularSegments)
+    {
+        const float gone = 0.05f;
+        if (r1 <= gone && in0 > 0f)
+        {
+            AddRingSegment(st, x0, r0, x1, in0, angularSegments);
+            return;
+        }
+        if (r0 <= gone && in1 > 0f)
+        {
+            AddRingSegment(st, x0, in1, x1, r1, angularSegments);
+            return;
+        }
+        AddRingSegment(st, x0, r0, x1, r1, angularSegments);
+        if (in0 > 0f || in1 > 0f)
+            AddBoreSegment(st, x0, in0, x1, in1, angularSegments);
     }
 }
