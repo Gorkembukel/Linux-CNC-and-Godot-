@@ -98,7 +98,7 @@ public partial class ToolSocket : StaticBody3D, IInteractable, IToolSource
         string place = magazine ? "Magazin" : _turret ? "Taret" : "İş mili";
         if (player.Held is ToolItem item)
         {
-            if (item.Spec.IsLatheTool != _latheTools)
+            if (item.ForLathe != _latheTools)
                 return _latheTools ? "Bu bir freze takımı: tarete takılmaz" : "Bu bir torna kalemi: freze iş miline takılmaz";
             if (Refuse?.Invoke(item.Spec) is string refusal)
                 return refusal;
@@ -134,7 +134,7 @@ public partial class ToolSocket : StaticBody3D, IInteractable, IToolSource
             return;
         if (player.Held is ToolItem item)
         {
-            if (item.Spec.IsLatheTool == _latheTools && Refuse?.Invoke(item.Spec) == null && LoadPocket(item) is int target and >= 0)
+            if (item.ForLathe == _latheTools && Refuse?.Invoke(item.Spec) == null && LoadPocket(item) is int target and >= 0)
             {
                 player.ReleaseHeld();
                 Load(item, target);
