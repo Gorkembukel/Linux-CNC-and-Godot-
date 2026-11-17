@@ -1,0 +1,67 @@
+[gd_resource type="Resource" script_class="MachineSpec" format=3 uid="uid://bmiq3mjvxqcb2"]
+
+[ext_resource type="Script" uid="uid://dxs4voavg7lkd" path="res://Scripts/Machines/Spec/AxisSpec.cs" id="1_eibw8"]
+[ext_resource type="Script" uid="uid://du6s3andarck1" path="res://Scripts/Machines/Spec/LatheStructure.cs" id="2_bxg4q"]
+[ext_resource type="Script" uid="uid://cm82lwoqeh5ky" path="res://Scripts/Machines/Spec/ToolSpec.cs" id="3_tyoei"]
+[ext_resource type="Script" uid="uid://do382wrytnimu" path="res://Scripts/Machines/Spec/MachineSpec.cs" id="4_11k3x"]
+
+[sub_resource type="Resource" id="Resource_fm4sn"]
+script = ExtResource("1_eibw8")
+MinLimit = -5.0
+MaxLimit = 350.0
+HomeSequence = 0
+
+[sub_resource type="Resource" id="Resource_uw1dx"]
+script = ExtResource("1_eibw8")
+Letter = 2
+MinLimit = -900.0
+MaxLimit = 50.0
+
+[sub_resource type="Resource" id="Resource_paaun"]
+script = ExtResource("2_bxg4q")
+CrossSlideAngleDeg = 60.0
+
+[sub_resource type="Resource" id="Resource_fvhos"]
+script = ExtResource("3_tyoei")
+Kind = 4
+Description = "roughing turn tool, 0.8mm nose radius"
+DiameterMm = 0.0
+TipRadiusMm = 0.8
+Color = Color(0.85, 0.65, 0.2, 1)
+
+[sub_resource type="Resource" id="Resource_o0fp8"]
+script = ExtResource("3_tyoei")
+Number = 2
+Kind = 4
+Description = "finishing turn tool, 0.4mm nose radius"
+DiameterMm = 0.0
+TipRadiusMm = 0.4
+Color = Color(0.3, 0.8, 0.9, 1)
+
+[sub_resource type="Resource" id="Resource_pm48n"]
+script = ExtResource("3_tyoei")
+Number = 3
+Kind = 5
+Description = "parting / grooving tool, 3mm wide"
+DiameterMm = 0.0
+TipRadiusMm = 0.2
+Orientation = 3
+FrontAngleDeg = 0.0
+BackAngleDeg = 90.0
+Color = Color(0.9, 0.9, 0.95, 1)
+
+[resource]
+script = ExtResource("4_11k3x")
+Kind = 1
+MachineName = "BenchLathe2"
+StatePort = 9210
+CommandPort = 9211
+DemoProgram = "nc_files/demo_facing_turning.ngc"
+UseToolChangePosition = true
+ToolChangePosition = Vector3(80, 0, 40)
+Axes = Array[ExtResource("1_eibw8")]([SubResource("Resource_fm4sn"), SubResource("Resource_uw1dx")])
+Tools = Array[ExtResource("3_tyoei")]([SubResource("Resource_fvhos"), SubResource("Resource_o0fp8"), SubResource("Resource_pm48n")])
+BodyColor = Color(0.15, 0.35, 0.22, 1)
+StockMaterial = 0
+SpindlePowerKw = 3.0
+Lathe = SubResource("Resource_paaun")
