@@ -108,26 +108,7 @@ public class LatheRadiusProfile : IMaterialModel
             else
                 xAtZ = Mathf.Lerp(x0, x1, Mathf.Clamp((z - z0) / (z1 - z0), 0f, 1f));
 
-            float cutRadius = Mathf.Max(0f, xAtZ + toolNoseRadius);
-            if (cutRadius < _radius[i])
-            {
-                // Down to the bore the wall is gone: the ring falls away.
-                if (cutRadius <= _inner[i] + SeverEpsilonMm)
-                    cutRadius = 0f;
-                maxDepthRemoved = Mathf.Max(maxDepthRemoved, LatheSection.Reach(_radius[i], SquareHalfMm) - Mathf.Max(cutRadius, _inner[i]));
-                // _radius[i] can only cross from >epsilon to <=epsilon ONCE:
-                // cutRadius is clamped >=0, so once _radius[i] is already at
-                // or below the epsilon, "cutRadius < _radius[i]" can't make
-                // it cross again -- no extra per-bucket state needed.
-                if (_radius[i] > SeverEpsilonMm && cutRadius <= SeverEpsilonMm)
-                    severedIndex = severedIndex is int existing ? Mathf.Min(existing, i) : i;
-                float floor = Mathf.Max(cutRadius, _inner[i]);
-                volume += Mathf.Max(0f, LatheSection.Area(_radius[i], SquareHalfMm) - LatheSection.Area(floor, SquareHalfMm)) * StepMm;
-                _radius[i] = cutRadius;
-                if (cutRadius == 0f)
-                    _inner[i] = 0f;
-                removedAny = true;
-            }
+            removedAny |= CutOutside(i, Mathf.Max(0f, xAtZ + toolNoseRadius), ref maxDepthRemoved, ref volume, ref severedIndex);
         }
 
         if (!removedAny)
@@ -135,6 +116,137 @@ public class LatheRadiusProfile : IMaterialModel
 
         float contactLength = Mathf.Abs(z1 - z0);
         return new SweepResult(true, i0, i1, maxDepthRemoved, contactLength, severedIndex, volume);
+    }
+
+    /// <summary>Brings bucket i's outside down to cutRadius if it is above
+    /// it. True when material was removed.</summary>
+    private bool CutOutside(int i, float cutRadius, ref float maxDepthRemoved, ref float volume, ref int? severedIndex)
+    {
+        if (cutRadius >= _radius[i])
+            return false;
+        // Down to the bore the wall is gone: the ring falls away.
+        if (cutRadius <= _inner[i] + SeverEpsilonMm)
+            cutRadius = 0f;
+        maxDepthRemoved = Mathf.Max(maxDepthRemoved, LatheSection.Reach(_radius[i], SquareHalfMm) - Mathf.Max(cutRadius, _inner[i]));
+        // _radius[i] can only cross from >epsilon to <=epsilon ONCE:
+        // cutRadius is clamped >=0, so once _radius[i] is already at
+        // or below the epsilon, "cutRadius < _radius[i]" can't make
+        // it cross again -- no extra per-bucket state needed.
+        if (_radius[i] > SeverEpsilonMm && cutRadius <= SeverEpsilonMm)
+            severedIndex = severedIndex is int existing ? Mathf.Min(existing, i) : i;
+        float floor = Mathf.Max(cutRadius, _inner[i]);
+        volume += Mathf.Max(0f, LatheSection.Area(_radius[i], SquareHalfMm) - LatheSection.Area(floor, SquareHalfMm)) * StepMm;
+        _radius[i] = cutRadius;
+        if (cutRadius == 0f)
+            _inner[i] = 0f;
+        return true;
+    }
+
+    /// <summary>
+    /// Sweeps a real tool outline (ToolProfile) from one controlled-point
+    /// position to the next: every bucket goes down to the lowest the
+    /// outline's underside reaches over it anywhere along the move.
+    /// threadPitchMm > 0: a threading pass, synchronised to the spindle, so
+    /// over the move the tool's form repeats every pitch from anchorZ instead
+    /// of smearing into a groove (the section of a helix).
+    /// </summary>
+    public SweepResult SweepProfile(Vector2 fromPos, Vector2 toPos, ToolProfile tool, float threadPitchMm = 0f, float anchorZ = 0f)
+    {
+        float z0 = fromPos.Y, z1 = toPos.Y, x0 = fromPos.X, x1 = toPos.X;
+        float lo = Mathf.Min(z0, z1) + tool.ZMin, hi = Mathf.Max(z0, z1) + tool.ZMax;
+        if (hi < ZMin - StepMm / 2f || lo > ZMax + StepMm / 2f)
+            return SweepResult.None;
+        int i0 = IndexAt(lo), i1 = IndexAt(hi);
+        var cut = new float[i1 - i0 + 1];
+        System.Array.Fill(cut, float.PositiveInfinity);
+
+        if (threadPitchMm > 0f)
+        {
+            for (int i = i0; i <= i1; i++)
+            {
+                float z = ZAt(i);
+                if (z < Mathf.Min(z0, z1) - tool.ZMax || z > Mathf.Max(z0, z1) + tool.ZMax)
+                    continue;
+                float x = Mathf.Abs(z1 - z0) < 1e-6f ? Mathf.Min(x0, x1) : Mathf.Lerp(x0, x1, Mathf.Clamp((z - z0) / (z1 - z0), 0f, 1f));
+                float phase = Mathf.PosMod(z - anchorZ, threadPitchMm);
+                for (float dz = phase; dz <= tool.ZMax; dz += threadPitchMm)
+                    if (tool.MinX(dz) is var under && !float.IsNaN(under))
+                        cut[i - i0] = Mathf.Min(cut[i - i0], x + under);
+            }
+        }
+        else
+        {
+            float length = new Vector2(x1 - x0, z1 - z0).Length();
+            int samples = Mathf.Max(1, Mathf.CeilToInt(length / (StepMm / 2f)));
+            for (int s = 0; s <= samples; s++)
+            {
+                float t = (float)s / samples;
+                float x = Mathf.Lerp(x0, x1, t), zt = Mathf.Lerp(z0, z1, t);
+                for (int i = IndexAt(zt + tool.ZMin); i <= IndexAt(zt + tool.ZMax); i++)
+                    if (tool.MinX(ZAt(i) - zt) is var under && !float.IsNaN(under))
+                        cut[i - i0] = Mathf.Min(cut[i - i0], x + under);
+            }
+        }
+
+        bool removedAny = false;
+        float maxDepth = 0f, volume = 0f;
+        int? severedIndex = null;
+        for (int i = i0; i <= i1; i++)
+            if (!float.IsInfinity(cut[i - i0]))
+                removedAny |= CutOutside(i, Mathf.Max(0f, cut[i - i0]), ref maxDepth, ref volume, ref severedIndex);
+        return removedAny
+            ? new SweepResult(true, i0, i1, maxDepth, Mathf.Abs(z1 - z0), severedIndex, volume)
+            : SweepResult.None;
+    }
+
+    /// <summary>As SweepProfile for a tool cutting from the inside (a boring
+    /// bar): buckets open up to the highest the outline's top reaches.</summary>
+    public SweepResult SweepProfileBore(Vector2 fromPos, Vector2 toPos, ToolProfile tool)
+    {
+        float z0 = fromPos.Y, z1 = toPos.Y, x0 = fromPos.X, x1 = toPos.X;
+        float lo = Mathf.Min(z0, z1) + tool.ZMin, hi = Mathf.Max(z0, z1) + tool.ZMax;
+        if (hi < ZMin - StepMm / 2f || lo > ZMax + StepMm / 2f)
+            return SweepResult.None;
+        int i0 = IndexAt(lo), i1 = IndexAt(hi);
+        float length = new Vector2(x1 - x0, z1 - z0).Length();
+        int samples = Mathf.Max(1, Mathf.CeilToInt(length / (StepMm / 2f)));
+        var reach = new float[i1 - i0 + 1];
+        System.Array.Fill(reach, float.NegativeInfinity);
+        for (int s = 0; s <= samples; s++)
+        {
+            float t = (float)s / samples;
+            float x = Mathf.Abs(Mathf.Lerp(x0, x1, t)), zt = Mathf.Lerp(z0, z1, t);
+            for (int i = IndexAt(zt + tool.ZMin); i <= IndexAt(zt + tool.ZMax); i++)
+                if (tool.MaxX(ZAt(i) - zt) is var top && !float.IsNaN(top))
+                    reach[i - i0] = Mathf.Max(reach[i - i0], x + top);
+        }
+
+        bool removedAny = false;
+        float maxDepth = 0f, volume = 0f;
+        int? severedIndex = null;
+        for (int i = i0; i <= i1; i++)
+        {
+            float open = reach[i - i0];
+            if (float.IsNegativeInfinity(open) || _radius[i] <= SeverEpsilonMm || open <= _inner[i])
+                continue;
+            maxDepth = Mathf.Max(maxDepth, open - _inner[i]);
+            if (open >= _radius[i] - SeverEpsilonMm)
+            {
+                volume += Mathf.Max(0f, LatheSection.Area(_radius[i], SquareHalfMm) - Mathf.Pi * _inner[i] * _inner[i]) * StepMm;
+                _radius[i] = 0f;
+                _inner[i] = 0f;
+                severedIndex = severedIndex is int existing ? Mathf.Min(existing, i) : i;
+            }
+            else
+            {
+                volume += Mathf.Pi * (open * open - _inner[i] * _inner[i]) * StepMm;
+                _inner[i] = open;
+            }
+            removedAny = true;
+        }
+        return removedAny
+            ? new SweepResult(true, i0, i1, maxDepth, Mathf.Abs(z1 - z0), severedIndex, volume)
+            : SweepResult.None;
     }
 
     /// <summary>Cutting from the inside: a drill on the centreline opens a
