@@ -73,6 +73,8 @@ public partial class ConsoleFocus : Node
             case InputEventKey { Pressed: true, Echo: false, Keycode: Key.Tab or Key.Escape or Key.E }:
                 Exit();
                 break;
+            case InputEventKey { Pressed: true, Echo: false } key when _console.TryShortcut(key.Keycode):
+                break;
             case InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left } click:
                 var hit = Pick(click.Position);
                 if (IInteractable.Find(hit) is IInteractable target)
