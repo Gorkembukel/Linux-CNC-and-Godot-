@@ -16,6 +16,7 @@
 [ext_resource type="PackedScene" uid="uid://csibpo1is3et" path="res://Scenes/Workshop/FixtureCart.tscn" id="17"]
 [ext_resource type="Script" uid="uid://cm82lwoqeh5ky" path="res://Scripts/Machines/Spec/ToolSpec.cs" id="17_hwpts"]
 [ext_resource type="PackedScene" path="res://Scenes/Workshop/ToolCart.tscn" id="18"]
+[ext_resource type="PackedScene" path="res://Scenes/Machines/BenchLatheBoring.tscn" id="18_346fj"]
 [ext_resource type="Script" uid="uid://do382wrytnimu" path="res://Scripts/Machines/Spec/MachineSpec.cs" id="18_jyqft"]
 
 [sub_resource type="Resource" id="Resource_kae0g"]
@@ -126,7 +127,7 @@ CentringPlate = true
 Clamps = 0
 
 [node name="BenchLathe" parent="." unique_id=535766212 instance=ExtResource("11")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.6, -1.1, -0.253608)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.4257703, -1.1, -0.31030595)
 
 [node name="BenchMill" parent="." unique_id=415818930 instance=ExtResource("9_vy5pj")]
 transform = Transform3D(-0.15264097, 0, 0.9882817, 0, 1, 0, -0.9882817, 0, -0.15264097, -4.108716, -1.0999999, 3.4079206)
@@ -149,3 +150,10 @@ Machine = NodePath("../Trunnion5Axis")
 [node name="FlatBedLathe" parent="." unique_id=108347737 instance=ExtResource("13_346fj")]
 transform = Transform3D(-0.9865704, 0, 0.16333634, 0, 1, 0, -0.16333634, 0, -0.9865704, 2.8663445, -1.1, 4.8779163)
 Spec = SubResource("Resource_l2gp3")
+
+[node name="BenchLatheBoring" parent="." unique_id=1369077266 instance=ExtResource("18_346fj")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.2878699, -1.1000004, -5.363744)
+
+[node name="BoringLatheToolCart" parent="." unique_id=1847261953 instance=ExtResource("18")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.39, -1.1, -4.3)
+Machine = NodePath("../BenchLatheBoring")
