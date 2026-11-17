@@ -10,9 +10,15 @@ namespace CncTrainer.Spec;
 /// Builds the LinuxCNC sim INI and tool table for a machine from its axis and
 /// tool lists. Same layout as the hand-written linuxcnc-config/sim_mill.ini.
 /// </summary>
+/// <summary>Machine-wide INI settings beyond the axes. SpindleMaxRpm 0 =
+/// no spindle speed limit written.</summary>
+public readonly record struct IniExtras(float SpindleMaxRpm = 0f, float SpindleMinRpm = 0f, bool RandomToolChanger = false, string StartupCode = "");
+
 public static class LinuxCncConfigWriter
 {
-    public static string Ini(string machineName, string fileStem, IReadOnlyList<AxisDef> axes, Vector3? toolChangePosition)
+    private const float WrappedLimit = 99999f;
+
+    public static string Ini(string machineName, string fileStem, IReadOnlyList<AxisDef> axes, Vector3? toolChangePosition, IniExtras extras = default)
     {
         var joints = AxisDef.InJointOrder(axes);
         string letters = string.Concat(joints.Select(a => a.Letter.ToString()));
@@ -45,7 +51,7 @@ py = python3
 
 [RS274NGC]
 PARAMETER_FILE = {fileStem}.var
-
+{(string.IsNullOrWhiteSpace(extras.StartupCode) ? "" : "RS274NGC_STARTUP_CODE = " + extras.StartupCode.Trim() + "\n")}
 [EMCMOT]
 EMCMOT = motmod
 COMM_TIMEOUT = 1.0
@@ -84,6 +90,8 @@ TOOL_TABLE = {fileStem}.tbl
 "));
         if (toolChangePosition is Vector3 p)
             sb.Append(Invariant($"TOOL_CHANGE_POSITION = {p.X:0.###} {p.Y:0.###} {p.Z:0.###}\n"));
+        if (extras.RandomToolChanger)
+            sb.Append("RANDOM_TOOLCHANGER = 1\n");
         sb.Append(Invariant($@"TOOL_CHANGE_WITH_SPINDLE_ON = 0
 
 [KINS]
@@ -91,27 +99,35 @@ KINEMATICS = trivkins coordinates={letters.ToLowerInvariant()}
 JOINTS = {joints.Length}
 "));
 
+        if (extras.SpindleMaxRpm > 0f)
+            sb.Append(Invariant($@"
+[SPINDLE_0]
+MAX_FORWARD_VELOCITY = {extras.SpindleMaxRpm:F0}
+MIN_FORWARD_VELOCITY = {extras.SpindleMinRpm:F0}
+"));
+
         for (int joint = 0; joint < joints.Length; joint++)
         {
             var a = joints[joint];
+            float min = a.Wrapped ? -WrappedLimit : a.MinLimit, max = a.Wrapped ? WrappedLimit : a.MaxLimit;
             sb.Append(Invariant($@"
 [AXIS_{a.Letter}]
-MIN_LIMIT = {a.MinLimit:F3}
-MAX_LIMIT = {a.MaxLimit:F3}
+MIN_LIMIT = {min:F3}
+MAX_LIMIT = {max:F3}
 MAX_VELOCITY = {a.MaxVelocity:F1}
 MAX_ACCELERATION = {a.MaxAcceleration:F1}
-
+{(a.Wrapped ? "WRAPPED_ROTARY = 1\n" : "")}
 [JOINT_{joint}]
 TYPE = {(a.IsRotary ? "ANGULAR" : "LINEAR")}
 MAX_VELOCITY = {a.MaxVelocity:F1}
 MAX_ACCELERATION = {a.MaxAcceleration:F1}
-MIN_LIMIT = {a.MinLimit:F3}
-MAX_LIMIT = {a.MaxLimit:F3}
+MIN_LIMIT = {min:F3}
+MAX_LIMIT = {max:F3}
 HOME = {a.Home:F3}
-HOME_SEARCH_VEL = 20.0
-HOME_LATCH_VEL = 5.0
+HOME_SEARCH_VEL = {a.HomeSearchVel:F1}
+HOME_LATCH_VEL = {a.HomeLatchVel:F1}
 HOME_SEQUENCE = {a.HomeSequence}
-"));
+{(a.Backlash > 0f ? Invariant($"BACKLASH = {a.Backlash:F4}\n") : "")}"));
         }
         return sb.ToString().Replace("\r\n", "\n");
     }

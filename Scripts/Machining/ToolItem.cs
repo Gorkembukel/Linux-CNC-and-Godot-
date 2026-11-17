@@ -15,6 +15,9 @@ namespace CncTrainer.Machining;
 public partial class ToolItem : Carryable
 {
     public ToolSpec Spec { get; private set; }
+    /// <summary>Goes on a lathe turret: every lathe tool, and a drill that
+    /// came with a lathe.</summary>
+    public bool ForLathe { get; private set; }
     public ToolState State { get; } = new();
     /// <summary>See MountedTool.ErrorMm.</summary>
     public Vector3 ErrorMm;
@@ -25,18 +28,18 @@ public partial class ToolItem : Carryable
     public string Label => $"T{Spec.Number} {Spec.Description}" + (State.Broken ? " (KIRIK)" : "");
 
     /// <summary>exact = a tool with no setting error, for tests.</summary>
-    public static ToolItem Create(ToolSpec spec, bool exact = false)
+    public static ToolItem Create(ToolSpec spec, bool exact = false, bool lathe = false)
     {
-        var item = new ToolItem { Spec = spec, Name = $"ToolT{spec.Number}", Mass = 0.8f };
+        var item = new ToolItem { Spec = spec, ForLathe = spec.IsLatheTool || lathe, Name = $"ToolT{spec.Number}", Mass = 0.8f };
         item.DisplayName = item.Label;
         if (!exact)
         {
             static float Off(float min, float max) => (float)GD.RandRange(min, max) * (GD.Randf() < 0.5f ? -1f : 1f);
-            item.ErrorMm = spec.IsLatheTool ? new Vector3(Off(0.08f, 0.3f), 0f, Off(0.1f, 0.4f)) : new Vector3(0f, Off(0.5f, 3f), 0f);
+            item.ErrorMm = item.ForLathe ? new Vector3(Off(0.08f, 0.3f), 0f, Off(0.1f, 0.4f)) : new Vector3(0f, Off(0.5f, 3f), 0f);
         }
 
         Vector3 size;
-        if (spec.IsLatheTool)
+        if (item.ForLathe)
         {
             item.AddChild(ToolMeshBuilder.LatheTool(spec, 0.05f));
             size = new Vector3(0.05f, 0.06f, 0.03f);

@@ -44,15 +44,16 @@ public static class WorkpiecePartBuilder
     /// <summary>Frustum-of-cone volume/centroid along the profile -- pure
     /// math, no Godot engine objects. `radiiMm[0]` is at `startZmm`, each
     /// following sample is `stepMm` further along Z.</summary>
-    public static (double VolumeMm3, float CentroidZmm) ComputeVolumeAndCentroid(float[] radiiMm, float stepMm, float startZmm)
+    public static (double VolumeMm3, float CentroidZmm) ComputeVolumeAndCentroid(float[] radiiMm, float stepMm, float startZmm, float[] innerMm = null)
     {
         double totalVolume = 0, zMoment = 0;
         for (int i = 0; i < radiiMm.Length - 1; i++)
         {
             float r0 = radiiMm[i], r1 = radiiMm[i + 1];
+            float b0 = innerMm?[i] ?? 0f, b1 = innerMm?[i + 1] ?? 0f;
             double z0 = startZmm + i * stepMm, z1 = startZmm + (i + 1) * stepMm;
             double segLen = System.Math.Abs(z1 - z0);
-            double segVolume = System.Math.PI * segLen / 3.0 * (r0 * r0 + r0 * r1 + r1 * r1); // mm^3
+            double segVolume = System.Math.PI * segLen / 3.0 * (r0 * r0 + r0 * r1 + r1 * r1 - (b0 * b0 + b0 * b1 + b1 * b1)); // mm^3
             totalVolume += segVolume;
             zMoment += segVolume * (z0 + z1) / 2.0;
         }
@@ -77,12 +78,13 @@ public static class WorkpiecePartBuilder
     // that one live failure.
     private const float MinPartLengthMm = 3f;
 
-    public static BuiltPart? Build(float[] radiiMm, float stepMm, float startZmm, float densityKgPerM3, int angularSegments = 24)
+    public static BuiltPart? Build(float[] radiiMm, float stepMm, float startZmm, float densityKgPerM3, int angularSegments = 24, float[] innerMm = null)
     {
         if (radiiMm.Length < 2 || (radiiMm.Length - 1) * stepMm < MinPartLengthMm)
             return null;
+        innerMm ??= new float[radiiMm.Length];
 
-        var (volumeMm3, centroidZmm) = ComputeVolumeAndCentroid(radiiMm, stepMm, startZmm);
+        var (volumeMm3, centroidZmm) = ComputeVolumeAndCentroid(radiiMm, stepMm, startZmm, innerMm);
         float massKg = (float)(volumeMm3 * 1e-9 * densityKgPerM3); // mm^3 -> m^3
 
         var st = new SurfaceTool();
@@ -95,7 +97,7 @@ public static class WorkpiecePartBuilder
         {
             float x0 = LocalX(i), x1 = LocalX(i + 1);
             float r0 = radiiMm[i] * WorldScale.MmToM, r1 = radiiMm[i + 1] * WorldScale.MmToM;
-            RevolutionMesh.AddRingSegment(st, x0, r0, x1, r1, angularSegments);
+            RevolutionMesh.AddSection(st, x0, r0, innerMm[i] * WorldScale.MmToM, x1, r1, innerMm[i + 1] * WorldScale.MmToM, angularSegments);
             AddRingPoints(hullPoints, x0, r0, angularSegments);
         }
 
@@ -103,8 +105,8 @@ public static class WorkpiecePartBuilder
         float xLast = LocalX(lastIndex), rLast = radiiMm[lastIndex] * WorldScale.MmToM;
         AddRingPoints(hullPoints, xLast, rLast, angularSegments);
 
-        RevolutionMesh.AddCap(st, LocalX(0), radiiMm[0] * WorldScale.MmToM, angularSegments, outwardNormalIsNegativeX: true);
-        RevolutionMesh.AddCap(st, xLast, rLast, angularSegments, outwardNormalIsNegativeX: false);
+        RevolutionMesh.AddCap(st, LocalX(0), radiiMm[0] * WorldScale.MmToM, angularSegments, outwardNormalIsNegativeX: true, innerMm[0] * WorldScale.MmToM);
+        RevolutionMesh.AddCap(st, xLast, rLast, angularSegments, outwardNormalIsNegativeX: false, innerMm[lastIndex] * WorldScale.MmToM);
 
         st.GenerateNormals();
         var mesh = st.Commit();

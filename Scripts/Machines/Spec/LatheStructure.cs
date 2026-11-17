@@ -16,10 +16,19 @@ public partial class LatheStructure : Resource
     [Export] public float HeadstockLengthMm = 250f;
     [Export] public float HeadstockHeightMm = 200f;
     [Export] public bool Tailstock;
+    /// <summary>Machine Z of the live centre's point; 0 = just beyond the Z travel.</summary>
+    [Export] public float TailstockZMm;
+    /// <summary>Largest diameter that turns over the bed without hitting it.</summary>
+    [Export] public float SwingDiameterMm = 300f;
+    /// <summary>Longest free length (out of the chuck) the machine can turn.</summary>
+    [Export] public float MaxTurningLengthMm = 500f;
+    /// <summary>On: X is programmed as a diameter (G7) unless a program says G8.</summary>
+    [Export] public bool DiameterMode;
 
     [ExportGroup("Chuck")]
     [Export] public float ChuckDiameterMm = 100f;
     [Export] public int ChuckJawCount = 3;
+    [Export] public float ChuckMaxRpm = 4000f;
 
     /// <summary>Disc: every tool sits on an indexing turret. ToolPost: one
     /// holder, the active tool is swapped in.</summary>
@@ -28,7 +37,7 @@ public partial class LatheStructure : Resource
     [Export] public int TurretStations = 3;
     [Export] public float TurretDiameterMm = 70f;
     /// <summary>Turret centre to insert tip.</summary>
-    [Export] public float ToolReachMm = 45f;
+    [Export] public float ToolReachMm = 75f;
 
     [ExportGroup("Stock")]
     [Export] public float StockDiameterMm = 50f;

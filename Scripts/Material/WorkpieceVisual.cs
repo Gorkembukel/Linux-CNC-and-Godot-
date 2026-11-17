@@ -124,15 +124,17 @@ public partial class WorkpieceVisual : Node3D
         {
             // Profile data is in mm (LatheRadiusProfile's own unit); convert
             // to meters here at the mesh-vertex boundary (see WorldScale.cs).
-            float x0 = Profile.ZAt(i) * WorldScale.MmToM, x1 = Profile.ZAt(i + 1) * WorldScale.MmToM;
-            float r0 = Profile.RadiusAt(i) * WorldScale.MmToM, r1 = Profile.RadiusAt(i + 1) * WorldScale.MmToM;
-            RevolutionMesh.AddRingSegment(st, x0, r0, x1, r1, AngularSegments);
+            const float m = WorldScale.MmToM;
+            RevolutionMesh.AddSection(st, Profile.ZAt(i) * m, Profile.RadiusAt(i) * m, Profile.InnerAt(i) * m,
+                Profile.ZAt(i + 1) * m, Profile.RadiusAt(i + 1) * m, Profile.InnerAt(i + 1) * m, AngularSegments);
         }
 
         if (startBucket == 0)
-            RevolutionMesh.AddCap(st, Profile.ZAt(startBucket) * WorldScale.MmToM, Profile.RadiusAt(startBucket) * WorldScale.MmToM, AngularSegments, outwardNormalIsNegativeX: true);
+            RevolutionMesh.AddCap(st, Profile.ZAt(startBucket) * WorldScale.MmToM, Profile.RadiusAt(startBucket) * WorldScale.MmToM, AngularSegments,
+                outwardNormalIsNegativeX: true, Profile.InnerAt(startBucket) * WorldScale.MmToM);
         if (endBucket == Profile.BucketCount - 1)
-            RevolutionMesh.AddCap(st, Profile.ZAt(endBucket) * WorldScale.MmToM, Profile.RadiusAt(endBucket) * WorldScale.MmToM, AngularSegments, outwardNormalIsNegativeX: false);
+            RevolutionMesh.AddCap(st, Profile.ZAt(endBucket) * WorldScale.MmToM, Profile.RadiusAt(endBucket) * WorldScale.MmToM, AngularSegments,
+                outwardNormalIsNegativeX: false, Profile.InnerAt(endBucket) * WorldScale.MmToM);
 
         st.GenerateNormals();
         _chunkMeshes[chunkIndex].Mesh = st.Commit();

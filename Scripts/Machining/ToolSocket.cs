@@ -16,10 +16,12 @@ namespace CncTrainer.Machining;
 public partial class ToolSocket : StaticBody3D, IInteractable, IToolSource
 {
     private ToolItem[] _pockets;
-    private bool _turret;
+    private bool _turret, _latheTools;
 
     /// <summary>Asked before a tool is handled: is the spindle turning?</summary>
     public System.Func<bool> Turning;
+    /// <summary>Why this tool cannot go in (too big, too long), or null.</summary>
+    public System.Func<Spec.ToolSpec, string> Refuse;
     /// <summary>Pocket a control tool number means (turret only).</summary>
     public System.Func<int, int> PocketOf;
     /// <summary>Tool number the control has active now.</summary>
@@ -30,13 +32,16 @@ public partial class ToolSocket : StaticBody3D, IInteractable, IToolSource
     public int PocketCount => _pockets.Length;
     public int LoadedCount => _pockets.Count(p => p != null);
 
-    public static ToolSocket Create(int pockets, bool turret, Vector3 colliderSize, Vector3 colliderCentre)
+    /// <summary>turret: tool N sits in its own pocket (a lathe turret, or a
+    /// mill's magazine when latheTools is false).</summary>
+    public static ToolSocket Create(int pockets, bool turret, Vector3 colliderSize, Vector3 colliderCentre, bool? latheTools = null)
     {
         var socket = new ToolSocket
         {
             Name = "ToolSocket",
             _pockets = new ToolItem[Mathf.Max(1, pockets)],
             _turret = turret,
+            _latheTools = latheTools ?? turret,
             CollisionLayer = Fastener.InteractionLayer,
             CollisionMask = 0,
         };
@@ -89,21 +94,44 @@ public partial class ToolSocket : StaticBody3D, IInteractable, IToolSource
     {
         if (Turning?.Invoke() == true)
             return "İş mili dönerken takıma dokunulmaz";
+        bool magazine = _turret && !_latheTools;
+        string place = magazine ? "Magazin" : _turret ? "Taret" : "İş mili";
         if (player.Held is ToolItem item)
         {
-            if (item.Spec.IsLatheTool != _turret)
-                return _turret ? "Bu bir freze takımı: tarete takılmaz" : "Bu bir torna kalemi: iş miline takılmaz";
-            int free = System.Array.IndexOf(_pockets, null);
-            if (free < 0)
-                return _turret ? "Tarette boş istasyon yok" : "İş milinde takım var: önce onu çıkar";
-            return _turret ? $"[Tık] Takımı {free + 1}. istasyona tak" : "[Tık] Takımı iş miline tak";
+            if (item.ForLathe != _latheTools)
+                return _latheTools ? "Bu bir freze takımı: tarete takılmaz" : "Bu bir torna kalemi: freze iş miline takılmaz";
+            if (Refuse?.Invoke(item.Spec) is string refusal)
+                return refusal;
+            int target = LoadPocket(item);
+            string slot = magazine ? "cebi" : "istasyonu";
+            if (_turret && target < 0)
+                return OwnPocket(item) < 0 ? $"T{item.Spec.Number} bu makinenin takım listesinde yok"
+                    : $"T{item.Spec.Number} {slot} dolu: önce oradaki takımı al";
+            if (target < 0)
+                return "İş milinde takım var: önce onu çıkar";
+            return _turret ? $"[Tık] Takımı {target + 1}. {(magazine ? "cebe" : "istasyona")} tak (T{item.Spec.Number})" : "[Tık] Takımı iş miline tak";
         }
         if (player.Held != null)
             return null;
         int pocket = PocketToUnload();
         if (pocket < 0)
-            return _turret ? "Taret boş: takım arabasından kalem getir" : "İş mili boş: takım arabasından takım getir";
-        return _turret ? $"[Tık] {pocket + 1}. istasyondaki takımı al: {_pockets[pocket].Label}" : $"[Tık] Takımı iş milinden al: {_pockets[pocket].Label}";
+            return $"{place} boş: takım arabasından takım getir";
+        return _turret ? $"[Tık] {pocket + 1}. {(magazine ? "cepteki" : "istasyondaki")} takımı al: {_pockets[pocket].Label}" : $"[Tık] Takımı iş milinden al: {_pockets[pocket].Label}";
+    }
+
+    // Tool N goes where the control will look for it when the program calls T N.
+    private int OwnPocket(ToolItem item)
+    {
+        int pocket = ActivePocket(item.Spec.Number);
+        return pocket >= 0 && pocket < _pockets.Length ? pocket : -1;
+    }
+
+    private int LoadPocket(ToolItem item)
+    {
+        if (!_turret)
+            return System.Array.IndexOf(_pockets, null);
+        int pocket = OwnPocket(item);
+        return pocket >= 0 && _pockets[pocket] == null ? pocket : -1;
     }
 
     public void Use(PlayerController player)
@@ -112,10 +140,10 @@ public partial class ToolSocket : StaticBody3D, IInteractable, IToolSource
             return;
         if (player.Held is ToolItem item)
         {
-            if (item.Spec.IsLatheTool == _turret && System.Array.IndexOf(_pockets, null) >= 0)
+            if (item.ForLathe == _latheTools && Refuse?.Invoke(item.Spec) == null && LoadPocket(item) is int target and >= 0)
             {
                 player.ReleaseHeld();
-                Load(item);
+                Load(item, target);
             }
         }
         else if (player.Held == null && PocketToUnload() is int pocket and >= 0)

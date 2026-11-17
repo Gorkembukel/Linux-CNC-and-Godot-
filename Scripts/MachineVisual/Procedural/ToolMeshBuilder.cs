@@ -71,12 +71,12 @@ public static class ToolMeshBuilder
                 float radius = Mathf.Max(0.003f, tool.DiameterMm / 2f * WorldScale.MmToM);
                 float length = tool.LengthMm * WorldScale.MmToM;
                 bool drill = tool.Kind == ToolKind.Drill;
-                float point = drill ? radius : 0f;
+                float point = drill ? radius / Mathf.Tan(Mathf.DegToRad(Mathf.Clamp(tool.TipAngleDeg, 30f, 179f) / 2f)) : 0f;
                 if (drill)
                     BodyParts.Cylinder(root, "Point", 0f, point, new Vector3(point / 2f, 0f, 0f), Vector3.Right, insertMaterial, topRadius: radius);
                 else
-                    BodyParts.Box(root, "Insert", new Vector3(0.006f, 0.006f, 0.004f), new Vector3(0.003f, 0.003f, 0f), insertMaterial);
-                var barCenter = new Vector3(point + (length - point) / 2f, drill ? 0f : radius, 0f);
+                    BodyParts.Box(root, "Insert", new Vector3(0.006f, 0.006f, 0.004f), new Vector3(0.003f, -0.003f, 0f), insertMaterial);
+                var barCenter = new Vector3(point + (length - point) / 2f, drill ? 0f : -radius, 0f);
                 BodyParts.Cylinder(root, "Bar", radius, length - point, barCenter, Vector3.Right, drill ? insertMaterial : BodyParts.DarkSteel);
                 BodyParts.Box(root, "Block", new Vector3(0.04f, shankLength, 0.04f),
                     new Vector3(length + 0.02f, barCenter.Y + shankLength / 2f - 0.02f, 0f), BodyParts.DarkSteel);

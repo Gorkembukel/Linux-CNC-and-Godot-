@@ -14,7 +14,8 @@ namespace CncTrainer.Spec;
 /// </summary>
 public readonly record struct AxisDef(
     AxisId Letter, bool OnWorkpiece, float MinLimit, float MaxLimit,
-    float MaxVelocity, float MaxAcceleration, float Home, int HomeSequence, Vector3 PivotMm)
+    float MaxVelocity, float MaxAcceleration, float Home, int HomeSequence, Vector3 PivotMm,
+    float HomeSearchVel = 20f, float HomeLatchVel = 5f, float Backlash = 0f, bool Wrapped = false)
 {
     public bool IsRotary => Letter >= AxisId.A;
 

@@ -50,6 +50,7 @@ public partial class ProceduralMillBody : Node3D
         Clear(this);
         _links.Clear();
         _toolShown = false;
+        Magazine = null;
 
         var m = spec.Mill;
         var axes = spec.AxisDefs();
@@ -339,12 +340,20 @@ public partial class ProceduralMillBody : Node3D
                 new Vector3(0f, topY - 0.0015f, -tableZ / 2f + tableZ * (i + 1) / (count + 1)), slot);
     }
 
-    private static void AddMagazine(Node3D parent, int pockets, Vector3 mountPoint, Godot.Material material)
+    /// <summary>The automatic changer's pocket ring (its centre, radius
+    /// MagazineRadius), null when tools are changed by hand.</summary>
+    public Node3D Magazine { get; private set; }
+    public float MagazineRadius { get; private set; }
+
+    private void AddMagazine(Node3D parent, int pockets, Vector3 mountPoint, Godot.Material material)
     {
         if (pockets <= 0)
             return;
         float radius = Mathf.Clamp(pockets * 0.013f, 0.1f, 0.3f);
         var center = mountPoint + new Vector3(-radius * 0.8f, 0f, 0f);
+        Magazine = new Node3D { Name = "MagazineCentre", Position = center };
+        parent.AddChild(Magazine);
+        MagazineRadius = radius;
         Cylinder(parent, "Magazine", radius, 0.05f, center, Vector3.Up, material);
         for (int i = 0; i < pockets; i++)
         {

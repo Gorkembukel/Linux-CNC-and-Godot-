@@ -1,0 +1,93 @@
+[gd_resource type="Resource" script_class="MachineSpec" format=3]
+
+[ext_resource type="Script" path="res://Scripts/Machines/Spec/AxisSpec.cs" id="1_1g7fd"]
+[ext_resource type="Script" path="res://Scripts/Machines/Spec/LatheStructure.cs" id="2_48pbc"]
+[ext_resource type="Script" path="res://Scripts/Machines/Spec/ToolSpec.cs" id="3_u7olp"]
+[ext_resource type="Script" path="res://Scripts/Machines/Spec/MachineSpec.cs" id="4_2xfwc"]
+
+[sub_resource type="Resource" id="Resource_cxrdt"]
+script = ExtResource("1_1g7fd")
+MinLimit = -5.0
+MaxLimit = 150.0
+Home = 100.0
+HomeSequence = 0
+
+[sub_resource type="Resource" id="Resource_h46g4"]
+script = ExtResource("1_1g7fd")
+Letter = 2
+MinLimit = -300.0
+MaxLimit = 50.0
+
+[sub_resource type="Resource" id="Resource_yfl44"]
+script = ExtResource("2_48pbc")
+CrossSlideAngleDeg = 60.0
+SwingDiameterMm = 400.0
+ChuckDiameterMm = 300.0
+TurretStations = 5
+StockLengthMm = 185.0
+
+[sub_resource type="Resource" id="Resource_ew4uo"]
+script = ExtResource("3_u7olp")
+Kind = 4
+Description = "roughing turn tool, 0.8mm nose radius"
+DiameterMm = 0.0
+TipRadiusMm = 0.8
+Color = Color(0.85, 0.65, 0.2, 1)
+
+[sub_resource type="Resource" id="Resource_6yj7b"]
+script = ExtResource("3_u7olp")
+Number = 2
+Kind = 4
+Description = "finishing turn tool, 0.4mm nose radius"
+DiameterMm = 0.0
+TipRadiusMm = 0.4
+Color = Color(0.3, 0.8, 0.9, 1)
+
+[sub_resource type="Resource" id="Resource_ltxyt"]
+script = ExtResource("3_u7olp")
+Number = 3
+Kind = 5
+Description = "parting / grooving tool, 3mm wide"
+DiameterMm = 0.0
+TipRadiusMm = 0.2
+Orientation = 3
+FrontAngleDeg = 0.0
+BackAngleDeg = 90.0
+Color = Color(0.9, 0.9, 0.95, 1)
+
+[sub_resource type="Resource" id="Resource_fmyi1"]
+script = ExtResource("3_u7olp")
+Number = 4
+Kind = 2
+Description = "16mm drill"
+DiameterMm = 16.0
+LengthMm = 80.0
+Orientation = 7
+Color = Color(0.6, 0.6, 0.65, 1)
+
+[sub_resource type="Resource" id="Resource_47wbf"]
+script = ExtResource("3_u7olp")
+Number = 5
+Kind = 6
+Description = "12mm boring bar"
+DiameterMm = 12.0
+TipRadiusMm = 0.4
+LengthMm = 60.0
+Orientation = 2
+
+[resource]
+script = ExtResource("4_2xfwc")
+Kind = 1
+MachineName = "BenchLatheBoring"
+StatePort = 9214
+CommandPort = 9215
+DemoProgram = "nc_files/lathe_delik_boring.ngc"
+UseToolChangePosition = true
+ToolChangePosition = Vector3(80, 0, 40)
+Axes = Array[ExtResource("1_1g7fd")]([SubResource("Resource_cxrdt"), SubResource("Resource_h46g4")])
+Tools = Array[ExtResource("3_u7olp")]([SubResource("Resource_ew4uo"), SubResource("Resource_6yj7b"), SubResource("Resource_ltxyt"), SubResource("Resource_fmyi1"), SubResource("Resource_47wbf")])
+BodyColor = Color(0.15, 0.35, 0.22, 1)
+StockMaterial = 0
+SpindlePowerKw = 3.0
+ManualSetup = true
+Lathe = SubResource("Resource_yfl44")

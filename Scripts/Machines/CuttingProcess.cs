@@ -46,6 +46,8 @@ public abstract class CuttingProcess
     public System.Action PartFinished;
     /// <summary>What is really cutting when the control says tool N.</summary>
     public IToolSource Tools;
+    /// <summary>Play and thermal growth between the control and the tool.</summary>
+    public readonly MachineErrors Errors;
 
     protected CuttingProcess(MachineSpec spec, BridgeClient bridge, ChipSpawner chips)
     {
@@ -54,6 +56,7 @@ public abstract class CuttingProcess
         _chips = chips;
         Material = spec.StockMaterial;
         Tools = new SpecTools(spec);
+        Errors = new MachineErrors(spec);
     }
 
     public void OnConfirmedState()
@@ -61,6 +64,7 @@ public abstract class CuttingProcess
         long now = Bridge.State.LastTMonoNs;
         float seconds = _lastSampleNs == 0 ? 0f : Mathf.Clamp((now - _lastSampleNs) * 1e-9f, 0f, 0.5f);
         _lastSampleNs = now;
+        Errors.Update(Bridge.State, seconds);
         Cut(Bridge.State, seconds);
     }
 

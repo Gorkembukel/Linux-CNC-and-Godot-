@@ -16,8 +16,16 @@ public partial class MillStructure : Resource
     [Export] public float BaseDepthMm = 700f;
     [Export] public float ColumnWidthMm = 260f;
     [Export] public float SpindleHousingDiameterMm = 90f;
-    /// <summary>Tool pockets drawn on the magazine, 0 = no magazine.</summary>
+    /// <summary>Tool pockets of the automatic changer, 0 = tools are changed by hand.</summary>
     [Export] public int MagazinePockets;
+    /// <summary>Random: the tool coming out of the spindle goes into the
+    /// pocket the new one left, not back to its own.</summary>
+    [Export] public bool RandomToolChanger;
+    [Export] public float ToolChangeSeconds = 4f;
+    [Export] public float MaxToolDiameterMm = 100f;
+    /// <summary>Longest tool (out of the holder) the spindle and the changer take.</summary>
+    [Export] public float MaxToolLengthMm = 200f;
+    [Export] public float TableMaxLoadKg = 150f;
 
     [ExportGroup("Table")]
     [Export] public float TableSizeXMm = 500f;

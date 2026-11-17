@@ -36,6 +36,7 @@ public sealed class LatheCutting : CuttingProcess
     /// <summary>Real tip position (radius, Z) for a machine position.</summary>
     public Vector2 TipAt(AxisVector v, int toolNumber)
     {
+        v = Errors.Apply(v);
         var mounted = Tools.Active(toolNumber);
         return mounted.Present
             ? new Vector2(v.X + mounted.State.EdgeLossMm + mounted.ErrorMm.X, v.Z + mounted.ErrorMm.Z)
@@ -54,14 +55,17 @@ public sealed class LatheCutting : CuttingProcess
     {
         var position = TipAt(s.Position, s.ToolNumber);
         var profile = _workpiece.Profile;
+        var mounted = Tools.Active(s.ToolNumber);
+        string machineHit = s.MachineOn ? _body.Interference((float)s.Position.Z, (float)s.Position.X) : null;
         if (profile == null)
         {
+            SetCollision(machineHit);
             _lastPosition = null;
             return;
         }
 
-        var mounted = Tools.Active(s.ToolNumber);
-        SetCollision(mounted.Present ? BodyInStock(profile, position, mounted.Spec) : null);
+        SetCollision(machineHit ?? CarriageInStock(profile, (float)s.Position.Z, (float)s.Position.X)
+            ?? (mounted.Present ? BodyInStock(profile, position, mounted.Spec) : null));
 
         if (_lastPosition is Vector2 previous && mounted.Cuts)
         {
@@ -70,13 +74,18 @@ public sealed class LatheCutting : CuttingProcess
             // override scale, not a feed.
             float tipSpeed = previous.DistanceTo(position) / Mathf.Max(seconds, 1e-3f);
             float feedPerRev = rpm > 1f ? tipSpeed * 60f / rpm : 0f;
-            var result = profile.Sweep(previous, position, s.ToolNoseRadius, feedPerRev, rpm);
+            var kind = mounted.Spec.Kind;
+            float drillRadius = kind == ToolKind.Drill ? mounted.Spec.DiameterMm / 2f : 0f;
+            var result = kind is ToolKind.Drill or ToolKind.Boring
+                ? profile.SweepBore(previous, position, s.ToolNoseRadius, drillRadius, mounted.Spec.TipAngleDeg)
+                : profile.Sweep(previous, position, s.ToolNoseRadius, feedPerRev, rpm);
             if (result.MaterialRemoved)
             {
                 HasCut = true;
                 _workpiece.MarkDirty(result.MinDirtyIndex, result.MaxDirtyIndex);
+                float cuttingRadius = drillRadius > 0f ? drillRadius : Mathf.Abs(position.X);
                 var sample = new CutSample(s.ToolNumber, result.VolumeMm3, seconds, rpm, tipSpeed,
-                    result.DepthOfCutMm, feedPerRev, SurfaceSpeedMmPerSec: 2f * Mathf.Pi * Mathf.Abs(position.X) * rpm / 60f, s.Rapid);
+                    result.DepthOfCutMm, feedPerRev, SurfaceSpeedMmPerSec: 2f * Mathf.Pi * cuttingRadius * rpm / 60f, s.Rapid);
                 if (!Report(sample))
                     return;
 
@@ -96,8 +105,10 @@ public sealed class LatheCutting : CuttingProcess
     /// beyond the insert itself (which is what faces off the bar's end).</summary>
     private static string BodyInStock(LatheRadiusProfile profile, Vector2 tip, ToolSpec tool)
     {
-        if (tool.Kind is ToolKind.Boring or ToolKind.Drill)
-            return null;
+        if (tool.Kind == ToolKind.Drill)
+            return DrillHolderInStock(profile, tip, tool);
+        if (tool.Kind == ToolKind.Boring)
+            return BoringBarInStock(profile, tip, tool);
         bool parting = tool.Kind == ToolKind.Parting;
         float reach = parting ? 30f : 9f;
         float from = parting ? tip.Y - 6f : tip.Y + 6f, to = parting ? tip.Y + 6f : tip.Y + 18f;
@@ -109,13 +120,56 @@ public sealed class LatheCutting : CuttingProcess
         return null;
     }
 
+    /// <summary>Deeper than the drill's flutes: the holder meets the face.</summary>
+    private static string DrillHolderInStock(LatheRadiusProfile profile, Vector2 tip, ToolSpec tool)
+    {
+        float holderZ = tip.Y + tool.LengthMm;
+        if (holderZ < profile.ZMin || holderZ > profile.ZMax)
+            return null;
+        int index = profile.IndexAt(holderZ);
+        float reach = Mathf.Abs(tip.X) + tool.DiameterMm / 2f + 5f;
+        return profile.RadiusAt(index) > profile.InnerAt(index) + 0.3f && profile.InnerAt(index) < reach
+            ? "ÇARPMA: matkap tutucusu parçaya çarptı (matkap boyu bu derinliğe yetmiyor)"
+            : null;
+    }
+
+    /// <summary>A boring bar lies on the centreline side of its edge, from
+    /// the tip out of the bore: wherever that line is in solid material, the
+    /// bar is inside the part (hole too small for the bar, or no hole yet).</summary>
+    private static string BoringBarInStock(LatheRadiusProfile profile, Vector2 tip, ToolSpec tool)
+    {
+        float edge = tip.X - tool.TipRadiusMm, back = edge - tool.DiameterMm;
+        float near = back <= 0f && edge >= 0f ? 0f : Mathf.Min(Mathf.Abs(back), Mathf.Abs(edge));
+        float far = Mathf.Max(Mathf.Abs(back), Mathf.Abs(edge));
+        float from = Mathf.Max(tip.Y + 2f, profile.ZMin), to = Mathf.Min(tip.Y + tool.LengthMm, profile.ZMax);
+        for (float z = from; z <= to; z += profile.StepMm)
+        {
+            int i = profile.IndexAt(z);
+            if (profile.RadiusAt(i) > 0.05f && far > profile.InnerAt(i) + 0.3f && near < profile.RadiusAt(i) - 0.3f)
+                return "ÇARPMA: bor barı parçaya çarptı (delik bar için dar ya da önce delinmemiş)";
+        }
+        return null;
+    }
+
+    /// <summary>The turret or tool post itself (not the tool) inside the bar.</summary>
+    private string CarriageInStock(LatheRadiusProfile profile, float zMm, float xMm)
+    {
+        foreach (var part in _body.Carried(zMm, xMm))
+        {
+            for (float z = Mathf.Max(part.ZMin, profile.ZMin); z <= Mathf.Min(part.ZMax, profile.ZMax); z += profile.StepMm)
+                if (profile.RadiusAt(profile.IndexAt(z)) > part.Reach)
+                    return $"ÇARPMA: {part.What} parçaya çarptı (takım tarete göre çok kısa bağlı)";
+        }
+        return null;
+    }
+
     private void ExtractPart(LatheRadiusProfile profile, int severedIndex)
     {
-        var removedRadii = profile.Sever(severedIndex);
+        var removedRadii = profile.Sever(severedIndex, out var removedInner);
         _workpiece.MarkDirty(severedIndex, profile.BucketCount - 1);
 
         var part = TurnedPart.Build(removedRadii, profile.StepMm, profile.ZAt(severedIndex + 1),
-            MaterialPreset.Get(Material).DensityKgPerM3, _workpiece.StockVisualMaterial, out float centreZ);
+            MaterialPreset.Get(Material).DensityKgPerM3, _workpiece.StockVisualMaterial, out float centreZ, removedInner);
         if (part == null)
             return;
         part.DisplayName += SurfaceNote();
@@ -129,7 +183,7 @@ public sealed class LatheCutting : CuttingProcess
         int tool = Bridge.State.ToolNumber;
         var position = TipAt(Bridge.Prediction.VisualPosition, tool);
         _body.SetPose(position.Y, position.X, tool, delta);
-        _body.SetCoolant(Bridge.State.Coolant);
+        _body.SetCoolant(Bridge.State.Coolant && Spec.FloodCoolant);
         _workpiece.RebuildDirtyChunks();
         return _body.TipLocal(position.Y, position.X);
     }

@@ -49,7 +49,7 @@ public partial class ToolCart : Node3D
         {
             if (spec == null)
                 continue;
-            var tool = ToolItem.Create(spec);
+            var tool = ToolItem.Create(spec, lathe: machine.Spec.Kind == Spec.MachineKind.Lathe);
             // Frozen until first picked up so nothing rolls off the cart.
             tool.Freeze = true;
             AddChild(tool);
@@ -80,7 +80,7 @@ public partial class ToolLengthGauge : StaticBody3D, IInteractable
             return "Takım boyu ölçer (elinde bir takımla bak)";
         if (tool.State.Broken)
             return "[Tık] Kırık takımı yenisiyle değiştir";
-        if (tool.Spec.IsLatheTool)
+        if (tool.ForLathe)
             return "Torna kalemi burada ölçülmez: deneme pasosu al, kumpasla ölç, TOUCH OFF";
         return System.FormattableString.Invariant(
             $"Takım boyu: {tool.TrueLengthMm:0.00} mm   (nominal {tool.Spec.LengthMm:0.00}, fark {tool.ErrorMm.Y:+0.00;-0.00})   aşınma %{tool.State.Wear * 100f:0}");
@@ -90,7 +90,7 @@ public partial class ToolLengthGauge : StaticBody3D, IInteractable
     {
         if (player.Held is not ToolItem { State.Broken: true } broken)
             return;
-        var fresh = ToolItem.Create(broken.Spec);
+        var fresh = ToolItem.Create(broken.Spec, lathe: broken.ForLathe);
         GetTree().CurrentScene.AddChild(fresh);
         player.ReleaseHeld().QueueFree();
         player.Give(fresh);

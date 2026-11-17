@@ -45,10 +45,22 @@ public partial class ProceduralLatheBody : Node3D
     /// frame), null on an open machine.</summary>
     public (Vector3 Centre, Vector2 Size)? DoorOpening { get; private set; }
 
+    /// <summary>A stretch of machine Z (mm) and how far from the centreline,
+    /// toward the tool side, something fills it: fixed parts fill up to
+    /// Reach, parts riding on the carriage fill from Reach outward.</summary>
+    public readonly record struct Zone(string What, float ZMin, float ZMax, float Reach);
+
+    private readonly System.Collections.Generic.List<Zone> _fixedZones = new();
+    private float _wallLeftMm = float.NegativeInfinity, _wallRightMm = float.PositiveInfinity, _outerReachMm = float.PositiveInfinity;
+    private float _turretRadiusMm;
+
     public void Build(MachineSpec spec)
     {
         _spec = spec;
         Clear(this);
+        _fixedZones.Clear();
+        _wallLeftMm = float.NegativeInfinity;
+        _wallRightMm = _outerReachMm = float.PositiveInfinity;
         _toolNumber = int.MinValue;
         _indexAngle = _targetAngle = 180f;
 
@@ -101,6 +113,10 @@ public partial class ProceduralLatheBody : Node3D
         _slideBasis = new Basis(Vector3.Right, -Mathf.DegToRad(l.CrossSlideAngleDeg));
         var slide = new Node3D { Name = "Slide", Basis = _slideBasis };
         AddChild(slide);
+        _turretRadiusMm = l.TurretDiameterMm / 2f;
+        AddZone("fener mili gövdesine", bedLeft, headstockRight,
+            BoxReach(new Vector3(0f, (headstockTop + bedTop) / 2f, 0f), new Vector3(0f, (headstockTop - bedTop) / 2f, bedDepth / 2f)));
+        AddZone("aynaya", headstockRight, JawFrontZMm * M, chuckR);
 
         // The ways sit behind the tool as seen from the centreline, which
         // puts them under the spindle on a flat bed whichever side the tool is on.
@@ -155,10 +171,15 @@ public partial class ProceduralLatheBody : Node3D
 
         if (l.Tailstock)
         {
-            float tailX = Mathf.Min(bedRight - 0.08f, Mathf.Max((zAxis?.MaxLimit ?? 50f) * M, l.StockZMax * M) + 0.2f);
+            float tailX = l.TailstockZMm != 0f
+                ? l.TailstockZMm * M + 0.19f
+                : Mathf.Min(bedRight - 0.08f, Mathf.Max((zAxis?.MaxLimit ?? 50f) * M, l.StockZMax * M) + 0.2f);
             Box(this, "Tailstock", new Vector3(0.14f, 0.06f - bedTop, 0.14f), new Vector3(tailX, (0.06f + bedTop) / 2f, 0f), bodyMat);
             Cylinder(this, "Quill", 0.02f, 0.1f, new Vector3(tailX - 0.11f, 0f, 0f), Vector3.Right, Steel);
             Cylinder(this, "LiveCentre", 0f, 0.03f, new Vector3(tailX - 0.175f, 0f, 0f), Vector3.Right, Steel, topRadius: 0.02f);
+            AddZone("gezer puntaya", tailX - 0.07f, tailX + 0.07f,
+                BoxReach(new Vector3(0f, (0.06f + bedTop) / 2f, 0f), new Vector3(0f, (0.06f - bedTop) / 2f, 0.07f)));
+            AddZone("gezer punta kovanına", tailX - 0.19f, tailX - 0.07f, 0.02f);
         }
 
         if (spec.Enclosure)
@@ -171,6 +192,13 @@ public partial class ProceduralLatheBody : Node3D
             SolidBox(this, "EnclosureRight", new Vector3(0.02f, height, depth), new Vector3(right, midY, 0f), sheet);
             Box(this, "EnclosureRoof", new Vector3(right - left, 0.02f, depth), new Vector3((right + left) / 2f, top, 0f), sheet);
             DoorOpening = (new Vector3((right + left) / 2f, midY, depth / 2f), new Vector2(right - left, height));
+            _wallLeftMm = (left + 0.01f) / M;
+            _wallRightMm = (right - 0.01f) / M;
+            var d = _slideBasis * Vector3.Up;
+            if (d.Y > 1e-3f)
+                _outerReachMm = Mathf.Min(_outerReachMm, (top - 0.01f) / d.Y / M);
+            if (d.Z < -1e-3f)
+                _outerReachMm = Mathf.Min(_outerReachMm, (depth / 2f - 0.01f) / -d.Z / M);
         }
         else
             DoorOpening = null;
@@ -179,6 +207,47 @@ public partial class ProceduralLatheBody : Node3D
     }
 
     private float _stationShank;
+
+    private void AddZone(string what, float xMin, float xMax, float reachM) =>
+        _fixedZones.Add(new Zone(what, xMin / M, xMax / M, reachM / M));
+
+    /// <summary>How far a box (centre and half size across the spindle,
+    /// metres) reaches from the centreline toward the tool.</summary>
+    private float BoxReach(Vector3 centre, Vector3 half)
+    {
+        var d = _slideBasis * Vector3.Up;
+        return d.Dot(centre) + Mathf.Abs(d.Y) * half.Y + Mathf.Abs(d.Z) * half.Z;
+    }
+
+    /// <summary>The turret or tool post with the tip at (zMm, xMm).</summary>
+    public System.Collections.Generic.IEnumerable<Zone> Carried(float zMm, float xMm)
+    {
+        float reach = _toolReach / M;
+        if (_turret != null)
+        {
+            yield return new Zone("Taret", zMm - 15f, zMm + 15f, xMm + reach - _turretRadiusMm);
+            yield return new Zone("Taret gövdesi", zMm + 15f, zMm + 135f, xMm + reach - 0.8f * _turretRadiusMm);
+        }
+        else
+            yield return new Zone("Kalemlik", zMm - 5f, zMm + 65f, xMm + reach - 35f);
+    }
+
+    /// <summary>Why the carriage, with the tip at (zMm, xMm), is inside a
+    /// fixed part of the machine, or null.</summary>
+    public string Interference(float zMm, float xMm)
+    {
+        var tool = new Zone("Takım", zMm - 0.5f, zMm + 12f, xMm);
+        foreach (var part in Carried(zMm, xMm).Prepend(tool))
+        {
+            foreach (var zone in _fixedZones)
+                if (part.ZMin < zone.ZMax && part.ZMax > zone.ZMin && part.Reach < zone.Reach)
+                    return $"ÇARPMA: {part.What} {zone.What} çarptı";
+            if (part.ZMin < _wallLeftMm || part.ZMax > _wallRightMm)
+                return $"ÇARPMA: {part.What} kabin duvarına çarptı";
+        }
+        float outer = xMm + _toolReach / M + (_turret != null ? _turretRadiusMm : 35f);
+        return outer > _outerReachMm ? "ÇARPMA: taret kabine çarptı (X kursu kabinden uzun)" : null;
+    }
 
     private void RefreshStation(int index)
     {

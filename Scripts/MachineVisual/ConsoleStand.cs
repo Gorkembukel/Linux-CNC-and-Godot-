@@ -52,7 +52,9 @@ public partial class ConsoleStand : Node3D
     private const float Px = 0.000513f;
     private const float CenterPx = 717f, CenterPy = 1040f;
     private const float FaceSize = 0.60f;
-    private const float RapidMmPerMin = 5000f, IncMmPerMin = 1000f, HandleMmPerMin = 2000f;
+    private const float IncMmPerMin = 1000f, HandleMmPerMin = 2000f;
+    private float _rapidMmPerMin = 5000f, _jogScale = 1f;
+    private bool _floodCoolant = true;
     private static readonly float[] JogFeedMmPerMin = { 0, 2, 3.2f, 5, 7.9f, 12.6f, 20, 32, 50, 79, 126, 200, 320, 500, 790, 1260 };
 
     private static readonly Color Housing = Hex("2B2E33"), Bezel = Hex("3A3D42"), MopPlate = Hex("2F3237");
@@ -130,6 +132,12 @@ public partial class ConsoleStand : Node3D
         _axes = rig.Profile.Axes;
         LoadProgram(rig.Profile.DemoProgram);
         _bridge.EventReceived += OnBridgeEvent;
+        if (GetParent() is ProceduralMachine { Spec: { } spec })
+        {
+            _jogScale = spec.JogMaxMmPerMin / JogFeedMmPerMin[^1];
+            _rapidMmPerMin = spec.Axes.Where(a => a != null && a.Letter < AxisId.A).Select(a => a.MaxVelocity * 60f).DefaultIfEmpty(5000f).Min();
+            _floodCoolant = spec.FloodCoolant;
+        }
         if (GetParent() is ProceduralMachine machine && machine.Safety != null)
         {
             _safety = machine.Safety;
@@ -865,7 +873,7 @@ public partial class ConsoleStand : Node3D
                 _bridge.HomeAxis(joint);
                 break;
             case Mode.Jog:
-                float feed = _rapid ? RapidMmPerMin : JogFeedMmPerMin[_feedKnob.Index];
+                float feed = JogFeed;
                 if (feed <= 0f)
                     return;
                 EnsureManual();
@@ -969,7 +977,15 @@ public partial class ConsoleStand : Node3D
         _bridge.SetSpindleOverride(0.5f + _spindleKnob.Index * 0.1f);
     }
 
-    private void ToggleCoolant() => _bridge.SetCoolant(!S.Coolant);
+    private float JogFeed => _rapid ? _rapidMmPerMin : JogFeedMmPerMin[_feedKnob.Index] * _jogScale;
+
+    private void ToggleCoolant()
+    {
+        if (!_floodCoolant)
+            PlayerController.Notify(this, "Bu makinede soğutma sıvısı yok");
+        else
+            _bridge.SetCoolant(!S.Coolant);
+    }
 
     private bool StepKeysSelectStep => _mode is Mode.Inc or Mode.Handle;
 
@@ -1372,7 +1388,7 @@ public partial class ConsoleStand : Node3D
     private (string title, string big, string body) PageText(MachineState s)
     {
         string feedLine = $"ACT.F {s.Velocity.Length() * 60.0,8:F0} MM/MIN   S {s.SpindleRpm,6:F0}   T{s.ToolNumber:00}";
-        string ovrLine = $"FEED OVR {s.FeedOverride * 100:F0}%   SPDL OVR {s.SpindleOverride * 100:F0}%   JOG F {(_rapid ? RapidMmPerMin : JogFeedMmPerMin[_feedKnob.Index]):F0}";
+        string ovrLine = $"FEED OVR {s.FeedOverride * 100:F0}%   SPDL OVR {s.SpindleOverride * 100:F0}%   JOG F {JogFeed:F0}";
         string monitor = Rig?.Monitor != null ? "\n" + Rig.Monitor.StatusLine(s.ToolNumber) : "";
         switch (_page)
         {

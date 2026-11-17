@@ -250,8 +250,21 @@ public partial class CncMachineGeneratorPlugin : EditorPlugin
     private List<string> Warnings()
     {
         var warnings = new List<string>();
-        if (_draft.DemoProgram.Length > 0 && !FileAccess.FileExists("res://linuxcnc-config/" + _draft.DemoProgram))
+        string program = "res://linuxcnc-config/" + _draft.DemoProgram;
+        if (_draft.DemoProgram.Length > 0 && !FileAccess.FileExists(program))
             warnings.Add($"Demo program linuxcnc-config/{_draft.DemoProgram} does not exist.");
+        else if (_draft.DemoProgram.Length > 0)
+        {
+            string code = System.Text.RegularExpressions.Regex.Replace(FileAccess.GetFileAsString(program).ToUpperInvariant(), @"\([^)]*\)|;.*", "");
+            var axes = _draft.Axes.Where(a => a != null).Select(a => a.Letter.ToString()[0]).ToHashSet();
+            var missing = "XYZABC".Where(l => !axes.Contains(l) && System.Text.RegularExpressions.Regex.IsMatch(code, $@"(?<![A-Z]){l}\s*[-+.\d#\[]")).ToArray();
+            if (missing.Length > 0)
+                warnings.Add($"Demo program uses {string.Join(", ", missing)}, which this machine does not have.");
+            float topRpm = System.Text.RegularExpressions.Regex.Matches(code, @"(?<![A-Z])S\s*(\d+\.?\d*)")
+                .Select(m => float.Parse(m.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture)).DefaultIfEmpty(0f).Max();
+            if (topRpm > _draft.EffectiveMaxRpm)
+                warnings.Add($"Demo program asks for S{topRpm:0}; the spindle stops at {_draft.EffectiveMaxRpm:0} rpm.");
+        }
         return warnings;
     }
 

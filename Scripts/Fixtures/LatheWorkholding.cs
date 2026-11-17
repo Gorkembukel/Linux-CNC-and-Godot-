@@ -31,7 +31,6 @@ public partial class LatheWorkholding : MachineSetup
     private LatheCutting _cutting;
     private WorkpieceVisual _workpiece;
     private float _zOffsetAtPlacement;
-    private bool _crashed;
 
     public override Vector3 SheetPosition => _body.GlobalPosition;
 
@@ -77,7 +76,7 @@ public partial class LatheWorkholding : MachineSetup
             return;
         }
 
-        float[] radii;
+        float[] radii, inner = null;
         if (_workpiece.Profile == null)
         {
             radii = new float[Mathf.Max(2, Mathf.RoundToInt(grip.BarLengthMm / ProfileStepMm) + 1)];
@@ -87,10 +86,13 @@ public partial class LatheWorkholding : MachineSetup
             _zOffsetAtPlacement = Bridge.State.WorkOffset.Z;
         }
         else
+        {
             radii = _workpiece.Profile.LiveRadii();
+            inner = _workpiece.Profile.LiveInner();
+        }
 
         _workpiece.SetProfile(new LatheRadiusProfile(radii,
-            _body.JawFrontZMm + grip.StickOutMm - (radii.Length - 1) * ProfileStepMm, ProfileStepMm));
+            _body.JawFrontZMm + grip.StickOutMm - (radii.Length - 1) * ProfileStepMm, ProfileStepMm, inner));
         _workpiece.StockVisualMaterial.AlbedoColor = MaterialPreset.Get(_cutting.Material).BaseColor;
         Chuck.ShowRawStock(false);
     }
@@ -101,7 +103,7 @@ public partial class LatheWorkholding : MachineSetup
         var profile = _workpiece.Profile;
         var radii = profile.LiveRadii();
         Carryable part = TurnedPart.Build(radii, profile.StepMm, profile.ZMin, MaterialPreset.Get(_cutting.Material).DensityKgPerM3,
-            _workpiece.StockVisualMaterial.Duplicate() as Godot.Material, out float centreZ);
+            _workpiece.StockVisualMaterial.Duplicate() as Godot.Material, out float centreZ, profile.LiveInner());
         if (part == null)
         {
             // Too short a stub to revolve: a plain disc.
@@ -125,9 +127,12 @@ public partial class LatheWorkholding : MachineSetup
         if (System.Math.Abs(Bridge.State.SpindleRpm) > 1.0)
             return "İş mili dönerken ölçülmez";
         var profile = _workpiece.Profile;
-        float z = _body.ToLocal(globalPoint).X / M;
+        var local = _body.ToLocal(globalPoint) / M;
+        float z = local.X;
         float fromTip = profile.ZMin + LiveLengthMm() - z;
-        return Gauges.Diameter(gauge, DiameterAt(z)) + System.FormattableString.Invariant($"   (uçtan {Mathf.Max(0f, fromTip):0} mm içeride)");
+        int index = profile.IndexAt(z);
+        return TurnedPart.BoreOrOutside(gauge, new Vector2(local.Y, local.Z).Length(), profile.RadiusAt(index), profile.InnerAt(index))
+            + System.FormattableString.Invariant($"   (uçtan {Mathf.Max(0f, fromTip):0} mm içeride)");
     }
 
     /// <summary>True diameter of the bar at a machine Z (mm).</summary>
@@ -141,12 +146,6 @@ public partial class LatheWorkholding : MachineSetup
         Chuck.Spin(Mathf.Min(rpm * 6f, MaxSpinDegPerSec) * (float)delta);
         CheckDoorInterlock();
         CheckKeyLeftIn(Chuck, rpm > 1f, "AYNA ANAHTARI FIRLADI: anahtar aynada unutuldu, iş mili çalıştırıldı");
-
-        var tip = _cutting.TipAt(s.Position, s.ToolNumber);
-        bool inChuck = tip.Y < _body.JawFrontZMm + 0.5f && tip.X < Chuck.RadiusM / M + 2f;
-        if (inChuck && !_crashed && s.MachineOn)
-            Safety.Trip(IncidentKind.Crash, "ÇARPMA: takım aynaya girdi");
-        _crashed = inChuck;
     }
 
     protected override string SheetBody
