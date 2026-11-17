@@ -7,9 +7,10 @@ using Godot;
 namespace CncTrainer.Addons;
 
 /// <summary>
-/// Shows the /// summary of a C# class and of each of its exported members
-/// in the inspector, as a small grey line above the property. Godot takes
-/// such descriptions only from GDScript; this reads them from the XML
+/// Gives each exported member of a C# script its /// summary as the
+/// inspector tooltip, the way Godot does for documented GDScript; an enum
+/// property also lists what each value means. Godot takes such descriptions
+/// only from GDScript; this reads them from the XML
 /// documentation file the C# build writes (GenerateDocumentationFile in
 /// Linux.csproj), so a rebuild is enough to see a new description.
 /// </summary>
@@ -78,58 +79,59 @@ public partial class DescriptionInspectorPlugin : EditorInspectorPlugin
 
     public override bool _CanHandle(GodotObject @object) => ClassChain(@object).Count > 0;
 
-    // A property's description goes in under the property, so it is added
-    // when the inspector moves on to whatever comes next.
-    // Kept per object: one plugin serves every inspector, nested ones included.
-    private readonly Dictionary<ulong, List<Control>> _pending = new();
+    private sealed record Tip(string Text, List<(string Name, string Text)> Values);
 
-    private List<Control> Pending(GodotObject obj)
-    {
-        if (!_pending.TryGetValue(obj.GetInstanceId(), out var list))
-            _pending[obj.GetInstanceId()] = list = new List<Control>();
-        return list;
-    }
-
-    private void Flush(GodotObject obj)
-    {
-        var list = Pending(obj);
-        foreach (var control in list)
-            AddCustomControl(control);
-        list.Clear();
-    }
+    // Property name -> its tooltip, per edited object, filled while the inspector parses it.
+    private readonly Dictionary<ulong, Dictionary<string, Tip>> _tips = new();
 
     public override void _ParseBegin(GodotObject @object)
     {
         Reload();
-        Pending(@object).Clear();
-        if (ClassChain(@object).Select(c => _summaries.GetValueOrDefault(c)).FirstOrDefault(s => s != null) is string about)
-            AddCustomControl(Line(about, 0.75f));
-    }
-
-    public override void _ParseCategory(GodotObject @object, string category) => Flush(@object);
-
-    public override void _ParseGroup(GodotObject @object, string group) => Flush(@object);
-
-    public override void _ParseEnd(GodotObject @object)
-    {
-        Flush(@object);
-        _pending.Remove(@object.GetInstanceId());
+        _tips[@object.GetInstanceId()] = new Dictionary<string, Tip>();
     }
 
     public override bool _ParseProperty(GodotObject @object, Variant.Type type, string name, PropertyHint hintType, string hintString,
         PropertyUsageFlags usageFlags, bool wide)
     {
-        Flush(@object);
-        foreach (string owner in ClassChain(@object))
-            if (_summaries.TryGetValue($"{owner}.{name}", out string text))
-            {
-                Pending(@object).Add(Line(text, 0.6f));
-                break;
-            }
-        if (hintType == PropertyHint.Enum && EnumValues(hintString) is { Count: > 0 } values)
-            Pending(@object).Add(Line(string.Join("\n", values.Select(v => $"   {v.Name}: {v.Text}")), 0.5f));
+        string text = ClassChain(@object).Select(owner => _summaries.GetValueOrDefault($"{owner}.{name}")).FirstOrDefault(s => s != null);
+        var values = hintType == PropertyHint.Enum ? EnumValues(hintString) : new List<(string, string)>();
+        if ((text != null || values.Count > 0) && _tips.TryGetValue(@object.GetInstanceId(), out var tips))
+            tips[name] = new Tip(text, values);
         return false;
     }
+
+    // The property editors exist only once parsing is over: give them their tooltips then.
+    public override void _ParseEnd(GodotObject @object)
+    {
+        ulong id = @object.GetInstanceId();
+        if (_tips.Remove(id, out var tips) && tips.Count > 0)
+            Callable.From(() => ApplyTooltips(id, tips)).CallDeferred();
+    }
+
+    private static void ApplyTooltips(ulong id, Dictionary<string, Tip> tips)
+    {
+        foreach (var editor in EditorInterface.Singleton.GetBaseControl().FindChildren("*", "EditorProperty", true, false).OfType<EditorProperty>())
+        {
+            if (editor.GetEditedObject()?.GetInstanceId() != id || !tips.TryGetValue(editor.GetEditedProperty(), out var tip))
+                continue;
+            if (tip.Text != null)
+                editor.TooltipText = DocSymbol(editor.GetEditedProperty(), tip.Text);
+            // An enum's values explain themselves in its dropdown, one tooltip per item.
+            foreach (var options in editor.FindChildren("*", "OptionButton", true, false).OfType<OptionButton>())
+                for (int i = 0; i < options.ItemCount; i++)
+                {
+                    string shown = options.GetItemText(i).Replace(" ", "");
+                    var value = tip.Values.FirstOrDefault(v => string.Equals(v.Name, shown, System.StringComparison.OrdinalIgnoreCase));
+                    if (value.Text != null)
+                        options.SetItemTooltip(i, value.Text);
+                }
+        }
+    }
+
+    // Godot reads a property editor's tooltip as a doc id, "type|class|name|json";
+    // only local symbols take their description from the json, so that is the way in.
+    private static string DocSymbol(string name, string text) =>
+        $"local_variable||{name}|" + Json.Stringify(new Godot.Collections.Dictionary { ["description"] = text });
 
     /// <summary>The documented values of the enum an inspector enum hint ("A,B:2,C") lists.</summary>
     private List<(string Name, string Text)> EnumValues(string hintString)
@@ -139,19 +141,5 @@ public partial class DescriptionInspectorPlugin : EditorInspectorPlugin
             .Where(list => list.Count > 0 && list.All(v => names.Contains(v.Name)))
             .OrderByDescending(list => list.Count)
             .FirstOrDefault() ?? new List<(string, string)>();
-    }
-
-    private static Label Line(string text, float brightness)
-    {
-        var label = new Label
-        {
-            Text = text,
-            AutowrapMode = TextServer.AutowrapMode.WordSmart,
-            Modulate = new Color(brightness, brightness, brightness * 1.05f),
-            TooltipText = text,
-            MouseFilter = Control.MouseFilterEnum.Pass,
-        };
-        label.AddThemeFontSizeOverride("font_size", 11);
-        return label;
     }
 }
