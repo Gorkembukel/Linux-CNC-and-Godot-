@@ -106,6 +106,9 @@ door on enclosed machines.
    (blank caps); F1-F7 are unassigned builder keys. PRG RESTART uses
    LinuxCNC run-from-line, so tool / spindle set before that line are not
    replayed.
+8. Console bug: FEED HOLD in MDI mode cannot be resumed. `CycleStart` only
+   resumes a paused interpreter in AUTO; in MDI it re-sends the typed blocks
+   (nothing, if none are pending). It should resume when paused, as in AUTO.
 
 ## Design decisions that are easy to undo by accident
 
