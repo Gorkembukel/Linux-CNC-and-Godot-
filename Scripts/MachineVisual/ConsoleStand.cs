@@ -87,6 +87,10 @@ public partial class ConsoleStand : Node3D
     private float _spindleRpm = 500f;
     private string _keyIn = "";
     private readonly List<string> _mdiBlocks = new();
+    private readonly List<string> _programLines = new();
+    private bool _programEdited;
+    private int _progCursor, _dirCursor, _offsetCursor;
+    private string[] _dirFiles = Array.Empty<string>();
     private readonly List<string> _alarms = new();
     private readonly List<string> _messages = new();
 
@@ -113,7 +117,7 @@ public partial class ConsoleStand : Node3D
         Rig = rig;
         _bridge = rig.Bridge;
         _axes = rig.Profile.Axes;
-        _program = rig.Profile.DemoProgram;
+        LoadProgram(rig.Profile.DemoProgram);
         _bridge.EventReceived += OnBridgeEvent;
         if (GetParent() is ProceduralMachine machine && machine.Safety != null)
         {
@@ -199,10 +203,10 @@ public partial class ConsoleStand : Node3D
         for (int i = 0; i < ConsoleScreen.SoftkeyCount; i++)
         {
             int index = i;
-            AddKey(face, At(290 + (i + 0.5f) * 42f, 916, top), PxSize(30, 18), 0.004f, softMat, "", 0f, () => Softkey(index));
+            AddKey(face, At(290 + (i + 0.5f) * 42f, 916, top), PxSize(30, 18), 0.004f, softMat, "", 0f, () => Softkey(index)).Name = $"Softkey{i}";
         }
         AddKey(face, At(262, 916, top), PxSize(22, 18), 0.004f, softMat, "<", 0.004f, () => _subPage = 0);
-        AddKey(face, At(738, 916, top), PxSize(22, 18), 0.004f, softMat, ">", 0.004f, () => Softkey(_subPage + 1));
+        AddKey(face, At(738, 916, top), PxSize(22, 18), 0.004f, softMat, ">", 0.004f, () => _subPage = (_subPage + 1) % ViewCount());
         for (int i = 0; i < 8; i++)
             AddKey(face, At(737, 600 + i * 38f, top), PxSize(22, 26), 0.004f, softMat, "", 0f, null);
 
@@ -266,12 +270,12 @@ public partial class ConsoleStand : Node3D
         (string label, Action action)[] row1 =
         {
             ("POS", () => OpenPage(Page.Pos)), ("PROG", () => OpenPage(Page.Prog)), ("OFS/SET", () => OpenPage(Page.Offset)),
-            ("SHIFT", () => _shift = !_shift), ("CAN", Cancel), ("INPUT", InsertBlock),
+            ("SHIFT", () => _shift = !_shift), ("CAN", Cancel), ("INPUT", InputKey),
         };
         (string label, Action action)[] row2 =
         {
             ("SYSTEM", () => OpenPage(Page.System)), ("MESSAGE", () => OpenPage(Page.Message)), ("CSTM/GR", () => OpenPage(Page.Custom)),
-            ("ALTER", AlterBlock), ("INSERT", InsertBlock), ("DELETE", DeleteBlock),
+            ("ALTER", AlterKey), ("INSERT", InsertKey), ("DELETE", DeleteKey),
         };
         for (int c = 0; c < 6; c++)
         {
@@ -280,12 +284,12 @@ public partial class ConsoleStand : Node3D
             AddKey(face, At(xs[c], 780, top), PxSize(30, 28), 0.006f, keyMat, row2[c].label, 0.0022f, row2[c].action);
         }
 
-        AddKey(face, At(791, 822, top), PxSize(30, 28), 0.006f, keyMat, "PAGE\n^", 0.0024f, () => Softkey(_subPage - 1));
-        AddKey(face, At(791, 857, top), PxSize(30, 28), 0.006f, keyMat, "PAGE\nv", 0.0024f, () => Softkey(_subPage + 1));
-        AddKey(face, At(826, 840, top), PxSize(28, 26), 0.006f, keyMat, "<", 0.005f, null);
-        AddKey(face, At(860, 822, top), PxSize(28, 26), 0.006f, keyMat, "^", 0.005f, null);
-        AddKey(face, At(860, 857, top), PxSize(28, 26), 0.006f, keyMat, "v", 0.005f, null);
-        AddKey(face, At(895, 840, top), PxSize(28, 26), 0.006f, keyMat, ">", 0.005f, null);
+        AddKey(face, At(791, 822, top), PxSize(30, 28), 0.006f, keyMat, "PAGE\n^", 0.0024f, () => CursorKey(-10));
+        AddKey(face, At(791, 857, top), PxSize(30, 28), 0.006f, keyMat, "PAGE\nv", 0.0024f, () => CursorKey(10));
+        AddKey(face, At(826, 840, top), PxSize(28, 26), 0.006f, keyMat, "<", 0.005f, () => CursorKey(-1));
+        AddKey(face, At(860, 822, top), PxSize(28, 26), 0.006f, keyMat, "^", 0.005f, () => CursorKey(-1));
+        AddKey(face, At(860, 857, top), PxSize(28, 26), 0.006f, keyMat, "v", 0.005f, () => CursorKey(1));
+        AddKey(face, At(895, 840, top), PxSize(28, 26), 0.006f, keyMat, ">", 0.005f, () => CursorKey(1));
         AddKey(face, At(946, 822, top), PxSize(30, 28), 0.006f, keyMat, "HELP", 0.0026f, () => OpenPage(Page.Help));
         AddKey(face, At(946, 857, top), PxSize(30, 28), 0.006f, Mat(KeyLight, 0.1f, 0.5f), "RESET", 0.0024f, ResetKey, legendColor: Hex("303030"));
     }
@@ -712,8 +716,11 @@ public partial class ConsoleStand : Node3D
     {
         _mode = mode;
         _bridge.SetMode(mode switch { Mode.Auto => TaskMode.Auto, Mode.Mdi => TaskMode.Mdi, _ => TaskMode.Manual });
-        if (mode == Mode.Mdi)
+        if (mode is Mode.Mdi or Mode.Edit)
+        {
             OpenPage(Page.Prog);
+            _subPage = mode == Mode.Mdi ? 2 : 0;
+        }
     }
 
     private bool ManualMode => _mode is Mode.Jog or Mode.Inc or Mode.Handle or Mode.Ref or Mode.Edit;
@@ -799,7 +806,12 @@ public partial class ConsoleStand : Node3D
             }
             if (s.InCycle)
                 return;
-            _bridge.OpenProgram(_program);
+            if (_programLines.Count == 0)
+            {
+                PlayerController.Notify(this, "Seçili program yok: PROG > DIR > SELECT");
+                return;
+            }
+            _bridge.OpenProgram(ProgramToRun());
             if (_singleBlock) _bridge.StepProgram(); else _bridge.RunProgram();
         }
         else if (_mode == Mode.Mdi)
@@ -868,41 +880,246 @@ public partial class ConsoleStand : Node3D
             _keyIn = _keyIn[..^1];
     }
 
-    private void InsertBlock()
+    private bool EditingProgram => _page == Page.Prog && _subPage == 0 && _mode != Mode.Mdi;
+
+    private string[] KeyInBlocks() =>
+        _keyIn.Split(';').Select(b => b.Trim()).Where(b => b.Length > 0).ToArray();
+
+    private bool CanEditProgram()
     {
-        if (_keyIn.Trim().Length == 0)
+        if (_mode == Mode.Edit && !S.InCycle)
+            return true;
+        PlayerController.Notify(this, "Programı değiştirmek için EDIT modunu seç (makine dururken)");
+        return false;
+    }
+
+    private void InputKey()
+    {
+        if (_page == Page.Offset)
+            OffsetEntry(measure: false);
+        else if (_page == Page.Prog && _subPage == 1)
+            SelectProgram();
+        else
+            InsertKey();
+    }
+
+    private void InsertKey()
+    {
+        var blocks = KeyInBlocks();
+        if (blocks.Length == 0)
             return;
-        _mdiBlocks.Add(_keyIn.Trim());
+        if (EditingProgram)
+        {
+            if (!CanEditProgram())
+                return;
+            _programLines.InsertRange(Mathf.Min(_progCursor + 1, _programLines.Count), blocks);
+            _progCursor = Mathf.Min(_progCursor + blocks.Length, _programLines.Count - 1);
+            _programEdited = true;
+        }
+        else
+        {
+            _mdiBlocks.AddRange(blocks);
+        }
         _keyIn = "";
     }
 
-    private void AlterBlock()
+    private void AlterKey()
     {
-        if (_mdiBlocks.Count == 0 || _keyIn.Trim().Length == 0)
+        var blocks = KeyInBlocks();
+        if (blocks.Length == 0)
             return;
-        _mdiBlocks[^1] = _keyIn.Trim();
+        if (EditingProgram)
+        {
+            if (!CanEditProgram() || _programLines.Count == 0)
+                return;
+            _programLines[_progCursor] = string.Join(" ", blocks);
+            _programEdited = true;
+        }
+        else if (_mdiBlocks.Count > 0)
+        {
+            _mdiBlocks[^1] = string.Join(" ", blocks);
+        }
         _keyIn = "";
     }
 
-    private void DeleteBlock()
+    private void DeleteKey()
     {
         if (_keyIn.Length > 0)
+        {
             _keyIn = "";
+            return;
+        }
+        if (EditingProgram)
+        {
+            if (!CanEditProgram() || _programLines.Count == 0)
+                return;
+            _programLines.RemoveAt(_progCursor);
+            _progCursor = Mathf.Clamp(_progCursor, 0, Mathf.Max(_programLines.Count - 1, 0));
+            _programEdited = true;
+        }
         else
+        {
             _mdiBlocks.Clear();
+        }
+    }
+
+    private void CursorKey(int amount)
+    {
+        switch (_page)
+        {
+            case Page.Prog when _subPage == 0:
+                _progCursor = Mathf.Clamp(_progCursor + amount, 0, Mathf.Max(_programLines.Count - 1, 0));
+                break;
+            case Page.Prog when _subPage == 1:
+                _dirCursor = Mathf.Clamp(_dirCursor + amount, 0, Mathf.Max(_dirFiles.Length - 1, 0));
+                break;
+            case Page.Offset:
+                _offsetCursor = Mathf.Clamp(_offsetCursor + Math.Sign(amount), 0, OffsetAxes().Length - 1);
+                break;
+        }
     }
 
     private void OpenPage(Page page)
     {
         _page = page;
         _subPage = 0;
+        _offsetCursor = 0;
+    }
+
+    private int ViewCount() => _page switch { Page.Pos or Page.Prog => 3, Page.Offset or Page.Message => 2, _ => 1 };
+
+    private (string Label, Action Act)[] Softkeys()
+    {
+        Action View(int i) => () => _subPage = i;
+        return _page switch
+        {
+            Page.Pos => new (string, Action)[] { ("ABS", View(0)), ("MACHINE", View(1)), ("ALL", View(2)) },
+            Page.Prog => new (string, Action)[]
+            {
+                ("PROGRAM", View(0)), ("DIR", OpenDir), ("MDI", View(2)), ("", null),
+                _subPage == 1 ? ("SELECT", (Action)SelectProgram) : _subPage == 0 && _programEdited ? ("REVERT", (Action)RevertProgram) : ("", (Action)null),
+            },
+            Page.Offset => new (string, Action)[]
+            {
+                ("TOOL", View(0)), ("WORK", View(1)), ("", null), ("", null),
+                ("MEASURE", () => OffsetEntry(measure: true)), ("INPUT", () => OffsetEntry(measure: false)),
+            },
+            Page.Message => new (string, Action)[] { ("ALARM", View(0)), ("MSG", View(1)) },
+            Page.System => new (string, Action)[] { ("LINK", null) },
+            Page.Custom => new (string, Action)[] { ("LOAD", null) },
+            _ => new (string, Action)[] { ("HELP", null) },
+        };
+    }
+
+    private string[] SoftkeyTexts()
+    {
+        var keys = Softkeys();
+        return Enumerable.Range(0, ConsoleScreen.SoftkeyCount).Select(i => i < keys.Length ? keys[i].Label : "").ToArray();
     }
 
     private void Softkey(int index)
     {
-        int count = SoftkeyLabels().Count(l => !string.IsNullOrEmpty(l));
-        if (count > 0)
-            _subPage = Mathf.Clamp(index, 0, count - 1);
+        var keys = Softkeys();
+        if (index >= 0 && index < keys.Length)
+            keys[index].Act?.Invoke();
+    }
+
+    // ------------------------------------------------------------------ programs
+
+    private static string FullPath(string program) => ProjectSettings.GlobalizePath("res://linuxcnc-config/" + program);
+
+    private void LoadProgram(string program)
+    {
+        _program = program;
+        _programLines.Clear();
+        if (program.Length > 0 && System.IO.File.Exists(FullPath(program)))
+            _programLines.AddRange(System.IO.File.ReadAllLines(FullPath(program)));
+        _programEdited = false;
+        _progCursor = 0;
+    }
+
+    private void RevertProgram() => LoadProgram(_program);
+
+    private void OpenDir()
+    {
+        _subPage = 1;
+        string dir = ProjectSettings.GlobalizePath("res://linuxcnc-config/nc_files");
+        _dirFiles = System.IO.Directory.Exists(dir)
+            ? System.IO.Directory.GetFiles(dir, "*.ngc").Select(System.IO.Path.GetFileName)
+                .Where(n => !n.StartsWith(EditedPrefix)).OrderBy(n => n).ToArray()
+            : Array.Empty<string>();
+        _dirCursor = Mathf.Max(Array.IndexOf(_dirFiles, System.IO.Path.GetFileName(_program)), 0);
+    }
+
+    private void SelectProgram()
+    {
+        if (_dirFiles.Length == 0)
+            return;
+        if (S.InCycle)
+        {
+            PlayerController.Notify(this, "Program çalışırken başka program seçilemez");
+            return;
+        }
+        LoadProgram("nc_files/" + _dirFiles[_dirCursor]);
+        _subPage = 0;
+    }
+
+    private const string EditedPrefix = "_edit_";
+
+    /// <summary>The program AUTO runs: the file itself, or, once it was
+    /// edited on the control, a copy beside it (the original stays as it is).</summary>
+    private string ProgramToRun()
+    {
+        if (!_programEdited)
+            return _program;
+        string copy = "nc_files/" + EditedPrefix + System.IO.Path.GetFileName(_program);
+        System.IO.File.WriteAllLines(FullPath(copy), _programLines);
+        return copy;
+    }
+
+    // ------------------------------------------------------------------ offsets
+
+    private AxisId[] OffsetAxes() => _subPage == 0
+        ? (IsLathe ? new[] { AxisId.X, AxisId.Z } : new[] { AxisId.Z })
+        : _axes.Select(a => a.Axis).ToArray();
+
+    /// <summary>MEASURE: the key-in is the known value at the current
+    /// position (a diameter for lathe X). INPUT: the key-in is the offset
+    /// itself. A leading axis letter in the key-in picks the row.</summary>
+    private void OffsetEntry(bool measure)
+    {
+        var axes = OffsetAxes();
+        string text = _keyIn.Trim().TrimEnd(';');
+        if (text.Length > 0 && char.IsLetter(text[0]))
+        {
+            int row = Array.FindIndex(axes, a => a.ToString() == text[..1].ToUpperInvariant());
+            if (row < 0)
+                return;
+            _offsetCursor = row;
+            text = text[1..];
+        }
+        if (!OffsetCommands.TryParse(text, out float value))
+        {
+            PlayerController.Notify(this, "Önce değeri yaz (ör. 48 veya X48), sonra " + (measure ? "MEASURE" : "INPUT"));
+            return;
+        }
+        if (S.InCycle)
+            return;
+        var axis = axes[Mathf.Clamp(_offsetCursor, 0, axes.Length - 1)];
+        if (_subPage == 1)
+        {
+            if (measure) OffsetCommands.SetWorkZero(_bridge, axis, value);
+            else OffsetCommands.SetWorkOffset(_bridge, axis, value);
+        }
+        else if (!measure)
+            OffsetCommands.SetToolOffset(this, _bridge, axis, value);
+        else if (!IsLathe)
+            OffsetCommands.TouchOffToolLength(this, _bridge, value);
+        else if (axis == AxisId.X)
+            OffsetCommands.TouchOffDiameter(this, _bridge, value);
+        else
+            OffsetCommands.TouchOffLatheZ(this, _bridge, value);
+        _keyIn = "";
     }
 
     // ------------------------------------------------------------------ per frame
@@ -938,7 +1155,7 @@ public partial class ConsoleStand : Node3D
         }
         _toolDisplay.Text = connected ? $"{s.ToolNumber:000}" : "---";
 
-        _screen.SetSoftkeys(SoftkeyLabels());
+        _screen.SetSoftkeys(SoftkeyTexts());
         if (!connected)
         {
             _screen.Render("POSITION", "", "", "NO SIGNAL", _keyIn, "-- LINK DOWN --");
@@ -957,17 +1174,6 @@ public partial class ConsoleStand : Node3D
             System.Globalization.CultureInfo.CurrentCulture = culture;
         }
     }
-
-    private string[] SoftkeyLabels() => _page switch
-    {
-        Page.Pos => new[] { "ABS", "MACHINE", "ALL" },
-        Page.Prog => new[] { "PROGRAM", "MDI" },
-        Page.Offset => new[] { "OFFSET", "WORK" },
-        Page.Message => new[] { "ALARM", "MSG" },
-        Page.System => new[] { "LINK" },
-        Page.Custom => new[] { "LOAD" },
-        _ => new[] { "HELP" },
-    };
 
     private string ProgramName()
     {
@@ -1009,26 +1215,59 @@ public partial class ConsoleStand : Node3D
                 string big = string.Join("\n", _axes.Select(a => $"{a.Axis} {(machine ? s.Position : s.WorkPosition).Get(a.Axis),11:F3}"));
                 return (machine ? "POSITION (MACHINE)" : "POSITION (ABSOLUTE)", big, feedLine + "\n" + ovrLine + monitor);
             }
-            case Page.Prog when _subPage == 1 || _mode == Mode.Mdi:
+            case Page.Prog when _subPage == 2:
             {
-                string blocks = _mdiBlocks.Count == 0 ? "  (empty)" : string.Join("\n", _mdiBlocks.Select((b, i) => $"  N{(i + 1) * 10:0000} {b};"));
-                return ("PROGRAM (MDI)", "", "O0000 (MDI)\n" + blocks + "\n  %\n\nType, INSERT, then CYCLE START.");
+                string blocks = _mdiBlocks.Count == 0 ? "  (empty)" : string.Join("\n", _mdiBlocks.Select((b, i) => $"  N{(i + 1) * 10:0000} {b}"));
+                return ("PROGRAM (MDI)", "", "O0000 (MDI)\n" + blocks + "\n  %\n\nMDI mode: type, INSERT, then CYCLE START.");
+            }
+            case Page.Prog when _subPage == 1:
+            {
+                int first = Mathf.Clamp(_dirCursor - 6, 0, Mathf.Max(_dirFiles.Length - 13, 0));
+                var rows = _dirFiles.Skip(first).Take(13).Select((name, i) =>
+                {
+                    long kb = new System.IO.FileInfo(FullPath("nc_files/" + name)).Length / 1024 + 1;
+                    string mark = first + i == _dirCursor ? ">" : " ";
+                    string current = "nc_files/" + name == _program ? "*" : " ";
+                    return $"{mark}{current} {name,-38} {kb,5}K";
+                });
+                return ("PROGRAM DIRECTORY", "", $"  {_dirFiles.Length} programs   cursor + SELECT (or INPUT)\n" + string.Join("\n", rows));
             }
             case Page.Prog:
-                return ("PROGRAM", "", $"FILE   {_program}\nLINE   N{Mathf.Max(s.MotionLine, 0):00000}\nSTATE  {s.InterpState}\n\n" +
-                    (s.ToolChangePending ? "*** TOOL CHANGE: load the tool, press TOOL CHG END ***"
-                        : s.InterpState == InterpState.Paused ? "FEED HOLD  (CYCLE START resumes)"
-                        : s.InCycle ? "PROGRAM RUNNING" : "AUTO + CYCLE START runs this program."));
-            case Page.Offset when _subPage == 1:
             {
-                string text = "WORK OFFSET (G5x + G92 + TOOL)\n\n";
-                foreach (var (axis, _) in _axes)
-                    text += $"  {axis}  {s.WorkOffset.Get(axis),11:F3}\n";
-                return ("OFFSET (WORK)", "", text + "\nSET X/Y/Z: 2D panel [E] (phase 2 here).");
+                int exec = s.InCycle && s.MotionLine > 0 ? s.MotionLine - 1 : -1;
+                int focus = exec >= 0 ? exec : _progCursor;
+                int first = Mathf.Clamp(focus - 5, 0, Mathf.Max(_programLines.Count - 12, 0));
+                var rows = _programLines.Skip(first).Take(12).Select((line, i) =>
+                {
+                    int n = first + i;
+                    string mark = n == exec ? "*" : n == _progCursor && _mode == Mode.Edit ? ">" : " ";
+                    string text = line.Length > 50 ? line[..50] : line;
+                    return $"{mark}{n + 1,5} {text}";
+                });
+                string footer = s.ToolChangePending ? "*** TOOL CHANGE: load the tool, press TOOL CHG END ***"
+                    : s.InterpState == InterpState.Paused ? "FEED HOLD  (CYCLE START resumes)"
+                    : s.InCycle ? "PROGRAM RUNNING"
+                    : _mode == Mode.Edit ? "EDIT: cursor, then INSERT / ALTER / DELETE"
+                    : "AUTO + CYCLE START runs this program";
+                string header = _programLines.Count == 0 ? "(no program: PROG > DIR > SELECT)"
+                    : $"{_program}  {_programLines.Count} lines{(_programEdited ? "  *EDITED*" : "")}";
+                return ("PROGRAM", "", header + "\n" + string.Join("\n", rows) + "\n" + footer);
             }
             case Page.Offset:
-                return ("OFFSET (TOOL)", "", $"ACTIVE TOOL   T{s.ToolNumber:00}\nNOSE RADIUS   {s.ToolNoseRadius:F3}\n{monitor}\n\nTOUCH OFF: 2D panel [E] (phase 2 here).");
-            case Page.Message when _subPage == 1:
+            {
+                var axes = OffsetAxes();
+                bool work = _subPage == 1;
+                string rows = string.Join("\n", axes.Select((axis, i) =>
+                    $"{(i == _offsetCursor ? ">" : " ")} {axis}   POS {s.WorkPosition.Get(axis),10:F3}   OFS {s.WorkOffset.Get(axis),10:F3}"));
+                string help = work
+                    ? "MEASURE: current spot = key-in  (G10 L20)\nINPUT  : G54 offset = key-in    (G10 L2)"
+                    : IsLathe
+                        ? "MEASURE X: key-in = measured DIAMETER\nMEASURE Z: key-in = Z of the touched face\nINPUT  : tool offset = key-in   (G10 L1)"
+                        : "MEASURE Z: key-in = Z of the touched surface\nINPUT  : tool length offset = key-in";
+                string title = work ? "OFFSET (WORK G54)" : $"OFFSET (TOOL T{s.ToolNumber:00})";
+                string extra = work ? "" : $"{(IsLathe ? "NOSE R" : "TOOL DIA")} {s.ToolNoseRadius:F3}{monitor}\n";
+                return (title, "", extra + rows + "\n\n" + help + "\nCursor picks the axis (or type X48).");
+            }            case Page.Message when _subPage == 1:
                 return ("MESSAGE", "", _messages.Count == 0 ? "NO MESSAGE" : string.Join("\n", _messages));
             case Page.Message:
             {
@@ -1049,7 +1288,7 @@ public partial class ConsoleStand : Node3D
                 return ("LOAD METER", "", $"SPINDLE LOAD {load * 100f,4:F0}%\n[{new string('|', bars)}{new string(' ', 30 - bars)}]\n         100%^" + monitor);
             }
             default:
-                return ("HELP", "", "POWER ON -> REF RETURN + ALL REF (or +axis)\nJOG: hold an axis key   INC JOG: x1..x1000\nHANDLE: pick AXIS, turn the wheel (x1..x100)\nMDI: type, INSERT, CYCLE START\nAUTO: CYCLE START runs the machine's program\nRESET stops,  FEED HOLD pauses");
+                return ("HELP", "", "POWER ON -> REF RETURN + ALL REF (or +axis)\nJOG: hold an axis key   INC JOG: x1..x1000\nHANDLE: pick AXIS, turn the wheel (x1..x100)\nMDI: type, INSERT, CYCLE START\nPROG > DIR: cursor + SELECT picks the program\nEDIT: cursor + INSERT / ALTER / DELETE lines\nAUTO: CYCLE START runs it (edited = a copy)\nOFS/SET: type value, MEASURE or INPUT\nRESET stops,  FEED HOLD pauses");
         }
     }
 }

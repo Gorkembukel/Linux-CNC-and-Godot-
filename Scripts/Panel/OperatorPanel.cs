@@ -328,34 +328,18 @@ public partial class OperatorPanel : Control
         row.AddChild(knownDiameterInput);
         row.AddChild(MakeButton("TOUCH OFF X", () =>
         {
-            if (float.TryParse(knownDiameterInput.Text.Replace(',', '.'), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float knownDiameter))
-            {
-                float measuredRadius = _bridge.State.Position.X;
-                _bridge.SendMdi(System.FormattableString.Invariant($"G10 L1 P{_bridge.State.ToolNumber} X{measuredRadius - knownDiameter / 2f:F4}"));
-                ApplyToolOffsetSoon();
-            }
+            if (OffsetCommands.TryParse(knownDiameterInput.Text, out float knownDiameter))
+                OffsetCommands.TouchOffDiameter(this, _bridge, knownDiameter);
         }));
 
         var knownZInput = new LineEdit { PlaceholderText = "known Z face offset (mm)", CustomMinimumSize = new Vector2(100, 0) };
         row.AddChild(knownZInput);
         row.AddChild(MakeButton("TOUCH OFF Z", () =>
         {
-            if (float.TryParse(knownZInput.Text.Replace(',', '.'), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float knownZ))
-            {
-                float measuredZ = _bridge.State.Position.Z;
-                _bridge.SendMdi(System.FormattableString.Invariant($"G10 L1 P{_bridge.State.ToolNumber} Z{measuredZ - knownZ:F4}"));
-                ApplyToolOffsetSoon();
-            }
+            if (OffsetCommands.TryParse(knownZInput.Text, out float knownZ))
+                OffsetCommands.TouchOffLatheZ(this, _bridge, knownZ);
         }));
         return row;
-    }
-
-    // G10 L1 only rewrites the tool table; the new offset takes effect (and
-    // shows in the work coordinates) at the next G43.
-    private void ApplyToolOffsetSoon()
-    {
-        var bridge = _bridge;
-        GetTree().CreateTimer(0.6).Timeout += () => bridge.SendMdi("G43");
     }
 
     /// <summary>Work zero: with the tool (or edge finder) at a known spot
@@ -367,11 +351,11 @@ public partial class OperatorPanel : Control
         row.AddChild(new Label { Text = "WORK ZERO G54" });
         var valueInput = new LineEdit { Text = "0", TooltipText = "Coordinate of the spot the tool is at now", CustomMinimumSize = new Vector2(70, 0) };
         row.AddChild(valueInput);
-        foreach (string axis in new[] { "X", "Y", "Z" })
+        foreach (var axis in new[] { AxisId.X, AxisId.Y, AxisId.Z })
             row.AddChild(MakeButton("SET " + axis, () =>
             {
-                if (float.TryParse(valueInput.Text.Replace(',', '.'), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float value))
-                    _bridge.SendMdi(System.FormattableString.Invariant($"G10 L20 P1 {axis}{value:F4}"));
+                if (OffsetCommands.TryParse(valueInput.Text, out float value))
+                    OffsetCommands.SetWorkZero(_bridge, axis, value);
             }));
         return row;
     }
@@ -382,13 +366,8 @@ public partial class OperatorPanel : Control
         row.AddChild(knownZInput);
         row.AddChild(MakeButton("TOUCH OFF Z", () =>
         {
-            if (float.TryParse(knownZInput.Text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float knownZ))
-            {
-                // L10: the tool's length offset becomes whatever makes the
-                // current position read as knownZ in the active work system.
-                _bridge.SendMdi(System.FormattableString.Invariant($"G10 L10 P{_bridge.State.ToolNumber} Z{knownZ:F4}"));
-                ApplyToolOffsetSoon();
-            }
+            if (OffsetCommands.TryParse(knownZInput.Text, out float knownZ))
+                OffsetCommands.TouchOffToolLength(this, _bridge, knownZ);
         }));
         return row;
     }

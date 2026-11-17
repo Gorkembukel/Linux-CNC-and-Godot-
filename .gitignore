@@ -25,3 +25,6 @@ obj/
 
 # LinuxCNC configs generated from a MachineSpec at machine start
 linuxcnc-config/gen_*
+
+# Programs edited on the console's EDIT mode (a copy beside the original)
+linuxcnc-config/nc_files/_edit_*
