@@ -1,0 +1,151 @@
+%
+( TORNA - ROKET )
+( Makine: BenchLathe. Kutuk: cap 50 mm, aynadan en az 120 mm disari. )
+( X = YARICAP - G8. Z0 = cubugun alni: once T1/T2/T3 icin touch-off. )
+( Burun: X0 Z0 dan X20 Z-30 a teget ogive, R32.5 - merkez X-12.5 Z-30 )
+( Govde: cap 40, iki sus kanali. Kuyruk: cap 40 tan cap 28 e daralir, )
+( sonra cap 28 nozul. Kesilince roket eline alinabilir bir parca olur. )
+( OPT STOP acikken kaba pasolardan sonra M1 de durur: kumpasla govdeyi )
+( olc, cap 41.0 olmali. CYCLE START devam eder. )
+
+G21 G8 G18 G90 G54
+
+T1 M6
+G43 H1
+S800 M3
+M8
+
+( --- alin --- )
+G0 X26.0 Z2.0
+G1 Z0.0 F150
+G1 X-0.5 F80
+G0 Z2.0
+
+( --- kaba: tum boy, 1.25 mm yaricap pasolar --- )
+G0 X23.75
+G1 Z-90.0 F150
+G1 X26.0
+G0 Z2.0
+G0 X22.5
+G1 Z-90.0 F150
+G1 X26.0
+G0 Z2.0
+G0 X21.25
+G1 Z-90.0 F150
+G1 X26.0
+G0 Z2.0
+G0 X20.5
+G1 Z-90.0 F150
+G1 X26.0
+G0 Z2.0
+
+( --- kaba: burun basamaklari, her biri ogive + 0.5 mm payda biter --- )
+G0 X19.25
+G1 Z-21.0 F150
+G0 Z2.0
+G0 X18.0
+G1 Z-17.5 F150
+G0 Z2.0
+G0 X16.75
+G1 Z-14.8 F150
+G0 Z2.0
+G0 X15.5
+G1 Z-12.7 F150
+G0 Z2.0
+G0 X14.25
+G1 Z-10.8 F150
+G0 Z2.0
+G0 X13.0
+G1 Z-9.2 F150
+G0 Z2.0
+G0 X11.75
+G1 Z-7.8 F150
+G0 Z2.0
+G0 X10.5
+G1 Z-6.5 F150
+G0 Z2.0
+G0 X9.25
+G1 Z-5.4 F150
+G0 Z2.0
+G0 X8.0
+G1 Z-4.3 F150
+G0 Z2.0
+G0 X6.75
+G1 Z-3.4 F150
+G0 Z2.0
+G0 X5.5
+G1 Z-2.6 F150
+G0 Z2.0
+G0 X4.25
+G1 Z-1.8 F150
+G0 Z2.0
+G0 X3.0
+G1 Z-1.1 F150
+G0 Z2.0
+G0 X1.75
+G1 Z-0.5 F150
+G0 Z2.0
+
+( --- kaba: kuyruk ve nozul, basamaklar konik + 0.5 mm payda baslar --- )
+G0 X26.0
+G0 Z-73.7
+G0 X21.0
+G1 X19.25 F80
+G1 Z-90.0 F150
+G1 X21.0
+G0 Z-75.4
+G1 X18.0 F80
+G1 Z-90.0 F150
+G1 X21.0
+G0 Z-77.1
+G1 X16.75 F80
+G1 Z-90.0 F150
+G1 X21.0
+G0 Z-78.7
+G1 X15.5 F80
+G1 Z-90.0 F150
+G1 X21.0
+G0 Z-80.1
+G1 X14.5 F80
+G1 Z-90.0 F150
+G1 X21.0
+G0 X30.0 Z5.0
+
+M1 ( OPT STOP: govdeyi olc, cap 41.0 )
+
+( --- ince: roket profili --- )
+M5
+T2 M6
+G43 H2
+S1200 M3
+G0 X0.0 Z2.0
+G1 Z0.0 F80
+G3 X20.0 Z-30.0 I-12.5 K-30.0 F60   ( ogive burun )
+G1 Z-72.0                            ( govde )
+G1 X14.0 Z-80.0                      ( kuyruk konigi )
+G1 Z-90.0                            ( nozul )
+G1 X21.0
+G0 X30.0 Z5.0
+
+( --- sus kanallari: govdede iki halka --- )
+M5
+T3 M6
+G43 H3
+S600 M3
+G0 X21.0 Z-45.0
+G1 X18.5 F40
+G1 X21.0
+G0 Z-60.0
+G1 X18.5 F40
+G1 X21.0
+
+( --- kesme: roket ayridan ayrilir --- )
+G0 X26.0 Z-88.5
+G1 X-0.5 F40
+G0 X26.0
+
+M9
+M5
+G0 X30.0 Z5.0
+M2
+%
