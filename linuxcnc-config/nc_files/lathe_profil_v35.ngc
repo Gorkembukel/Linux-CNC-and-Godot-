@@ -1,0 +1,67 @@
+%
+( TORNA - V35 INSERTLE PROFIL )
+( Makine: hazir tornalar - T1 CNMG 95 derece, T2 VBMT 107.5 derece. Kutuk cap 50, Z0 = alin. )
+( X = YARICAP - G8. Profilde 31 derecelik inisli bir V kanal var: CNMG in arka kenari inise dalar, )
+( VBMT 35 derece ucu 37.5 derece bosluk birakir ve takip edebilir. )
+( Bitis profili: X15 Z0 - X15 Z-10 - X22 Z-22 - X22 Z-30 - X16 Z-40 - X22 Z-46 - X22 Z-50 - omuz. )
+
+G21 G8 G18 G90 G54
+
+( --- kaba T1: duz pasolar, 0.5 mm pay, kanala girmez --- )
+T1 M6
+G43 H1
+S900 M3
+M8
+G0 X26 Z2
+G0 X23
+G1 Z-50 F140
+G1 X26
+G0 Z2
+G0 X21
+G1 Z-19 F140
+G1 X26
+G0 Z2
+G0 X19
+G1 Z-15 F140
+G1 X26
+G0 Z2
+G0 X17
+G1 Z-11.5 F140
+G1 X26
+G0 Z2
+G0 X15.5
+G1 Z-9.5 F140
+G1 X26
+G0 X30 Z5
+
+( --- kaba T2: kanali profile paralel pasolarla bosalt, her biri 1.5 mm --- )
+T2 M6
+G43 H2
+S1200 M3
+#1 = 5.5
+o100 while [#1 GT 0.4]
+  G0 X26 Z-28
+  G1 X[22 + #1] Z-30 F150
+  G1 X[16 + #1] Z-40
+  G1 X[22 + #1] Z-46
+  G1 X26
+  #1 = [#1 - 1.5]
+o100 endwhile
+
+( --- ince T2: tum profil --- )
+G0 Z2
+G0 X15
+G1 Z0 F100
+G1 Z-10
+G1 X22 Z-22
+G1 Z-30
+G1 X16 Z-40
+G1 X22 Z-46
+G1 Z-50
+G1 X26
+G0 X30 Z5
+
+M9
+M5
+M2
+%

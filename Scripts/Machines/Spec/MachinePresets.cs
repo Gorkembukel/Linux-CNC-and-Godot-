@@ -44,11 +44,13 @@ public static class MachinePresets
     private static ToolSpec FaceMill(int number, float diameter) =>
         new(number, ToolKind.FaceMill, Invariant($"{diameter:0.#}mm face mill"), diameter, lengthMm: 50f, color: new Color(0.4f, 0.42f, 0.45f));
 
+    private static ToolSpec Library(int number, string label) =>
+        System.Array.Find(ToolLibrary.Lathe, t => t.Label == label).Create(number);
+
     private static Godot.Collections.Array<ToolSpec> TurningTools() => List(
-        new ToolSpec(1, ToolKind.Turning, "roughing turn tool, 0.8mm nose radius", 0f, 0.8f, color: new Color(0.85f, 0.65f, 0.2f)),
-        new ToolSpec(2, ToolKind.Turning, "finishing turn tool, 0.4mm nose radius", 0f, 0.4f, color: new Color(0.3f, 0.8f, 0.9f)),
-        new ToolSpec(3, ToolKind.Parting, "parting / grooving tool, 3mm wide", 0f, 0.2f, widthMm: 3f, orientation: 3,
-            frontAngleDeg: 0f, backAngleDeg: 90f, color: new Color(0.9f, 0.9f, 0.95f)));
+        Library(1, "CNMG 120408 95° kaba (C 80°)"),
+        Library(2, "VBMT 160404 107.5° ince profil (V 35°)"),
+        Library(3, "Kanal / kesme 3 mm"));
 
     public static MachineSpec BenchtopMill() => new()
     {
@@ -260,11 +262,11 @@ public static class MachinePresets
             new AxisSpec(AxisId.X, Tool, -5f, 200f, homeSequence: 0, maxVelocity: 300f),
             new AxisSpec(AxisId.Z, Tool, -400f, 80f, maxVelocity: 300f)),
         Tools = List(
-            new ToolSpec(1, ToolKind.Turning, "roughing turn tool, 0.8mm nose radius", 0f, 0.8f, color: new Color(0.85f, 0.65f, 0.2f)),
-            new ToolSpec(2, ToolKind.Turning, "finishing turn tool, 0.4mm nose radius", 0f, 0.4f, color: new Color(0.3f, 0.8f, 0.9f)),
-            new ToolSpec(3, ToolKind.Parting, "parting tool, 3mm wide", 0f, 0.2f, widthMm: 3f, orientation: 3, frontAngleDeg: 0f, backAngleDeg: 90f),
-            new ToolSpec(4, ToolKind.Threading, "60deg threading tool", 0f, 0.1f, orientation: 6, color: new Color(0.8f, 0.4f, 0.4f)),
-            new ToolSpec(5, ToolKind.Boring, "16mm boring bar", 16f, 0.4f, lengthMm: 80f, orientation: 2),
+            Library(1, "CNMG 120408 95° kaba (C 80°)"),
+            Library(2, "VBMT 160404 107.5° ince profil (V 35°)"),
+            Library(3, "Kanal / kesme 3 mm"),
+            Library(4, "Diş 60° (metrik)"),
+            Library(5, "Bor barı Ø16, CCMT 060204"),
             new ToolSpec(6, ToolKind.Drill, "12mm drill", 12f, 0f, lengthMm: 90f, orientation: 7, color: new Color(0.6f, 0.6f, 0.65f))),
         Lathe = new LatheStructure
         {

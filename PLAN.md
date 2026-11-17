@@ -66,6 +66,19 @@ Done, each verified through scripted operators on real LinuxCNC:
   its outside / bore profile (`Turned`): it goes back into a chuck either end
   first, and into a mill fixture, where its voxel field is built from the
   profile (`VoxelStock.Revolved`).
+- Real tools: `ToolSpec.Geometry` (`ToolGeometry`) gives a lathe tool its
+  insert (ISO C80 / D55 / V35 / T60 / S90 / W80, round, grooving blade, 60
+  deg threading, or a drawn outline) and a mill tool a form profile.
+  `ToolProfile` / `InsertOutline` (Scripts/Material) build the outline with
+  the controlled point at its bounding corner; `LatheRadiusProfile.SweepProfile`
+  / `SweepProfileBore` cut with it (threading repeats the form every pitch
+  from where the pass started); `CutterShape.Form` cuts a mill form profile.
+  Meshes: inserts in holders, fluted end mills / drills, face mill inserts,
+  revolved form cutters (`RealToolMeshes`). Catalogue: `ToolLibrary`; the
+  lathe presets use it. Editor: "Tool Designer" dock (same addon) to start
+  from a catalogue / saved tool, draw a custom insert or form profile on a
+  2D canvas, preview in 3D, save to `Machines/Tools`, add to the Machine
+  Generator draft. Tools without Geometry cut as before.
 - Middle-drag turns the carried object freely (fixtures still square it).
   A block goes into a lathe chuck in any orientation: the profile starts at
   the corner radius and keeps the block's half sizes (`LatheSection`), so

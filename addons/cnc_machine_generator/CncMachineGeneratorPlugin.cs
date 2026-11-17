@@ -19,7 +19,7 @@ public partial class CncMachineGeneratorPlugin : EditorPlugin
 
     private readonly record struct ExistingMachine(string File, string Name, string Distro, int StatePort, int CommandPort);
 
-    private EditorDock _dock;
+    private EditorDock _dock, _toolDock;
     private OptionButton _presetSelect;
     private readonly List<System.Func<MachineSpec>> _presetFactories = new();
     private EditorInspector _inspector;
@@ -52,6 +52,26 @@ public partial class CncMachineGeneratorPlugin : EditorPlugin
         AddToolMenuItem(ToolMenuName, Callable.From(() => _dock.MakeVisible()));
         RefreshPresets();
         LoadPreset(0);
+
+        _toolDock = new EditorDock { Title = "Tool Designer", LayoutKey = "cnc_tool_designer", DefaultSlot = EditorDock.DockSlot.RightBl };
+        _toolDock.AddChild(new ToolDesigner { AddToMachine = AddToolToDraft });
+        AddDock(_toolDock);
+    }
+
+    /// <summary>Puts a designed tool into the machine being designed, as the next tool number.</summary>
+    private string AddToolToDraft(ToolSpec tool)
+    {
+        if (_draft == null)
+            return "Machine Generator'da açık makine yok.";
+        bool lathe = _draft.Kind == MachineKind.Lathe;
+        if (tool.IsLatheTool != lathe && tool.Kind != ToolKind.Drill)
+            return lathe ? "Bu bir freze takımı; açık makine torna." : "Bu bir torna kalemi; açık makine freze.";
+        tool.Number = _draft.Tools.Where(t => t != null).Select(t => t.Number).DefaultIfEmpty(0).Max() + 1;
+        _draft.Tools.Add(tool);
+        _inspector.Edit(null);
+        _inspector.Edit(_draft);
+        _checkedFingerprint = null;
+        return $"{_draft.MachineName} makinesine T{tool.Number} olarak eklendi.";
     }
 
     public override void _ExitTree()
@@ -59,6 +79,8 @@ public partial class CncMachineGeneratorPlugin : EditorPlugin
         RemoveToolMenuItem(ToolMenuName);
         RemoveDock(_dock);
         _dock.QueueFree();
+        RemoveDock(_toolDock);
+        _toolDock.QueueFree();
     }
 
     private Control BuildDock()

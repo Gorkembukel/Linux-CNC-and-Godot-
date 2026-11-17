@@ -6,13 +6,36 @@ namespace CncTrainer.Material;
 /// LengthMm with either a rounded bottom edge (CornerRadiusMm: 0 = flat end
 /// mill, RadiusMm = ball nose) or, when TipAngleDeg > 0, a conical point of
 /// that included angle (drill, chamfer mill).</summary>
-public readonly record struct CutterShape(float RadiusMm, float CornerRadiusMm, float LengthMm, float TipAngleDeg)
+public readonly record struct CutterShape(float RadiusMm, float CornerRadiusMm, float LengthMm, float TipAngleDeg, Vector2[] ProfileMm = null)
 {
+    /// <summary>A form cutter: its side profile (radius, height above the
+    /// tip), points from the tip upward.</summary>
+    public static CutterShape Form(Vector2[] profileMm, float lengthMm)
+    {
+        float radius = 0f;
+        foreach (var p in profileMm)
+            radius = Mathf.Max(radius, p.X);
+        return new CutterShape(radius, 0f, Mathf.Max(lengthMm, profileMm[^1].Y), 0f, profileMm);
+    }
+
+    private float ProfileRadius(float h)
+    {
+        var p = ProfileMm;
+        if (h <= p[0].Y)
+            return p[0].X;
+        for (int i = 1; i < p.Length; i++)
+            if (h <= p[i].Y)
+                return Mathf.Lerp(p[i - 1].X, p[i].X, (h - p[i - 1].Y) / Mathf.Max(p[i].Y - p[i - 1].Y, 1e-6f));
+        return p[^1].X;
+    }
+
     /// <summary>Signed distance to the cutter surface (negative inside) at
     /// radial distance r from the tool axis and height h above the tip.
     /// Exact on and inside the surface, a lower bound outside it.</summary>
     public float Distance(float r, float h)
     {
+        if (ProfileMm is { Length: >= 2 })
+            return Mathf.Max(r - ProfileRadius(h), Mathf.Max(-h, h - LengthMm));
         float body = Mathf.Max(r - RadiusMm, Mathf.Max(-h, h - LengthMm));
         if (TipAngleDeg > 0f)
         {

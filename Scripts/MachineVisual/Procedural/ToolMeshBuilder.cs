@@ -17,7 +17,18 @@ public static class ToolMeshBuilder
         float length = tool.LengthMm * WorldScale.MmToM;
 
         float tipHeight = 0f;
-        if (tool.HasPoint)
+        bool formed = tool.Geometry is { MillProfileMm.Length: >= 2 } && !tool.IsLatheTool;
+        if (formed)
+        {
+            var form = tool.Geometry;
+            var profile = form.MillProfileMm;
+            root.AddChild(RealToolMeshes.Revolved("Cutter", profile, cutterMaterial));
+            float top = profile[^1].Y * WorldScale.MmToM;
+            if (length > top)
+                BodyParts.Cylinder(root, "Shank", Mathf.Max(profile[^1].X * WorldScale.MmToM, 0.002f), length - top,
+                    new Vector3(0f, (length + top) / 2f, 0f), Vector3.Up, cutterMaterial);
+        }
+        else if (tool.HasPoint)
         {
             tipHeight = Mathf.Min(length, radius / Mathf.Tan(Mathf.DegToRad(Mathf.Clamp(tool.TipAngleDeg, 10f, 170f) / 2f)));
             BodyParts.Cylinder(root, "Point", 0f, tipHeight, new Vector3(0f, tipHeight / 2f, 0f), Vector3.Up, cutterMaterial, topRadius: radius);
@@ -36,17 +47,23 @@ public static class ToolMeshBuilder
             root.AddChild(ball);
         }
 
-        if (tool.Kind == ToolKind.FaceMill)
+        if (!formed && tool.Kind == ToolKind.FaceMill)
         {
             float bodyHeight = Mathf.Min(length, 0.04f);
-            BodyParts.Cylinder(root, "Cutter", radius, bodyHeight, new Vector3(0f, bodyHeight / 2f, 0f), Vector3.Up, cutterMaterial);
+            BodyParts.Cylinder(root, "Cutter", radius, bodyHeight, new Vector3(0f, bodyHeight / 2f, 0f), Vector3.Up, BodyParts.DarkSteel);
+            RealToolMeshes.FaceMillInserts(root, radius, bodyHeight, tool.Flutes, tool.Color);
             if (length > bodyHeight)
                 BodyParts.Cylinder(root, "Arbor", Mathf.Min(radius, 0.02f), length - bodyHeight,
                     new Vector3(0f, (length + bodyHeight) / 2f, 0f), Vector3.Up, BodyParts.Steel);
         }
-        else if (length > tipHeight)
+        else if (!formed && length > tipHeight)
         {
-            BodyParts.Cylinder(root, "Cutter", radius, length - tipHeight, new Vector3(0f, (length + tipHeight) / 2f, 0f), Vector3.Up, cutterMaterial);
+            float fluteTop = Mathf.Min(length, tipHeight + Mathf.Max(radius * 6f, 0.01f));
+            int flutes = tool.Kind == ToolKind.Drill ? 2 : Mathf.Max(2, tool.Flutes);
+            float helix = tool.Kind == ToolKind.Drill ? 30f : 35f;
+            root.AddChild(RealToolMeshes.Fluted("Cutter", radius, tipHeight, fluteTop, flutes, helix, cutterMaterial));
+            if (length > fluteTop)
+                BodyParts.Cylinder(root, "Shank", radius * 0.97f, length - fluteTop, new Vector3(0f, (length + fluteTop) / 2f, 0f), Vector3.Up, cutterMaterial);
         }
 
         BodyParts.Cylinder(root, "Holder", 0.02f, HolderLength, new Vector3(0f, length + HolderLength / 2f, 0f), Vector3.Up,
@@ -59,6 +76,8 @@ public static class ToolMeshBuilder
     /// Boring bars and drills lie along +X instead, pointing at the chuck.</summary>
     public static Node3D LatheTool(ToolSpec tool, float shankLength)
     {
+        if (tool.LatheProfile != null)
+            return RealToolMeshes.LatheTool(tool, shankLength);
         var root = new Node3D { Name = $"T{tool.Number}" };
         var insertMaterial = BodyParts.Mat(tool.Color, 0.3f, 0.3f);
         const float shank = 0.012f;

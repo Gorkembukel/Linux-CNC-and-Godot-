@@ -50,7 +50,9 @@ public partial class ToolSpec : Resource
     public bool IsLatheTool => Kind is ToolKind.Turning or ToolKind.Parting or ToolKind.Boring or ToolKind.Threading;
     public bool HasPoint => Kind is ToolKind.Drill or ToolKind.ChamferMill;
 
-    public CutterShape Cutter() => new(DiameterMm / 2f,
+    public CutterShape Cutter() => !IsLatheTool && Geometry is { MillProfileMm.Length: >= 2 } g
+        ? CutterShape.Form(g.MillProfileMm, LengthMm)
+        : new(DiameterMm / 2f,
         HasPoint ? 0f : Mathf.Min(TipRadiusMm, DiameterMm / 2f), LengthMm, HasPoint ? TipAngleDeg : 0f);
 
     public ToolLimits Limits() => new(IsLatheTool, Kind == ToolKind.Parting, DiameterMm, LengthMm, Flutes);

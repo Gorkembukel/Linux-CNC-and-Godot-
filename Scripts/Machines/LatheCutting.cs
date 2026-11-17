@@ -21,6 +21,7 @@ public sealed class LatheCutting : CuttingProcess
     /// <summary>Where the current threading pass started: every pass of a
     /// thread starts at the same Z, which keeps them in phase.</summary>
     private float? _threadAnchorZ;
+    private float _threadTravel, _threadRevs;
 
     /// <summary>Material has been removed since the last ResetStock.</summary>
     public bool HasCut { get; private set; }
@@ -84,11 +85,22 @@ public sealed class LatheCutting : CuttingProcess
                              && Mathf.Abs(position.Y - previous.Y) > Mathf.Abs(position.X - previous.X);
             if (!threading)
                 _threadAnchorZ = null;
-            else
-                _threadAnchorZ ??= previous.Y;
+            else if (_threadAnchorZ == null)
+            {
+                _threadAnchorZ = previous.Y;
+                _threadTravel = _threadRevs = 0f;
+            }
+            float pitch = 0f;
+            if (threading)
+            {
+                // Sample-to-sample feed is noisy; over a pass the axis follows the spindle exactly.
+                _threadTravel += Mathf.Abs(position.Y - previous.Y);
+                _threadRevs += rpm / 60f * seconds;
+                pitch = Mathf.Snapped(_threadRevs > 0.3f ? _threadTravel / _threadRevs : feedPerRev, 0.05f);
+            }
             var result = kind == ToolKind.Drill ? profile.SweepBore(previous, position, s.ToolNoseRadius, drillRadius, mounted.Spec.TipAngleDeg)
                 : shape != null && kind == ToolKind.Boring ? profile.SweepProfileBore(previous, position, shape)
-                : shape != null ? profile.SweepProfile(previous, position, shape, threading ? feedPerRev : 0f, _threadAnchorZ ?? 0f)
+                : shape != null ? profile.SweepProfile(previous, position, shape, pitch, _threadAnchorZ ?? 0f)
                 : kind == ToolKind.Boring ? profile.SweepBore(previous, position, s.ToolNoseRadius, 0f)
                 : profile.Sweep(previous, position, s.ToolNoseRadius, feedPerRev, rpm);
             if (result.MaterialRemoved)
