@@ -23,6 +23,15 @@ Done, each verified through scripted operators on real LinuxCNC:
   gauge, `G10 L10` + `G43`), collisions of holder/spindle/shank/rapids,
   measuring (`IMeasurable`: caliper, micrometer, depth gauge), door
   interlock, coolant, a crash unhomes the machine.
+- Console phase 1 (branch `fanuc-style-console`): `ConsoleStand` rebuilt as a
+  0i-F Plus style pendant (layout measured from a reference photo, generic
+  brand text): LCD (`ConsoleScreen`) with softkeys and pages POS / PROG /
+  OFS/SET / MESSAGE / SYSTEM / CSTM/GR / HELP, MDI keypad with key-in line and
+  MDI blocks, mode keys (EDIT/AUTO/MDI/HANDLE/JOG/INC/REF), hold-to-jog,
+  INC steps, handwheel + axis knob, feed/spindle override dials
+  (`ConsoleKnob`, mouse wheel), spindle/coolant/tool-change keys, lamps.
+  Verified live key by key (`tmp_verify/TmpConsole`). Bridge: PROGRAM_RUN
+  resumes when paused (CYCLE START after FEED HOLD).
 
 `Main.tscn`: BenchLathe (9200/9201), BenchMill (9206/9207), Trunnion5Axis,
 FlatBedLathe (9208/9209, uncommitted), tool carts, fixture carts, stock
@@ -49,6 +58,13 @@ door on enclosed machines.
 5. The eleven demo programs in `linuxcnc-config/nc_files/` have never all
    run end to end live (the statue program only offline + `rs274`).
 6. Side finding, not investigated: `BridgeClient.LastCommandRttMs` stays NaN.
+7. Console phase 2: PROG page program selection/editing (AUTO always runs
+   the machine's `DemoProgram`), OFS/SET touch-off and work zero on the
+   console (still on the 2D panel), cursor keys. Keys that only show "not
+   wired" today: BLOCK SKIP, OPT STOP, DRY RUN, MACH/Z/MST LOCK, PRG RESTART,
+   rapid override (keys double as INC steps), WORK LIGHT, CHIP CONV, AIR
+   BLOW, AUTO PWR OFF; F1-F7 are unassigned builder keys. Coolant key uses
+   MDI M8/M9, so it does nothing during a cycle.
 
 ## Design decisions that are easy to undo by accident
 

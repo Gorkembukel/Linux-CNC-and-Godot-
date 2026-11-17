@@ -1,4 +1,4 @@
-using Godot;
+﻿using Godot;
 using CncTrainer.Interaction;
 using CncTrainer.Workshop;
 
@@ -155,7 +155,7 @@ public partial class PlayerController : CharacterBody3D
         var ui = new CanvasLayer();
         AddChild(ui);
 
-        _interactPrompt = new Label { Text = "[E] 2D panel   [Click] press a button", Visible = false };
+        _interactPrompt = new Label { Text = "[E] 2D panel   [Tık] tuş   [Teker] düğme / el çarkı", Visible = false };
         ui.AddChild(_interactPrompt);
         _interactPrompt.AnchorLeft = _interactPrompt.AnchorRight = 0.5f;
         _interactPrompt.AnchorTop = _interactPrompt.AnchorBottom = 0.85f;
@@ -453,7 +453,7 @@ public partial class PlayerController : CharacterBody3D
 
         if (_atConsole)
         {
-            _interactPrompt.Text = "[E] 2D panel   [Click] press a button";
+            _interactPrompt.Text = "[E] 2D panel   [Tık] tuş   [Teker] düğme / el çarkı";
             _interactPrompt.Visible = true;
             return;
         }

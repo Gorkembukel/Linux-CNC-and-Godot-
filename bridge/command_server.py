@@ -86,8 +86,11 @@ class CommandServer:
             self.cmd.program_open(args.decode("utf-8"))
         elif kind == CommandKind.PROGRAM_RUN:
             (start_line,) = struct.unpack("<i", args)
-            self.cmd.mode(linuxcnc.MODE_AUTO)
-            self.cmd.auto(linuxcnc.AUTO_RUN, start_line)
+            if self.stat.paused:
+                self.cmd.auto(linuxcnc.AUTO_RESUME)
+            else:
+                self.cmd.mode(linuxcnc.MODE_AUTO)
+                self.cmd.auto(linuxcnc.AUTO_RUN, start_line)
         elif kind == CommandKind.PROGRAM_PAUSE:
             self.cmd.auto(linuxcnc.AUTO_PAUSE)
         elif kind == CommandKind.PROGRAM_STOP:
