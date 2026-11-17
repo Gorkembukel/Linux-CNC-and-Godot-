@@ -31,7 +31,6 @@ public partial class LatheWorkholding : MachineSetup
     private LatheCutting _cutting;
     private WorkpieceVisual _workpiece;
     private float _zOffsetAtPlacement;
-    private bool _crashed;
 
     public override Vector3 SheetPosition => _body.GlobalPosition;
 
@@ -141,12 +140,6 @@ public partial class LatheWorkholding : MachineSetup
         Chuck.Spin(Mathf.Min(rpm * 6f, MaxSpinDegPerSec) * (float)delta);
         CheckDoorInterlock();
         CheckKeyLeftIn(Chuck, rpm > 1f, "AYNA ANAHTARI FIRLADI: anahtar aynada unutuldu, iş mili çalıştırıldı");
-
-        var tip = _cutting.TipAt(s.Position, s.ToolNumber);
-        bool inChuck = tip.Y < _body.JawFrontZMm + 0.5f && tip.X < Chuck.RadiusM / M + 2f;
-        if (inChuck && !_crashed && s.MachineOn)
-            Safety.Trip(IncidentKind.Crash, "ÇARPMA: takım aynaya girdi");
-        _crashed = inChuck;
     }
 
     protected override string SheetBody

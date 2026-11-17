@@ -54,14 +54,17 @@ public sealed class LatheCutting : CuttingProcess
     {
         var position = TipAt(s.Position, s.ToolNumber);
         var profile = _workpiece.Profile;
+        var mounted = Tools.Active(s.ToolNumber);
+        string machineHit = s.MachineOn ? _body.Interference((float)s.Position.Z, (float)s.Position.X) : null;
         if (profile == null)
         {
+            SetCollision(machineHit);
             _lastPosition = null;
             return;
         }
 
-        var mounted = Tools.Active(s.ToolNumber);
-        SetCollision(mounted.Present ? BodyInStock(profile, position, mounted.Spec) : null);
+        SetCollision(machineHit ?? CarriageInStock(profile, (float)s.Position.Z, (float)s.Position.X)
+            ?? (mounted.Present ? BodyInStock(profile, position, mounted.Spec) : null));
 
         if (_lastPosition is Vector2 previous && mounted.Cuts)
         {
@@ -106,6 +109,18 @@ public sealed class LatheCutting : CuttingProcess
                 return parting
                     ? "ÇARPMA: kesme kaleminin gövdesi parçaya çarptı (bıçak boyundan derin kanal)"
                     : "ÇARPMA: kalemin gövdesi parçaya çarptı (uç bu kadar derine inemez)";
+        return null;
+    }
+
+    /// <summary>The turret or tool post itself (not the tool) inside the bar.</summary>
+    private string CarriageInStock(LatheRadiusProfile profile, float zMm, float xMm)
+    {
+        foreach (var part in _body.Carried(zMm, xMm))
+        {
+            for (float z = Mathf.Max(part.ZMin, profile.ZMin); z <= Mathf.Min(part.ZMax, profile.ZMax); z += profile.StepMm)
+                if (profile.RadiusAt(profile.IndexAt(z)) > part.Reach)
+                    return $"ÇARPMA: {part.What} parçaya çarptı (takım tarete göre çok kısa bağlı)";
+        }
         return null;
     }
 

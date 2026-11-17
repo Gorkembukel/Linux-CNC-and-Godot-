@@ -127,9 +127,12 @@ public partial class Vise : BoltedFixture, IInteractable, IStockFixture
         bool overJaws = Mathf.Abs(tip.X) < JawWidth / 2f + radius
                         && ((tip.Z < FixedJawFaceZ + radius && tip.Z > FixedJawFaceZ - 0.03f - radius)
                             || (tip.Z > MovingJawFaceZ - radius && tip.Z < MovingJawFaceZ + 0.03f + radius));
-        return overJaws && tip.Y < JawTopY - 0.0005f
-            ? "ÇARPMA: takım mengene çenesine girdi (kütük çenelerin üstüne çıkmıyor, paralel kullan)"
-            : null;
+        if (overJaws && tip.Y < JawTopY - 0.0005f)
+            return "ÇARPMA: takım mengene çenesine girdi (kütük çenelerin üstüne çıkmıyor, paralel kullan)";
+        bool inBase = tip.Y < BedTopY && Mathf.Abs(tip.X) < 0.08f + radius && tip.Z > -0.13f - radius && tip.Z < 0.15f + radius;
+        bool inEars = tip.Y < 0.02f && Mathf.Abs(tip.X) < 0.135f + radius && Mathf.Abs(tip.Z) < 0.12f + radius;
+        bool inScrew = tip.Y < 0.047f && Mathf.Abs(tip.X) < 0.012f + radius && tip.Z > 0.14f - radius && tip.Z < 0.2f + radius;
+        return inBase || inEars || inScrew ? "ÇARPMA: mengene gövdesine çarpıldı" : null;
     }
 
     public string Prompt(PlayerController player)

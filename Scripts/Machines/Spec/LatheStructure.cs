@@ -28,7 +28,7 @@ public partial class LatheStructure : Resource
     [Export] public int TurretStations = 3;
     [Export] public float TurretDiameterMm = 70f;
     /// <summary>Turret centre to insert tip.</summary>
-    [Export] public float ToolReachMm = 45f;
+    [Export] public float ToolReachMm = 75f;
 
     [ExportGroup("Stock")]
     [Export] public float StockDiameterMm = 50f;

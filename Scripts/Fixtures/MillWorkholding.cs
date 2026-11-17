@@ -216,15 +216,23 @@ public partial class MillWorkholding : MachineSetup
             float length = (mounted.Spec.LengthMm + mounted.ErrorMm.Y) * M;
             var tool = _body.WorkEnd.GlobalTransform * _cutting.ToolInWork(Bridge.State.Position);
             Vector3 tip = tool * new Vector3(0f, -mounted.ErrorMm.Y * M, 0f), holder = tool * new Vector3(0f, length, 0f);
+            Vector3 nose = tool * new Vector3(0f, length + ToolMeshBuilder.HolderLength, 0f);
+            float noseRadius = Spec.Mill.SpindleHousingDiameterMm * 0.375f * M;
 
             if (fixture is Node3D node)
             {
                 var toFixture = node.GlobalTransform.AffineInverse();
                 reason = fixture.ToolCrash(toFixture * tip, radius)
-                         ?? (fixture.ToolCrash(toFixture * holder, HolderRadius) != null ? "ÇARPMA: takım tutucu bağlama aparatına çarptı" : null);
+                         ?? (fixture.ToolCrash(toFixture * holder, HolderRadius) != null ? "ÇARPMA: takım tutucu bağlama aparatına çarptı" : null)
+                         ?? (fixture.ToolCrash(toFixture * nose, noseRadius) != null ? "ÇARPMA: iş mili burnu bağlama aparatına çarptı" : null);
             }
             if (reason == null && Table != null)
-                reason = Table.ToolCrash(Table.GlobalTransform.AffineInverse() * tip, radius);
+            {
+                var toTable = Table.GlobalTransform.AffineInverse();
+                reason = Table.ToolCrash(toTable * tip, radius)
+                         ?? (Table.ToolCrash(toTable * holder, HolderRadius) != null ? "ÇARPMA: takım tutucu tablaya çarptı" : null)
+                         ?? (Table.ToolCrash(toTable * nose, noseRadius) != null ? "ÇARPMA: iş mili burnu tablaya çarptı" : null);
+            }
         }
         if (reason != null && !_crashed)
             Safety.Trip(IncidentKind.Crash, reason);
