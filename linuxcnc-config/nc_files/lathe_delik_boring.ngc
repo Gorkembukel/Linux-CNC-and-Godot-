@@ -1,0 +1,44 @@
+%
+( TORNA - DELIK VE BORING )
+( Makine: BenchLatheBoring. Kutuk: cap 50 mm, alin tornalanmis, Z0 = alin. )
+( X = YARICAP - G8. Once T4 ve T5 icin touch-off: Z alina, T5 X olculen ic capa. )
+( T4: cap 16 matkap, 30 mm derin, kademeli. T5: cap 12 bor bari, delik cap 22, 25 mm derin. )
+( Tornada G81/G83 Z yonunde delmez - G18 duzleminde Y'yi deler - bu yuzden kademeler G1/G0 ile. )
+
+G21 G8 G18 G90 G54
+
+( --- delme --- )
+T4 M6
+G43 H4
+S600 M3
+M8
+G0 X0 Z2
+G1 Z-10 F40
+G0 Z2
+G1 Z-20 F40
+G0 Z2
+G1 Z-30 F40
+G0 Z5
+M5
+
+( --- boring: her paso sonunda once duvardan merkeze, sonra disari --- )
+T5 M6
+G43 H5
+S900 M3
+G0 X8.5 Z2
+G1 Z-25 F60
+G1 X8.0
+G0 Z2
+G0 X9.5
+G1 Z-25 F60
+G1 X9.0
+G0 Z2
+G0 X11.0
+G1 Z-25 F40
+G1 X10.5
+G0 Z5
+
+M9
+M5
+M2
+%
