@@ -12,9 +12,13 @@ public partial class FixtureCart : Node3D
 {
     private const float TopY = 0.75f;
 
+    /// <summary>The cart carries a vise.</summary>
     [Export] public bool Vise = true;
+    /// <summary>The cart carries a centring plate.</summary>
     [Export] public bool CentringPlate;
+    /// <summary>Number of T-slot bolts on the cart.</summary>
     [Export] public int Bolts = 4;
+    /// <summary>Number of step clamps on the cart.</summary>
     [Export] public int Clamps = 4;
 
     public override void _Ready()

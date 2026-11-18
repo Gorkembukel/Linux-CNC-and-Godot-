@@ -19,13 +19,18 @@ namespace CncTrainer.Chips;
 public partial class ChipSpawner : Node3D
 {
     // World units are meters (WorldScale.MmToM) throughout the scene.
+    /// <summary>Most chips alive at once; the oldest go first.</summary>
     [Export] public int MaxActiveChips = 250;
     // Not the true floor (WorldScale.FloorY, ~1.1m down) -- a nominal "lands
     // on/near the machine bed" catch height, since no chip tray/splash guard
     // is modelled; a real 1.1m freefall would look wrong for small swarf.
+    /// <summary>Height chips stop falling at (scene metres).</summary>
     [Export] public float FloorWorldY = -0.15f;
-    [Export] public float Gravity = 9.8f; // real gravity, m/s^2, now that units are real-world meters
+    /// <summary>Downward acceleration of falling chips (m/s²).</summary>
+    [Export] public float Gravity = 9.8f;
+    /// <summary>A chip disappears after this long (s).</summary>
     [Export] public float MaxLifetimeSeconds = 6f;
+    /// <summary>Chips are drawn this many times their real size so they can be seen.</summary>
     [Export] public float VisualSizeMultiplier = 6f;
 
     private struct ChipInstance

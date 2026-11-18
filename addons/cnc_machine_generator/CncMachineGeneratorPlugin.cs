@@ -20,6 +20,7 @@ public partial class CncMachineGeneratorPlugin : EditorPlugin
     private readonly record struct ExistingMachine(string File, string Name, string Distro, int StatePort, int CommandPort);
 
     private EditorDock _dock, _toolDock;
+    private DescriptionInspectorPlugin _descriptions;
     private OptionButton _presetSelect;
     private readonly List<System.Func<MachineSpec>> _presetFactories = new();
     private EditorInspector _inspector;
@@ -56,6 +57,9 @@ public partial class CncMachineGeneratorPlugin : EditorPlugin
         _toolDock = new EditorDock { Title = "Tool Designer", LayoutKey = "cnc_tool_designer", DefaultSlot = EditorDock.DockSlot.RightBl };
         _toolDock.AddChild(new ToolDesigner { AddToMachine = AddToolToDraft });
         AddDock(_toolDock);
+
+        _descriptions = new DescriptionInspectorPlugin();
+        AddInspectorPlugin(_descriptions);
     }
 
     /// <summary>Puts a designed tool into the machine being designed, as the next tool number.</summary>
@@ -81,6 +85,7 @@ public partial class CncMachineGeneratorPlugin : EditorPlugin
         _dock.QueueFree();
         RemoveDock(_toolDock);
         _toolDock.QueueFree();
+        RemoveInspectorPlugin(_descriptions);
     }
 
     private Control BuildDock()
@@ -89,7 +94,8 @@ public partial class CncMachineGeneratorPlugin : EditorPlugin
         root.AddThemeConstantOverride("separation", 4);
 
         root.AddChild(new Label { Text = "Start from" });
-        _presetSelect = new OptionButton { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, FitToLongestItem = false };
+        _presetSelect = new OptionButton { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, FitToLongestItem = false,
+            TooltipText = "Machine to start from: a built-in preset, or one saved with \"Save as preset\" (Machines/Specs)." };
         _presetSelect.ItemSelected += index => LoadPreset((int)index);
         root.AddChild(_presetSelect);
 
@@ -125,10 +131,12 @@ public partial class CncMachineGeneratorPlugin : EditorPlugin
         {
             SizeFlagsVertical = Control.SizeFlags.ExpandFill,
             CustomMinimumSize = new Vector2(0, 260),
+            TooltipText = "Every setting of the machine; each one's description is shown above it.",
         };
         root.AddChild(_inspector);
 
-        _problemsLabel = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
+        _problemsLabel = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            TooltipText = "Red: must be fixed before the machine can be generated. Yellow: worth a look." };
         root.AddChild(_problemsLabel);
 
         var buttons = new HBoxContainer();
@@ -139,15 +147,17 @@ public partial class CncMachineGeneratorPlugin : EditorPlugin
         };
         saveSpecButton.Pressed += OnSaveSpecPressed;
         buttons.AddChild(saveSpecButton);
-        _generateButton = new Button { Text = "Generate Machine Scene", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+        _generateButton = new Button { Text = "Generate Machine Scene", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+            TooltipText = "Writes Scenes/Machines/<name>.tscn and linuxcnc-config/gen_<name>.ini / .tbl." };
         _generateButton.Pressed += OnGeneratePressed;
         buttons.AddChild(_generateButton);
         root.AddChild(buttons);
 
-        _addToSceneCheck = new CheckBox { Text = "Add to the open scene", ButtonPressed = true };
+        _addToSceneCheck = new CheckBox { Text = "Add to the open scene", ButtonPressed = true,
+            TooltipText = "Also puts the new machine into the scene open in the editor, beside the others." };
         root.AddChild(_addToSceneCheck);
 
-        _statusLabel = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
+        _statusLabel = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart, TooltipText = "What the last action did." };
         root.AddChild(_statusLabel);
         return root;
     }

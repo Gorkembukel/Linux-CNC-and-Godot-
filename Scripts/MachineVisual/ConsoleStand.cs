@@ -22,6 +22,7 @@ namespace CncTrainer;
 [Tool]
 public partial class ConsoleStand : Node3D
 {
+    /// <summary>Height of the pendant's post from the floor to the panel (m).</summary>
     [Export]
     public float PostHeight
     {
@@ -29,6 +30,7 @@ public partial class ConsoleStand : Node3D
         set { _postHeight = value; RebuildIfInTree(); }
     }
 
+    /// <summary>How far the panel leans back (degrees).</summary>
     [Export]
     public float PanelTiltDegrees
     {

@@ -11,7 +11,9 @@ namespace CncTrainer;
 [Tool]
 public partial class MillBody : Node3D
 {
-    [Export] public float TableTopY = -0.03f; // the underside of a 30mm stock
+    /// <summary>Height of the table top relative to the stock's top face (m): the underside of a 30 mm stock.</summary>
+    [Export] public float TableTopY = -0.03f;
+    /// <summary>Height of the gantry beam above the stock's top face (m).</summary>
     [Export] public float BeamY = 0.37f;
 
     private const float ToolStickout = 0.05f;

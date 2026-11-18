@@ -14,6 +14,7 @@ namespace CncTrainer;
 /// </summary>
 public partial class DebugOverlay : Control
 {
+    /// <summary>Shows the bridge and prediction debug readout (F3 toggles it).</summary>
     [Export] public bool Enabled = true;
 
     private BridgeClient _bridge;

@@ -12,7 +12,9 @@ namespace CncTrainer.Player;
 /// </summary>
 public partial class ConsoleFocus : Node
 {
+    /// <summary>Field of view of the console close-up (degrees).</summary>
     [Export] public float Fov = 40f;
+    /// <summary>Closest the close-up camera gets to the panel (m).</summary>
     [Export] public float MinDistance = 0.07f;
 
     public bool Active { get; private set; }

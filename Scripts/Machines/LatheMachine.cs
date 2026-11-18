@@ -23,13 +23,21 @@ namespace CncTrainer;
 /// </summary>
 public partial class LatheMachine : Node3D, IMachine
 {
+    /// <summary>Name shown in the UI and given to the LinuxCNC instance.</summary>
     [Export] public string MachineName = "Lathe";
+    /// <summary>WSL distribution this machine's LinuxCNC runs in.</summary>
     [Export] public string WslDistro = "Ubuntu";
+    /// <summary>UDP port the bridge sends this machine's state to.</summary>
     [Export] public int StatePort = 9200;
+    /// <summary>UDP port the bridge takes this machine's commands on.</summary>
     [Export] public int CommandPort = 9201;
+    /// <summary>State packets per second from the bridge.</summary>
     [Export] public double RateHz = 100.0;
+    /// <summary>LinuxCNC configuration (in linuxcnc-config/) the machine starts with.</summary>
     [Export] public string IniFile = "sim_lathe.ini";
+    /// <summary>Program (in linuxcnc-config/) opened at start.</summary>
     [Export] public string DemoProgram = "nc_files/demo_facing_turning.ngc";
+    /// <summary>What the stock is made of: decides chips and cutting load.</summary>
     [Export] public MaterialKind StockMaterial = MaterialKind.Steel;
 
     public MachineRig Rig { get; private set; }

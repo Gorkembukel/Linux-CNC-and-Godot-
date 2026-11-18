@@ -5,6 +5,10 @@
     <RootNamespace>CncTrainer</RootNamespace>
     <Nullable>disable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
+    <!-- The editor addon reads this file to show the /// summaries in the
+         inspector; Godot itself does not take descriptions from C#. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591;CS1573;CS1572;CS1574;CS1584;CS1658;CS1570;CS1587</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <!-- Godot.NET.Sdk globs all *.cs recursively by default, which would also

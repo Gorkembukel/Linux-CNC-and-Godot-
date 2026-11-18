@@ -11,11 +11,17 @@ namespace CncTrainer;
 [Tool]
 public partial class MillStockVisual : Node3D
 {
+    /// <summary>Stock length along X.</summary>
     [Export] public float StockSizeXMm = 120f;
+    /// <summary>Stock width along Y.</summary>
     [Export] public float StockSizeYMm = 80f;
+    /// <summary>Stock height.</summary>
     [Export] public float StockThicknessMm = 30f;
+    /// <summary>Grid spacing of the cut surface: smaller is finer and slower.</summary>
     [Export] public float StepMm = 0.5f;
+    /// <summary>Grid cells per mesh chunk; a cut rebuilds only the chunks it touched.</summary>
     [Export] public int CellsPerChunk = 40;
+    /// <summary>Most chunks rebuilt in one frame, so a big cut does not stall the game.</summary>
     [Export] public int MaxChunkRebuildsPerCall = 4;
 
     public MillHeightmap Heightmap { get; private set; }

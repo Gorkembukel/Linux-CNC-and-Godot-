@@ -29,13 +29,19 @@ public partial class WorkpieceVisual : Node3D
 {
     // Demo stock: 50mm diameter (25mm radius) bar, matches linuxcnc-config's
     // demo_facing_turning.ngc comment ("Stock: 50mm diameter round bar").
+    /// <summary>Radius of the default bar (without hands-on setup).</summary>
     [Export] public float StockRadiusMm = 25.0f;
+    /// <summary>Machine Z of the default bar's chuck end (mm).</summary>
     [Export] public float StockZMin = -85.0f;
+    /// <summary>Machine Z of the default bar's free end (mm).</summary>
     [Export] public float StockZMax = 5.0f;
     /// <summary>No stock until SetProfile is called (hands-on setup).</summary>
     [Export] public bool StartEmpty;
+    /// <summary>Segments around the bar's circumference in its mesh.</summary>
     [Export] public int AngularSegments = 24;
+    /// <summary>Profile steps per mesh chunk; a cut rebuilds only the chunks it touched.</summary>
     [Export] public int BucketsPerChunk = 40;
+    /// <summary>Most chunks rebuilt in one frame, so a big cut does not stall the game.</summary>
     [Export] public int MaxChunkRebuildsPerCall = 4;
 
     /// <summary>The live radius profile -- Main.cs sweeps cuts into this same

@@ -41,7 +41,8 @@ public partial class ToolDesigner : VBoxContainer
         AddThemeConstantOverride("separation", 4);
 
         AddChild(new Label { Text = "Başlangıç" });
-        _startSelect = new OptionButton { SizeFlagsHorizontal = SizeFlags.ExpandFill, FitToLongestItem = false };
+        _startSelect = new OptionButton { SizeFlagsHorizontal = SizeFlags.ExpandFill, FitToLongestItem = false,
+            TooltipText = "Tool to start from: a blank drawn lathe tool or mill form cutter, a catalogue tool, or one saved in Machines/Tools." };
         _startSelect.ItemSelected += index => Load((int)index);
         AddChild(_startSelect);
 
@@ -71,15 +72,18 @@ public partial class ToolDesigner : VBoxContainer
         _previewRoot = new Node3D();
         viewport.AddChild(_previewRoot);
 
-        _inspector = new EditorInspector { SizeFlagsVertical = SizeFlags.ExpandFill, CustomMinimumSize = new Vector2(0, 240) };
+        _inspector = new EditorInspector { SizeFlagsVertical = SizeFlags.ExpandFill, CustomMinimumSize = new Vector2(0, 240),
+            TooltipText = "The tool's settings; open Geometry for the insert or the form profile." };
         AddChild(_inspector);
 
-        _problem = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart, Modulate = new Color(1f, 0.45f, 0.4f) };
+        _problem = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart, Modulate = new Color(1f, 0.45f, 0.4f),
+            TooltipText = "What is wrong with the drawn shape; it cannot be saved until this is empty." };
         AddChild(_problem);
 
         var row = new HBoxContainer();
         row.AddChild(new Label { Text = "Ad" });
-        _name = new LineEdit { SizeFlagsHorizontal = SizeFlags.ExpandFill, PlaceholderText = "dosya adı" };
+        _name = new LineEdit { SizeFlagsHorizontal = SizeFlags.ExpandFill, PlaceholderText = "dosya adı",
+            TooltipText = "File name for Save: letters, digits, _ . - only." };
         row.AddChild(_name);
         AddChild(row);
 
@@ -93,7 +97,7 @@ public partial class ToolDesigner : VBoxContainer
         buttons.AddChild(add);
         AddChild(buttons);
 
-        _status = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
+        _status = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart, TooltipText = "What the last action did." };
         AddChild(_status);
 
         RefreshStarts();
