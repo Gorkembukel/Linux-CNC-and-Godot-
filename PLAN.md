@@ -42,6 +42,12 @@ Done, each verified through scripted operators on real LinuxCNC:
   that stops short of walls, and Tab close-up on a console (`ConsoleFocus`:
   the panel fills the screen, the wheel dollies toward the panel point under
   the cursor). Consoles stand 15 cm higher (PostHeight 1.1).
+- Tool belt (`ToolBelt`, child of the player body): 8 holsters in a 120 deg
+  arc at the front of the waist; F while looking at one takes / stows /
+  swaps a `HandTool` (stock and fixtures stay carried). Holsters and stowed
+  tools are in `Fastener.InteractionLayer`. Looking down past -0.9 rad the
+  mouse turns only the head (up to 1.2 rad); looking up again the body takes
+  over that turn. Harness: `tmp_verify/TmpBelt`.
 - Console immersion pass: BLOCK SKIP, OPT STOP, rapid override (new bridge
   commands 20-23, also COOLANT_FLOOD so coolant works mid-program), PRG
   RESTART (run from the PROG cursor line), WORK LIGHT, held jog key stays

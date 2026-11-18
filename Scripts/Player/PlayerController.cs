@@ -57,6 +57,7 @@ public partial class PlayerController : CharacterBody3D
     private const float EyeHeight = 1.65f;
     private const float CrouchCapsuleHeight = 1.2f;
     private const float CrouchEyeHeight = 1.0f;
+    private const float BeltBelowEyes = 0.7f;
     private const float LeanSideways = 0.3f;
     private const float LeanRollRadians = 0.18f;
     private static readonly Vector3 HeadOffsetMin = new(-0.35f, -0.6f, -0.5f);
@@ -78,6 +79,9 @@ public partial class PlayerController : CharacterBody3D
     private Node3D _head; // pitch pivot, shared by both cameras' parent chain
     private bool _firstPerson = true;
     private float _pitch;
+    /// <summary>Head turned on the body (rad): only while looking down at the belt.</summary>
+    private float _headYaw;
+    private const float BeltLookPitch = -0.9f, MaxHeadYaw = 1.2f;
 
     private ConsoleStand _consoleStand;
     private Label _interactPrompt;
@@ -86,6 +90,7 @@ public partial class PlayerController : CharacterBody3D
     private Node3D _bodyVisual;
 
     private Node3D _carryPoint;
+    private ToolBelt _belt;
     private RigidBody3D _heldPart;
     private StockStation _station;
     private bool _atStation;
@@ -179,6 +184,9 @@ public partial class PlayerController : CharacterBody3D
         AddChild(_focus);
 
         BuildBodyVisual();
+
+        _belt = new ToolBelt { Name = "ToolBelt", Position = new Vector3(0f, EyeHeight - BeltBelowEyes, 0f) };
+        AddChild(_belt);
 
         _head = new Node3D { Position = new Vector3(0f, EyeHeight, 0f), Name = "Head" };
         AddChild(_head);
@@ -280,8 +288,16 @@ public partial class PlayerController : CharacterBody3D
         else if (@event is InputEventMouseMotion mm && Input.MouseMode == Input.MouseModeEnum.Captured)
         {
             float sensitivity = MouseSensitivity * _fpCamera.Fov / BaseFov;
-            RotateY(-mm.Relative.X * sensitivity);
             _pitch = Mathf.Clamp(_pitch - mm.Relative.Y * sensitivity, -1.3f, 1.3f);
+            // Looking down at the belt the head turns on the body (the belt
+            // turns with the body); looking up again the body follows the head.
+            if (_pitch < BeltLookPitch)
+                _headYaw = Mathf.Clamp(_headYaw - mm.Relative.X * sensitivity, -MaxHeadYaw, MaxHeadYaw);
+            else
+            {
+                RotateY(_headYaw - mm.Relative.X * sensitivity);
+                _headYaw = 0f;
+            }
             // Flat assignment (not a child rotation nested under _head): pitch
             // and the "face backward to look at the character" 180 both land
             // in one Euler value, computed the same consistent way Godot
@@ -401,6 +417,11 @@ public partial class PlayerController : CharacterBody3D
 
     private void TogglePickup()
     {
+        if (_belt.SlotOf(LookedAt(PickupRange)) is int slot && slot >= 0)
+        {
+            UseBeltSlot(slot);
+            return;
+        }
         if (_heldPart != null)
         {
             LetGo().Freeze = false;
@@ -410,6 +431,30 @@ public partial class PlayerController : CharacterBody3D
         {
             (body as Carryable)?.OnPickedUp();
             Hold(body); // frozen while held -- carried by direct transform, not physics forces
+        }
+    }
+
+    /// <summary>F on a holster: an empty hand takes its tool, a hand tool goes
+    /// into it (swapped with the one there, if any).</summary>
+    private void UseBeltSlot(int slot)
+    {
+        if (_heldPart != null && _heldPart is not HandTool)
+        {
+            Notify(this, "Kemere yalnız el aletleri takılır");
+            return;
+        }
+        var stowing = _heldPart as HandTool;
+        if (stowing == null && _belt.At(slot) == null)
+            return;
+        if (stowing != null)
+            LetGo();
+        var taken = _belt.Take(slot);
+        if (stowing != null)
+            _belt.Stow(slot, stowing);
+        if (taken != null)
+        {
+            Hold(taken);
+            _heldTurn = Basis.Identity;
         }
     }
 
@@ -459,8 +504,9 @@ public partial class PlayerController : CharacterBody3D
         if (along.Length() > 0.001f && RayHit(neckGlobal, along + along.Normalized() * 0.1f) is Vector3 hit)
             wanted = ToLocal(neckGlobal + along.Normalized() * Mathf.Max(0f, neckGlobal.DistanceTo(hit) - 0.1f));
         _head.Position = wanted;
-        _head.Rotation = new Vector3(_pitch, 0f, -_lean * LeanRollRadians);
+        _head.Rotation = new Vector3(_pitch, _headYaw, -_lean * LeanRollRadians);
         _tpArm.Position = new Vector3(0f, eye, 0f);
+        _belt.Position = new Vector3(0f, eye - BeltBelowEyes, 0f);
 
         _zoom = Mathf.MoveToward(_zoom, looking && Input.IsMouseButtonPressed(MouseButton.Right) ? 1f : 0f, dt * 5f);
         _fpCamera.Fov = Mathf.Lerp(BaseFov, ZoomFov, Mathf.SmoothStep(0f, 1f, _zoom));
@@ -607,6 +653,20 @@ public partial class PlayerController : CharacterBody3D
         if (_focus.Active)
         {
             _interactPrompt.Text = "[E/Tab/Esc] çık   [Tık] tuş   [Teker] yakınlaş / düğme çevir   [Sağ tık sürükle] kaydır";
+            _interactPrompt.Visible = true;
+            return;
+        }
+        if (_belt.SlotOf(LookedAt(PickupRange)) is int slot && slot >= 0)
+        {
+            var inSlot = _belt.At(slot);
+            _interactPrompt.Text = (_heldPart, inSlot) switch
+            {
+                (HandTool held, null) => $"[F] Kemere tak: {held.DisplayName}",
+                (HandTool held, _) => $"[F] Değiştir: {held.DisplayName} ↔ {inSlot.DisplayName}",
+                (null, null) => $"Kemer cebi {slot + 1}: boş",
+                (null, _) => $"[F] Al: {inSlot.DisplayName}",
+                _ => "Kemere yalnız el aletleri takılır",
+            };
             _interactPrompt.Visible = true;
             return;
         }
