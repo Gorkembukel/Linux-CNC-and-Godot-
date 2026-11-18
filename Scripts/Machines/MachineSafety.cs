@@ -5,7 +5,7 @@ using CncTrainer.Player;
 
 namespace CncTrainer;
 
-public enum IncidentKind { PartThrown, Crash, KeyLeftIn, ToolBroken, Overload, Interlock }
+public enum IncidentKind { PartThrown, Crash, KeyLeftIn, ToolBroken, Overload, Interlock, UnsafeHands, NoGlasses }
 
 public readonly record struct Incident(IncidentKind Kind, string Text, double AtSeconds);
 
@@ -43,6 +43,16 @@ public sealed class MachineSafety
         _bridge.MachineOff();
         if (kind == IncidentKind.Crash)
             _bridge.Unhome();
+        PlayerController.Notify(_owner, text);
+        Tripped?.Invoke(incident);
+    }
+
+    /// <summary>Puts a safety slip on the record and tells the player,
+    /// without stopping the machine.</summary>
+    public void Record(IncidentKind kind, string text)
+    {
+        var incident = new Incident(kind, text, Time.GetTicksMsec() / 1000.0);
+        _incidents.Add(incident);
         PlayerController.Notify(_owner, text);
         Tripped?.Invoke(incident);
     }

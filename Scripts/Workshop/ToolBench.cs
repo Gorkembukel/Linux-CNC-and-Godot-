@@ -15,8 +15,8 @@ public partial class ToolBench : Node3D
     {
         BodyParts.Clear(this);
         var wood = BodyParts.Mat(new Color(0.5f, 0.36f, 0.2f), 0f, 0.85f);
-        BodyParts.SolidBox(this, "Top", new Vector3(1.6f, 0.05f, 0.6f), new Vector3(0f, TopY - 0.025f, 0f), wood);
-        foreach (float x in new[] { -0.72f, 0.72f })
+        BodyParts.SolidBox(this, "Top", new Vector3(2.4f, 0.05f, 0.6f), new Vector3(0f, TopY - 0.025f, 0f), wood);
+        foreach (float x in new[] { -1.12f, 1.12f })
             foreach (float z in new[] { -0.24f, 0.24f })
                 BodyParts.SolidBox(this, "Leg", new Vector3(0.06f, TopY - 0.05f, 0.06f), new Vector3(x, (TopY - 0.05f) / 2f, z), BodyParts.DarkSteel);
         AddChild(new Label3D
@@ -37,7 +37,9 @@ public partial class ToolBench : Node3D
             // Frozen until first picked up so nothing rolls off the bench.
             tool.Freeze = true;
             AddChild(tool);
-            tool.Position = new Vector3(-0.68f + 1.36f * i / (kinds.Length - 1), TopY + 0.06f, i % 2 == 0 ? -0.1f : 0.12f);
+            // Lengthwise front to back, side by side along the bench.
+            tool.Rotation = new Vector3(0f, Mathf.Pi / 2f, 0f);
+            tool.Position = new Vector3(-1.08f + 2.16f * i / (kinds.Length - 1), TopY + 0.06f, 0f);
         }
     }
 }

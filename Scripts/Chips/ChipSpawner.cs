@@ -51,6 +51,7 @@ public partial class ChipSpawner : Node3D
 
     public override void _Ready()
     {
+        AddToGroup("chip_spawners");
         _pool = new ChipInstance[MaxActiveChips];
         for (int i = 0; i < MaxActiveChips; i++)
         {
@@ -60,6 +61,37 @@ public partial class ChipSpawner : Node3D
             AddChild(mi);
             _pool[i] = new ChipInstance { Node = mi, Alive = false };
         }
+    }
+
+    /// <summary>Whether the machine these chips come from is turning: chips
+    /// are not taken by hand then. Set by the machine.</summary>
+    public System.Func<bool> SpindleTurning;
+    public MachineSafety Safety;
+
+    /// <summary>How many chips lie within radius (m) of a point (global).</summary>
+    public int CountNear(Vector3 point, float radius)
+    {
+        int count = 0;
+        foreach (var c in _pool)
+            if (c.Alive && c.Node.GlobalPosition.DistanceTo(point) <= radius)
+                count++;
+        return count;
+    }
+
+    /// <summary>Sweeps away the chips within radius (m) of a point (global); how many.</summary>
+    public int Rake(Vector3 point, float radius)
+    {
+        int count = 0;
+        for (int i = 0; i < _pool.Length; i++)
+        {
+            ref var c = ref _pool[i];
+            if (!c.Alive || c.Node.GlobalPosition.DistanceTo(point) > radius)
+                continue;
+            c.Alive = false;
+            c.Node.Visible = false;
+            count++;
+        }
+        return count;
     }
 
     /// <summary>Call every frame with the current chip formation (or null if not
@@ -83,7 +115,8 @@ public partial class ChipSpawner : Node3D
                 continue;
 
             c.Age += (float)delta;
-            if (c.Age > MaxLifetimeSeconds)
+            // Chips that have landed stay until swept up (or their slot is needed).
+            if (!c.AtRest && c.Age > MaxLifetimeSeconds)
             {
                 c.Alive = false;
                 c.Node.Visible = false;

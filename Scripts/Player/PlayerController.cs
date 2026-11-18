@@ -248,6 +248,11 @@ public partial class PlayerController : CharacterBody3D
         _sheetLabel.AnchorTop = _sheetLabel.AnchorBottom = 0.32f;
         _sheetLabel.OffsetLeft = -330f;
 
+        _glassesLabel = new Label { Text = "Koruyucu gözlük takılı   [G] çıkar", Visible = false };
+        _glassesLabel.AddThemeColorOverride("font_color", new Color(0.6f, 0.85f, 1f));
+        ui.AddChild(_glassesLabel);
+        _glassesLabel.Position = new Vector2(12f, 12f);
+
         _heldLabel = new Label();
         ui.AddChild(_heldLabel);
         _heldLabel.AnchorLeft = _heldLabel.AnchorRight = 0.5f;
@@ -345,6 +350,9 @@ public partial class PlayerController : CharacterBody3D
                     EnterConsole();
                     GetViewport().SetInputAsHandled();
                     break;
+                case Key.G when !keyEvent.Echo && _glasses != null && _heldPart == null:
+                    TakeOffGlasses();
+                    break;
                 case Key.F when Input.MouseMode == Input.MouseModeEnum.Captured:
                     TogglePickup();
                     break;
@@ -372,9 +380,13 @@ public partial class PlayerController : CharacterBody3D
         {
             if (Input.MouseMode == Input.MouseModeEnum.Captured)
             {
-                if (LookedAtInteractable() is IInteractable target)
+                if (HeldTool?.Kind == HandToolKind.ChipHook)
+                    RakeChips();
+                else if (LookedAtInteractable() is IInteractable target)
                     target.Use(this);
-                else
+                else if (HeldTool?.Kind == HandToolKind.SafetyGlasses)
+                    PutOnGlasses();
+                else if (_heldPart != null || !ReachForChips())
                     TryPressConsoleButton(); // crosshair raycast -- see that method's doc comment
             }
             else if (!_nearConsole && !_atStation && _operatorPanel is not { Visible: true })
@@ -440,6 +452,80 @@ public partial class PlayerController : CharacterBody3D
             (body as Carryable)?.OnPickedUp();
             Hold(body); // frozen while held -- carried by direct transform, not physics forces
         }
+    }
+
+    private HandTool _glasses;
+    private Label _glassesLabel;
+    private (uint Layer, uint Mask) _glassesLayers;
+
+    /// <summary>Safety glasses on.</summary>
+    public bool WearingGlasses => _glasses != null;
+
+    private void PutOnGlasses()
+    {
+        _glasses = (HandTool)LetGo();
+        _glassesLayers = (_glasses.CollisionLayer, _glasses.CollisionMask);
+        _glasses.CollisionLayer = _glasses.CollisionMask = 0;
+        _glasses.Visible = false;
+        _glassesLabel.Visible = true;
+    }
+
+    private void TakeOffGlasses()
+    {
+        var glasses = _glasses;
+        _glasses = null;
+        (glasses.CollisionLayer, glasses.CollisionMask) = _glassesLayers;
+        glasses.Visible = true;
+        _glassesLabel.Visible = false;
+        Hold(glasses);
+        _heldTurn = Basis.Identity;
+    }
+
+    private const float ChipReachM = 0.1f;
+
+    /// <summary>The chip hook sweeps up the chips around the crosshair.
+    /// With the spindle turning that goes on the record: stringy chips wrap
+    /// round the hook and pull it in.</summary>
+    private void RakeChips()
+    {
+        if (LookedAt(PickupRange) == null)
+            return;
+        int raked = 0;
+        foreach (var node in GetTree().GetNodesInGroup("chip_spawners"))
+            if (node is Chips.ChipSpawner spawner && spawner.CountNear(LookPoint, ChipReachM) > 0)
+            {
+                if (spawner.SpindleTurning?.Invoke() == true)
+                    spawner.Safety?.Record(IncidentKind.UnsafeHands, "Talaş kancası iş mili dönerken kullanıldı: önce iş milini durdur");
+                raked += spawner.Rake(LookPoint, ChipReachM);
+            }
+        if (raked > 0)
+            Notify(this, $"{raked} talaş toplandı");
+    }
+
+    private int ChipsNear(Vector3 point)
+    {
+        int count = 0;
+        foreach (var node in GetTree().GetNodesInGroup("chip_spawners"))
+            if (node is Chips.ChipSpawner spawner)
+                count += spawner.CountNear(point, ChipReachM);
+        return count;
+    }
+
+    /// <summary>An empty hand reaching for chips: true when there were any.</summary>
+    private bool ReachForChips()
+    {
+        if (LookedAt(PickupRange) == null)
+            return false;
+        foreach (var node in GetTree().GetNodesInGroup("chip_spawners"))
+            if (node is Chips.ChipSpawner spawner && spawner.CountNear(LookPoint, ChipReachM) > 0)
+            {
+                if (spawner.SpindleTurning?.Invoke() == true && spawner.Safety != null)
+                    spawner.Safety.Trip(IncidentKind.UnsafeHands, "ELLE TALAŞ: iş mili dönerken talaşa el uzatıldı. Makine durduruldu");
+                else
+                    Notify(this, "Talaş elle alınmaz: keskindir, eli keser. Talaş kancası kullan");
+                return true;
+            }
+        return false;
     }
 
     /// <summary>F on a holster: an empty hand takes its tool, a hand tool goes
@@ -646,6 +732,11 @@ public partial class PlayerController : CharacterBody3D
         if (HeldTool is { } gauge && Gauges.IsGauge(gauge.Kind) && IMeasurable.Find(LookedAt(PickupRange)) is IMeasurable measured)
             ToolStatus = measured.Reading(gauge.Kind, LookPoint) ?? $"{HandTool.NameOf(gauge.Kind)}: bu ölçü burada alınmaz";
         ToolStatus ??= _saw.Status;
+        if (ToolStatus == null && HeldTool?.Kind == HandToolKind.ChipHook)
+        {
+            int near = LookedAt(PickupRange) == null ? 0 : ChipsNear(LookPoint);
+            ToolStatus = near > 0 ? $"[Tık] talaşı topla ({near} talaş)" : "Talaş kancası: talaşın üstüne bak";
+        }
         _statusLabel.Text = ToolStatus ?? "";
         ToolStatus = null;
         ISetupSheet nearest = null;
@@ -703,7 +794,7 @@ public partial class PlayerController : CharacterBody3D
 
         if (_heldPart != null)
         {
-            _interactPrompt.Text = "[F] Bırak";
+            _interactPrompt.Text = HeldTool?.Kind == HandToolKind.SafetyGlasses ? "[Tık] Gözlüğü tak   [F] Bırak" : "[F] Bırak";
             _interactPrompt.Visible = true;
             return;
         }
