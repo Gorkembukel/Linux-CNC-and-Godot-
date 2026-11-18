@@ -89,6 +89,18 @@ Done, each verified through scripted operators on real LinuxCNC:
   bucket (`SweepBore`); mesh, finished parts, mass and caliper (bore vs
   outside) know it. Drill deeper than its flutes and a boring bar in a hole
   too small for it crash.
+- Lathe resolution and threads: a chucked bar's profile has a 0.1 mm step
+  (`LatheWorkholding.ProfileStepMm`; was 0.5, which aliased fine pitches
+  away: P1 came out 0.2 deep). A threading pass records its pitch per bucket;
+  `WorkpieceVisual` draws those rings as a helix (each vertex takes a whole
+  bucket's radius and is set back along the axis by the rest of the
+  advance). Meshes are built in `MeshBuffer` (managed, normals computed
+  there), 4 mm chunks, each built with one extra section per side for its
+  normals (no shading seam between chunks). One cut's rebuild ~3 ms (Debug).
+  A thread pass keeps its phase while it slows down and while the tool backs
+  out of the groove (that retract used to cut a slot through the crests and
+  raise "G0 into material"). Live: `TmpLathe` thread (G76 P2 K1.23 -> 1.224
+  deep); offline renders: `tmp_verify/TmpThread`.
 - Face cuts: a tool removes only the ring its outline sweeps per bucket
   (`CutSpan`): reaching the outside lowers it, reaching the bore / axis opens
   the bore. An OD tool plunged at the face centre opens only what its insert
