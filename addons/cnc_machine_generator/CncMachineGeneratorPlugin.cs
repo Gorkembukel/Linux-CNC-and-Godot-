@@ -47,7 +47,7 @@ public partial class CncMachineGeneratorPlugin : EditorPlugin
             LayoutKey = "cnc_machine_generator",
             DefaultSlot = EditorDock.DockSlot.RightBl,
         };
-        _dock.AddChild(BuildDock());
+        _dock.AddChild(Scrolled(BuildDock()));
         AddDock(_dock);
         _dock.MakeVisible();
         AddToolMenuItem(ToolMenuName, Callable.From(() => _dock.MakeVisible()));
@@ -55,11 +55,23 @@ public partial class CncMachineGeneratorPlugin : EditorPlugin
         LoadPreset(0);
 
         _toolDock = new EditorDock { Title = "Tool Designer", LayoutKey = "cnc_tool_designer", DefaultSlot = EditorDock.DockSlot.RightBl };
-        _toolDock.AddChild(new ToolDesigner { AddToMachine = AddToolToDraft });
+        _toolDock.AddChild(Scrolled(new ToolDesigner { AddToMachine = AddToolToDraft }));
         AddDock(_toolDock);
 
         _descriptions = new DescriptionInspectorPlugin();
         AddInspectorPlugin(_descriptions);
+    }
+
+    // A dock shares its tab container with the Inspector: an unscrolled tall
+    // dock raises the editor's minimum height past the window, and the other
+    // docks' scroll areas then run off-screen.
+    private static ScrollContainer Scrolled(Control content)
+    {
+        content.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        content.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
+        var scroll = new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled };
+        scroll.AddChild(content);
+        return scroll;
     }
 
     /// <summary>Puts a designed tool into the machine being designed, as the next tool number.</summary>
