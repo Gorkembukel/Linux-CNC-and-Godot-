@@ -48,6 +48,13 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
     /// lathe (an indexer's chuck has none).</summary>
     public ISawable Saw;
 
+    /// <summary>What the lathe does first with a click, a wheel notch or the
+    /// prompt (a dial indicator on the bar, a mallet tap); true / text when it
+    /// took it.</summary>
+    public System.Func<PlayerController, bool> UseWith;
+    public System.Func<int, bool> TurnWith;
+    public System.Func<PlayerController, string> PromptWith;
+
     public MaterialKind SawMaterial => Saw?.SawMaterial ?? MaterialKind.Steel;
 
     public SawCut? PlanCut(Vector3 globalPoint, float angleDeg, out string why)
@@ -178,6 +185,8 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
         if (!Grip.Insert(GripSizeMm(item, t), SquareTurn.Extents(t, item.Blank.BoundsM).X / WorldScale.MmToM))
             return false;
         Seat.Put(item, this, new Transform3D(t, Vector3.Zero));
+        if (item.Burred)
+            Grip.AddRunout(0.03f);
         Refresh();
         Changed?.Invoke();
         return true;
@@ -214,6 +223,8 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
 
     public string Prompt(PlayerController player)
     {
+        if (PromptWith?.Invoke(player) is string extra)
+            return extra;
         var tool = player.HeldTool?.Kind;
         var g = Grip;
         if (tool == HandToolKind.ChuckKey)
@@ -251,6 +262,8 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
 
     public void Use(PlayerController player)
     {
+        if (UseWith?.Invoke(player) == true)
+            return;
         if (player.HeldTool?.Kind == HandToolKind.ChuckKey)
         {
             player.ReleaseHeld().QueueFree();
@@ -301,7 +314,7 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
 
     public void Turn(PlayerController player, int steps)
     {
-        if (player.Held != null)
+        if (player.Held != null || TurnWith?.Invoke(steps) == true)
             return;
         if (Grip.KeyIn)
             TurnKey(steps);
