@@ -198,6 +198,19 @@ public sealed class LatheCutting : CuttingProcess
         return null;
     }
 
+    /// <summary>A hand saw has gone through the bar at this Z: the piece
+    /// beyond the kerf drops, the kerf goes with the chips.</summary>
+    public void SawThrough(float zMm, float kerfMm)
+    {
+        var profile = _workpiece.Profile;
+        int i = profile.IndexAt(zMm), kerf = Mathf.Max(1, Mathf.RoundToInt(kerfMm / profile.StepMm));
+        ExtractPart(profile, Mathf.Min(i + kerf, profile.BucketCount - 1));
+        profile.Sever(i);
+        _workpiece.MarkDirty(i, profile.BucketCount - 1);
+        HasCut = true;
+        Severed?.Invoke();
+    }
+
     private void ExtractPart(LatheRadiusProfile profile, int severedIndex)
     {
         var removedRadii = profile.Sever(severedIndex, out var removedInner);

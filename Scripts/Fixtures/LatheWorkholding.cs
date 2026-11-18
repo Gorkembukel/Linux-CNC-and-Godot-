@@ -18,7 +18,7 @@ namespace CncTrainer.Fixtures;
 /// player loads it, and every tool's tip sits a little off from where the
 /// control believes it is until a cut is measured and the tool touched off.
 /// </summary>
-public partial class LatheWorkholding : MachineSetup
+public partial class LatheWorkholding : MachineSetup, ISawable
 {
     private const float M = WorldScale.MmToM;
     private const float MaxSpinDegPerSec = 600f;
@@ -61,6 +61,7 @@ public partial class LatheWorkholding : MachineSetup
         Chuck.Changed = OnBarChanged;
         Chuck.TakeMachined = () => _cutting.HasCut || Chuck.Stock?.Turned != null ? MakePart() : null;
         Chuck.Measure = Measure;
+        Chuck.Saw = this;
     }
 
     private float LiveLengthMm() => (_workpiece.Profile.LiveRadii().Length - 1) * _workpiece.Profile.StepMm;
@@ -151,6 +152,42 @@ public partial class LatheWorkholding : MachineSetup
         return StockItem.SectionReading(gauge, new Vector2(local.Y, local.Z).Length(), profile.RadiusAt(index), profile.InnerAt(index), profile.SquareHalfMm)
             + System.FormattableString.Invariant($"   (uçtan {Mathf.Max(0f, fromTip):0} mm içeride)");
     }
+
+    public MaterialKind SawMaterial => _cutting.Material;
+
+    /// <summary>A saw cut across the bar outside the jaws, with the spindle stopped.</summary>
+    public SawCut? PlanCut(Vector3 globalPoint, out string why)
+    {
+        why = null;
+        var profile = _workpiece.Profile;
+        if (profile == null)
+            return null;
+        if (System.Math.Abs(Bridge.State.SpindleRpm) > 1.0)
+        {
+            why = "İş mili dönerken testere vurulmaz!";
+            return null;
+        }
+        float z = _workpiece.ToLocal(globalPoint).X / M;
+        if (z < _body.JawFrontZMm + 3f)
+        {
+            why = "Çenelerin içi kesilmez";
+            return null;
+        }
+        if (z > profile.ZMin + LiveLengthMm() - 2f)
+        {
+            why = "Uca çok yakın";
+            return null;
+        }
+        int i = profile.IndexAt(z);
+        float r = profile.RadiusAt(i), inner = profile.InnerAt(i);
+        float across = 2f * LatheSection.Reach(r, profile.SquareHalfMm) * M;
+        var axis = _workpiece.GlobalBasis.Orthonormalized().X;
+        var down = (Vector3.Down - axis * axis.Dot(Vector3.Down)).Normalized();
+        return new SawCut(_workpiece.ToGlobal(new Vector3(z * M, 0f, 0f)), axis, down, across, across,
+            LatheSection.Area(r, profile.SquareHalfMm) - Mathf.Pi * inner * inner, z);
+    }
+
+    public void FinishCut(SawCut cut) => _cutting.SawThrough(cut.AtMm, BenchVise.KerfMm);
 
     /// <summary>True diameter of the bar at a machine Z (mm).</summary>
     public float DiameterAt(float machineZ) =>

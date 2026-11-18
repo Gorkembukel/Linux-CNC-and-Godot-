@@ -113,6 +113,45 @@ public partial class StockItem : Carryable, IMeasurable
         return item;
     }
 
+    /// <summary>Its section across the length at local x (mm from the
+    /// centre): width (local Z), height (local Y) and solid area. Null for
+    /// milled stock, whose shape is a voxel field.</summary>
+    public (float WidthMm, float HeightMm, float AreaMm2)? SectionAt(float xMm)
+    {
+        if (GetChildren().OfType<VoxelStockVisual>().Any())
+            return null;
+        if (Turned is { } t)
+        {
+            int i = Mathf.Clamp(Mathf.RoundToInt((xMm + Blank.LengthMm / 2f) / t.StepMm), 0, t.RadiiMm.Length - 1);
+            float across = 2f * LatheSection.Reach(t.RadiiMm[i], t.SquareHalfMm);
+            return (across, across, LatheSection.Area(t.RadiiMm[i], t.SquareHalfMm) - Mathf.Pi * t.InnerMm[i] * t.InnerMm[i]);
+        }
+        var size = Blank.BoundsM / WorldScale.MmToM;
+        return (size.Z, size.Y, Blank.Shape == StockShape.Block ? size.Y * size.Z : Mathf.Pi * size.Y * size.Y / 4f);
+    }
+
+    /// <summary>The two pieces a straight cut at local x (mm from the
+    /// centre) leaves with kerfMm of material gone between them: the -X one
+    /// (Near) and the +X one (Far), each centred on its own length, at
+    /// NearAtMm / FarAtMm along this one's X. A piece too short to be one
+    /// is null (it goes with the chips). Milled stock is not split here.</summary>
+    public (StockItem Near, float NearAtMm, StockItem Far, float FarAtMm) SplitAt(float xMm, float kerfMm)
+    {
+        float length = Blank.LengthMm;
+        if (Turned is { } t)
+        {
+            int last = t.RadiiMm.Length - 1;
+            int i0 = Mathf.Clamp(Mathf.RoundToInt((xMm - kerfMm / 2f + length / 2f) / t.StepMm), 0, last);
+            int i1 = Mathf.Clamp(Mathf.RoundToInt((xMm + kerfMm / 2f + length / 2f) / t.StepMm), 0, last);
+            var near = i0 >= 1 ? CreateTurned(t.RadiiMm[..(i0 + 1)], t.InnerMm[..(i0 + 1)], t.StepMm, Blank.Material, t.SquareHalfMm) : null;
+            var far = last - i1 >= 1 ? CreateTurned(t.RadiiMm[i1..], t.InnerMm[i1..], t.StepMm, Blank.Material, t.SquareHalfMm) : null;
+            return (near, -length / 2f + i0 * t.StepMm / 2f, far, -length / 2f + (i1 + last) * t.StepMm / 2f);
+        }
+        float nearLength = xMm + length / 2f - kerfMm / 2f, farLength = length / 2f - xMm - kerfMm / 2f;
+        StockItem Piece(float l) => l < 1f ? null : Create(Blank with { SizeMm = Blank.SizeMm with { X = l } });
+        return (Piece(nearLength), -length / 2f + nearLength / 2f, Piece(farLength), length / 2f - farLength / 2f);
+    }
+
     /// <summary>Turns a turned part end for end in its own data, so its -X
     /// end is the other one (a chuck takes the -X end).</summary>
     public void ReverseTurned()

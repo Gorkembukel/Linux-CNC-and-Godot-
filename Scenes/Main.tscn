@@ -20,6 +20,7 @@
 [ext_resource type="Script" uid="uid://do382wrytnimu" path="res://Scripts/Machines/Spec/MachineSpec.cs" id="18_jyqft"]
 [ext_resource type="Script" uid="uid://bdnxa6db6md8i" path="res://Scripts/Machines/Spec/ToolGeometry.cs" id="19_0sclb"]
 [ext_resource type="PackedScene" path="res://Scenes/Machines/ThreadLathe.tscn" id="20_thrd"]
+[ext_resource type="PackedScene" path="res://Scenes/Workshop/SawBench.tscn" id="21_saw"]
 
 [sub_resource type="Resource" id="Resource_kae0g"]
 script = ExtResource("15_sxkr1")
@@ -259,3 +260,6 @@ Machine = NodePath("../BenchLatheBoring")
 
 [node name="ThreadLathe" parent="." unique_id=1592648213 instance=ExtResource("20_thrd")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.5, -1.1, -4.5)
+
+[node name="SawBench" parent="." unique_id=1720385541 instance=ExtResource("21_saw")]
+transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, -0.3, -1.1, 5.6)

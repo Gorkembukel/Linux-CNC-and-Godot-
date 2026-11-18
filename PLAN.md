@@ -48,6 +48,19 @@ Done, each verified through scripted operators on real LinuxCNC:
   tools are in `Fastener.InteractionLayer`. Looking down past -0.9 rad the
   mouse turns only the head (up to 1.2 rad); looking up again the body takes
   over that turn. Harness: `tmp_verify/TmpBelt`.
+- Hacksaw (`HandToolKind.Hacksaw`, `SawAction` on the player): with the saw
+  in hand the crosshair on an `ISawable` shows the cut plane; a click marks
+  it, then mouse forward/back strokes the saw (only forward strokes cut;
+  above 0.45 m/s they cut 30 % and warn); T finishes, right click / Esc
+  gives up; feet and view stay put meanwhile. Rates: steel 500, brass 1000,
+  aluminium 1500 mm² per metre of stroke (Ø30 steel ≈ 11 full strokes).
+  1 mm kerf. Targets: `BenchVise` on the `SawBench` (next to the stock
+  station; clamp / take with a click; cuts outside the jaws only; the
+  right-hand piece drops) splitting raw and turned stock
+  (`StockItem.SplitAt`); a bar in the lathe chuck (`JawChuck.Saw` ->
+  `LatheWorkholding`, spindle stopped, outside the jaws,
+  `LatheCutting.SawThrough`). Milled (voxel) stock and angled cuts: next.
+  Harnesses: `TmpSaw` (vise), `TmpLathe` saw (live).
 - Console immersion pass: BLOCK SKIP, OPT STOP, rapid override (new bridge
   commands 20-23, also COOLANT_FLOOD so coolant works mid-program), PRG
   RESTART (run from the PROG cursor line), WORK LIGHT, held jog key stays
