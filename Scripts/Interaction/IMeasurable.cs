@@ -23,7 +23,15 @@ public interface IMeasurable
 public static class Gauges
 {
     public static bool IsGauge(HandToolKind kind) =>
-        kind is HandToolKind.Caliper or HandToolKind.Micrometer or HandToolKind.DepthGauge;
+        kind is HandToolKind.Caliper or HandToolKind.Micrometer or HandToolKind.DepthGauge or HandToolKind.PitchGauge;
+
+    /// <summary>The pitch gauge's leaves held against a turned outside.</summary>
+    public static string Pitch(ThreadSite? site)
+    {
+        if (site is not { } s || Material.ThreadCheck.Measure(s.RadiiMm, s.StepMm, s.Index) is not { } form)
+            return "Diş tarağı: burada diş yok";
+        return System.FormattableString.Invariant($"Diş tarağı: adım {form.PitchMm:0.00} mm (dış Ø{form.MajorMm:0.0})");
+    }
 
     /// <summary>A caliper reads to 0.02 mm, a micrometer to 0.001 mm; a
     /// depth gauge does not measure diameters.</summary>

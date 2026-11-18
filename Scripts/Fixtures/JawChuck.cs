@@ -17,7 +17,7 @@ namespace CncTrainer.Fixtures;
 /// at the front face of the jaws on the centreline.
 /// </summary>
 [Tool]
-public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMeasurable, ISawable
+public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMeasurable, ISawable, IThreaded
 {
     private const float M = WorldScale.MmToM;
     private const float JawHeight = 0.022f;
@@ -64,6 +64,15 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
     }
 
     public void FinishCut(SawCut cut) => Saw?.FinishCut(cut);
+
+    /// <summary>Who answers for the bar's thread; set by the lathe.</summary>
+    public IThreaded Threads;
+
+    public ThreadSite? ThreadAt(Vector3 globalPoint, out string why)
+    {
+        why = null;
+        return Grip.HasBar ? Threads?.ThreadAt(globalPoint, out why) : null;
+    }
 
     private Node3D _rotor, _key;
     private readonly List<MeshInstance3D> _jaws = new();

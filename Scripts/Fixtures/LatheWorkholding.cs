@@ -19,7 +19,7 @@ namespace CncTrainer.Fixtures;
 /// player loads it, and every tool's tip sits a little off from where the
 /// control believes it is until a cut is measured and the tool touched off.
 /// </summary>
-public partial class LatheWorkholding : MachineSetup, ISawable
+public partial class LatheWorkholding : MachineSetup, ISawable, IThreaded
 {
     private const float M = WorldScale.MmToM;
     private const float MaxSpinDegPerSec = 600f;
@@ -63,6 +63,7 @@ public partial class LatheWorkholding : MachineSetup, ISawable
         Chuck.TakeMachined = () => _cutting.HasCut || Chuck.Stock?.Turned != null ? MakePart() : null;
         Chuck.Measure = Measure;
         Chuck.Saw = this;
+        Chuck.Threads = this;
         Chuck.UseWith = UseOnChuck;
         Chuck.TurnWith = TurnByHand;
         Chuck.PromptWith = IndicatorPrompt;
@@ -144,6 +145,8 @@ public partial class LatheWorkholding : MachineSetup, ISawable
 
     private string Measure(HandToolKind gauge, Vector3 globalPoint)
     {
+        if (gauge == HandToolKind.PitchGauge)
+            return System.Math.Abs(Bridge.State.SpindleRpm) > 1.0 ? "İş mili dönerken ölçülmez" : Gauges.Pitch(ThreadAt(globalPoint, out _));
         if (Gauges.Diameter(gauge, 0f) == null)
             return null;
         if (System.Math.Abs(Bridge.State.SpindleRpm) > 1.0)
@@ -194,6 +197,24 @@ public partial class LatheWorkholding : MachineSetup, ISawable
         var down = (Vector3.Down - axis * axis.Dot(Vector3.Down)).Normalized();
         return new SawCut(_workpiece.ToGlobal(new Vector3(z * M, 0f, 0f)), axis, down, across, across,
             LatheSection.Area(r, profile.SquareHalfMm) - Mathf.Pi * inner * inner, z);
+    }
+
+    /// <summary>The bar's thread for a gauge: the spindle stopped, the ring goes on from the tip.</summary>
+    public ThreadSite? ThreadAt(Vector3 globalPoint, out string why)
+    {
+        why = null;
+        var profile = _workpiece.Profile;
+        if (profile == null)
+            return null;
+        if (System.Math.Abs(Bridge.State.SpindleRpm) > 1.0)
+        {
+            why = "İş mili dönerken mastar takılmaz";
+            return null;
+        }
+        var radii = profile.LiveRadii();
+        int index = Mathf.Clamp(profile.IndexAt(_workpiece.ToLocal(globalPoint).X / M), 0, radii.Length - 1);
+        return new ThreadSite(radii, profile.StepMm, index, _workpiece.ToGlobal(new Vector3(profile.ZMin * M, 0f, 0f)),
+            _workpiece.GlobalBasis.Orthonormalized().X, radii.Length - 1);
     }
 
     public void FinishCut(SawCut cut) => _cutting.SawThrough(cut.AtMm, BenchVise.KerfMm);

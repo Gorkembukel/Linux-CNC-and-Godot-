@@ -69,6 +69,23 @@ Done, each verified through scripted operators on real LinuxCNC:
   their pieces are block items drawn by their voxels (`StockItem.FromVoxels`).
   Harnesses: `TmpSaw` (vise; CNC_SAW=angle), `TmpLathe` saw, `TmpFix` saw
   (live).
+- Workshop hand tools (all on the 2.4 m tool bench, front to back): safety
+  glasses (click to wear, G off; cutting within 3.5 m without them is a
+  `NoGlasses` record, `MachineSafety.Record`, machine keeps running); chip
+  hook (rakes chips under the crosshair; landed chips stay until raked or
+  recycled; a bare hand on chips warns, or trips a turning machine,
+  `UnsafeHands`); burrs (`StockItem.Burred`: sawn and parted-off pieces;
+  file / deburring blade with the left button held and mouse strokes; a
+  burred part fixtured warns and adds chuck runout); dial indicator on the
+  lathe bar (`ChuckGrip` runout: random 0.03-0.12 mm TIR + tilt; click puts
+  it on, the wheel turns the chuck by hand, needle / min / max under the
+  crosshair; a mallet tap on the high side of a 2/3-tight chuck brings it
+  in; spindle start with it on trips the machine); pitch gauge (reading) and
+  the M20x2 ring gauge (`ThreadGaugeAction`, `ThreadCheck` / `ThreadSpec`
+  6g: GO must run the thread, NO-GO stop within 1.5 turns). With the
+  library 60 deg insert (0.1 nose) a nominal-depth P2 thread is fat: the
+  demo `lathe_dis.ngc` turns Ø19.85 and cuts K1.49. The crosshair looks past
+  the belt except for F. Harnesses: `TmpTools`, `TmpLathe` runout / m20.
 - Console immersion pass: BLOCK SKIP, OPT STOP, rapid override (new bridge
   commands 20-23, also COOLANT_FLOOD so coolant works mid-program), PRG
   RESTART (run from the PROG cursor line), WORK LIGHT, held jog key stays

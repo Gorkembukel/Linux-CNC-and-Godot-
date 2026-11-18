@@ -93,6 +93,7 @@ public partial class PlayerController : CharacterBody3D
     private ToolBelt _belt;
     private SawAction _saw;
     private FileAction _file;
+    private ThreadGaugeAction _ring;
     private RigidBody3D _heldPart;
     private StockStation _station;
     private bool _atStation;
@@ -193,6 +194,8 @@ public partial class PlayerController : CharacterBody3D
         AddChild(_saw);
         _file = new FileAction { Name = "FileAction", Player = this };
         AddChild(_file);
+        _ring = new ThreadGaugeAction { Name = "ThreadGaugeAction", Player = this };
+        AddChild(_ring);
 
         _head = new Node3D { Position = new Vector3(0f, EyeHeight, 0f), Name = "Head" };
         AddChild(_head);
@@ -280,7 +283,7 @@ public partial class PlayerController : CharacterBody3D
     {
         if (_focus.Active)
             return;
-        if (Input.MouseMode == Input.MouseModeEnum.Captured && (_saw.HandleInput(@event) || _file.HandleInput(@event)))
+        if (Input.MouseMode == Input.MouseModeEnum.Captured && (_saw.HandleInput(@event) || _file.HandleInput(@event) || _ring.HandleInput(@event)))
         {
             GetViewport().SetInputAsHandled();
             return;
@@ -685,6 +688,7 @@ public partial class PlayerController : CharacterBody3D
         UpdateStationProximity();
         _saw.Tick(LookedAt(PickupRange), LookPoint, delta);
         _file.Tick(LookedAt(PickupRange));
+        _ring.Tick(LookedAt(PickupRange), LookPoint);
         UpdateCarriedPart();
         UpdatePickupPrompt();
     }
@@ -728,7 +732,7 @@ public partial class PlayerController : CharacterBody3D
     private void UpdateCarriedPart()
     {
         if (_heldPart != null)
-            _heldPart.GlobalTransform = _saw.HeldTransform ?? new Transform3D(GlobalBasis.Orthonormalized() * _heldTurn, _carryPoint.GlobalPosition);
+            _heldPart.GlobalTransform = _saw.HeldTransform ?? _ring.HeldTransform ?? new Transform3D(GlobalBasis.Orthonormalized() * _heldTurn, _carryPoint.GlobalPosition);
     }
 
     /// <summary>Console prompt takes priority (it's the proven, primary
@@ -741,6 +745,7 @@ public partial class PlayerController : CharacterBody3D
             ToolStatus = measured.Reading(gauge.Kind, LookPoint) ?? $"{HandTool.NameOf(gauge.Kind)}: bu ölçü burada alınmaz";
         ToolStatus ??= _saw.Status;
         ToolStatus ??= _file.Status;
+        ToolStatus ??= _ring.Status;
         if (ToolStatus == null && HeldTool?.Kind == HandToolKind.ChipHook)
         {
             int near = LookedAt(PickupRange) == null ? 0 : ChipsNear(LookPoint);

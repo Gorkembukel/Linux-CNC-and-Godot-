@@ -11,7 +11,7 @@ namespace CncTrainer.Workshop;
 /// part already turned (Turned) or milled (a VoxelStockVisual child), ready
 /// to go into any fixture again. Local frame: X along the length, Y up,
 /// origin at the centre.</summary>
-public partial class StockItem : Carryable, IMeasurable
+public partial class StockItem : Carryable, IMeasurable, IThreaded
 {
     public StockBlank Blank { get; private set; }
 
@@ -49,6 +49,8 @@ public partial class StockItem : Carryable, IMeasurable
     /// untouched stock simply has its nominal size.</summary>
     public string Reading(HandToolKind gauge, Vector3 globalPoint)
     {
+        if (gauge == HandToolKind.PitchGauge)
+            return Gauges.Pitch(ThreadAt(globalPoint, out _));
         if (GetChildren().OfType<VoxelStockVisual>().FirstOrDefault() is VoxelStockVisual machined)
             return machined.Reading(gauge, globalPoint);
         if (Turned is { } t)
@@ -58,6 +60,20 @@ public partial class StockItem : Carryable, IMeasurable
             return SectionReading(gauge, new Vector2(local.Y, local.Z).Length(), t.RadiiMm[index], t.InnerMm[index], t.SquareHalfMm);
         }
         return gauge == HandToolKind.Caliper ? "Kumpas: " + Blank.Describe() : null;
+    }
+
+    public ThreadSite? ThreadAt(Vector3 globalPoint, out string why)
+    {
+        why = null;
+        if (Turned is not { } t)
+        {
+            why = "Tornalanmış bir parça değil";
+            return null;
+        }
+        float x = ToLocal(globalPoint).X / WorldScale.MmToM, half = Blank.LengthMm / 2f;
+        int index = Mathf.Clamp(Mathf.RoundToInt((x + half) / t.StepMm), 0, t.RadiiMm.Length - 1);
+        return new ThreadSite(t.RadiiMm, t.StepMm, index, ToGlobal(new Vector3(-half * WorldScale.MmToM, 0f, 0f)),
+            GlobalBasis.Orthonormalized().X, x > 0f ? t.RadiiMm.Length - 1 : 0);
     }
 
     /// <summary>Like BoreOrOutside, for a section that may still have the
