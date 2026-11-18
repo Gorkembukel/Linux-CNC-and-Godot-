@@ -54,7 +54,10 @@ Done, each verified through scripted operators on real LinuxCNC:
   above 0.45 m/s they cut 30 % and warn); T finishes, right click / Esc
   gives up; feet and view stay put meanwhile. Rates: steel 500, brass 1000,
   aluminium 1500 mm² per metre of stroke (Ø30 steel ≈ 11 full strokes).
-  1 mm kerf. Targets: `BenchVise` on the `SawBench` (next to the stock
+  1 mm kerf. Loose stock is sawn where it lies (held still while sawing;
+  both pieces drop) unless `cnc_trainer/workshop/saw_requires_clamping` is
+  on (`StockItem.PlanCut`; a held piece defers to its holder). Targets:
+  `BenchVise` on the `SawBench` (next to the stock
   station; clamp / take with a click; cuts outside the jaws only; the
   right-hand piece drops) splitting raw and turned stock
   (`StockItem.SplitAt`); a bar in the lathe chuck (`JawChuck.Saw` ->
@@ -202,6 +205,14 @@ door on enclosed machines.
 8. Console bug: FEED HOLD in MDI mode cannot be resumed. `CycleStart` only
    resumes a paused interpreter in AUTO; in MDI it re-sends the typed blocks
    (nothing, if none are pending). It should resume when paused, as in AUTO.
+9. **Idea: a Godot-side config mechanism** for rules that are a choice, not
+   physics. Today one setting exists: `cnc_trainer/workshop/saw_requires_clamping`
+   in Project Settings (`WorkshopSettings`, default off). Candidates to move
+   there: door interlock default, safety records (glasses / chip hand),
+   shortened tool life, chip size multiplier, belt slot count, wear factors.
+   Open questions: Project Settings vs a `GameSettings` resource vs
+   `user://settings.cfg`; an in-game settings / instructor panel; per-machine
+   overrides (MachineSpec already holds per-machine choices).
 
 ## Design decisions that are easy to undo by accident
 

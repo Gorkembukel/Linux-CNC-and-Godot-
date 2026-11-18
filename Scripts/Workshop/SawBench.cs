@@ -103,29 +103,12 @@ public partial class BenchVise : StaticBody3D, IInteractable, ISawable
             why = "Mengenede parça yok";
             return null;
         }
-        float x = stock.ToLocal(globalPoint).X / M, half = stock.Blank.LengthMm / 2f;
-        float jawEnd = -half + JawWidthM / M;
-        SawCut? plan;
-        if (angleDeg == 0f && stock.Machined == null && stock.SectionAt(x) is { } section)
-        {
-            var basis = stock.GlobalBasis.Orthonormalized();
-            plan = new SawCut(stock.ToGlobal(new Vector3(x * M, 0f, 0f)), basis.X, -basis.Y, section.WidthMm * M, section.HeightMm * M, section.AreaMm2, x);
-        }
-        else
-            plan = VoxelSaw.Plan(stock.Voxels(), stock.GlobalTransform * stock.VoxelFrame, globalPoint,
-                VoxelSaw.Normal(stock.GlobalBasis.Orthonormalized().X, angleDeg), angleDeg, x);
-        if (plan is not { } cut)
+        if (stock.PlanOwnCut(globalPoint, angleDeg, out why) is not { } cut)
             return null;
-        // How far along the stock an angled cut reaches either side of where it is aimed.
-        float reach = cut.WidthM / M / 2f * Mathf.Abs(Mathf.Sin(Mathf.DegToRad(angleDeg)));
-        if (x - reach < jawEnd + 3f)
+        float jawEnd = -stock.Blank.LengthMm / 2f + JawWidthM / M;
+        if (cut.AtMm - StockItem.AngledReachMm(cut) < jawEnd + 3f)
         {
             why = "Çenelerin içi kesilmez: mengenenin dışından kes";
-            return null;
-        }
-        if (x + reach > half - 2f)
-        {
-            why = "Uca çok yakın";
             return null;
         }
         return cut;
