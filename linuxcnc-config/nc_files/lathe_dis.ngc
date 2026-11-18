@@ -1,7 +1,7 @@
 %
 ( TORNA - M20 x 2 DIS )
 ( Makine: SlantBedLathe sablonu - T1 CNMG kaba, T4 60 derece dis kalemi. Kutuk cap 65, Z0 = alin. )
-( X = YARICAP - G8. Once cap 20 ye inilir, sonra G76 ile 30 mm boyunca dis acilir. )
+( X = YARICAP - G8. Once alin alinir, cap 20 ye inilir, sonra G76 ile 30 mm boyunca dis acilir. )
 
 G21 G8 G18 G90 G54
 
@@ -9,7 +9,15 @@ T1 M6
 G43 H1
 S800 M3
 M8
-G0 X34 Z2
+( --- alin: kutuk Z+5 e kadar uzanir, iki pasoda Z0 a --- )
+G0 X34 Z2.5
+G1 X-0.8 F150
+G0 Z4
+G0 X34
+G0 Z0
+G1 X-0.8 F120
+G0 Z2
+G0 X34
 #1 = 30
 o100 while [#1 GT 10.5]
   G0 X#1

@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="ToolSpec" format=3 uid="uid://bckgh7sfc6h3r"]
+
+[ext_resource type="Script" uid="uid://bdnxa6db6md8i" path="res://Scripts/Machines/Spec/ToolGeometry.cs" id="1_x58lf"]
+[ext_resource type="Script" uid="uid://cm82lwoqeh5ky" path="res://Scripts/Machines/Spec/ToolSpec.cs" id="2_870k2"]
+
+[sub_resource type="Resource" id="Resource_gctiq"]
+script = ExtResource("1_x58lf")
+Insert = 2
+EdgeLengthMm = 16.6
+NoseRadiusMm = 0.4
+ApproachDeg = 107.5
+InsertColor = Color(0.25, 0.45, 0.8, 1)
+
+[resource]
+script = ExtResource("2_870k2")
+Kind = 4
+Description = "VBMT 160404, 107.5° fine profiling"
+DiameterMm = 0.0
+TipRadiusMm = 0.4
+Color = Color(0.25, 0.45, 0.8, 1)
+Geometry = SubResource("Resource_gctiq")
