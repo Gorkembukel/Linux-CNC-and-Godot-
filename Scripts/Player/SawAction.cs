@@ -26,7 +26,8 @@ public partial class SawAction : Node3D
     private SawCut? _planned;
     private SawCut _cut;
     private bool _locked;
-    private float _removedMm2, _stroke, _speed;
+    private float _removedMm2, _stroke, _speed, _angleDeg;
+    private const float AngleStepDeg = 5f, MaxAngleDeg = 60f;
     private double _warned;
     private MeshInstance3D _preview, _kerf;
 
@@ -101,15 +102,15 @@ public partial class SawAction : Node3D
 
         _target = ISawable.Find(lookedAt);
         string why = null;
-        _planned = _target?.PlanCut(lookPoint, out why);
+        _planned = _target?.PlanCut(lookPoint, _angleDeg, out why);
         _preview.Visible = _planned != null;
         if (_planned is { } plan)
         {
             _preview.GlobalTransform = Slab(plan, plan.DepthM * 1.1f, plan.WidthM * 1.1f, 0.0015f);
-            Status = System.FormattableString.Invariant($"[Sol tık] kesim yerini işaretle   (kesit {plan.AreaMm2:0} mm²)");
+            Status = System.FormattableString.Invariant($"[Sol tık] kesim yerini işaretle   [Teker] açı: {_angleDeg:0}°   (kesit {plan.AreaMm2:0} mm²)");
         }
         else if (why != null)
-            Status = why;
+            Status = System.FormattableString.Invariant($"{why}   [Teker] açı: {_angleDeg:0}°");
     }
 
     private const float BenchKerfM = 0.001f;
@@ -121,6 +122,11 @@ public partial class SawAction : Node3D
             return false;
         if (!_locked)
         {
+            if (@event is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.WheelUp or MouseButton.WheelDown } wheel && _target != null)
+            {
+                _angleDeg = Mathf.Clamp(_angleDeg + (wheel.ButtonIndex == MouseButton.WheelUp ? AngleStepDeg : -AngleStepDeg), -MaxAngleDeg, MaxAngleDeg);
+                return true;
+            }
             if (@event is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left } && _planned is { } plan)
             {
                 _cut = plan;

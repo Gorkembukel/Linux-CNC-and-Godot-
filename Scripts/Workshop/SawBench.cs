@@ -94,7 +94,7 @@ public partial class BenchVise : StaticBody3D, IInteractable, ISawable
 
     public MaterialKind SawMaterial => Seat.Stock?.Blank.Material ?? MaterialKind.Steel;
 
-    public SawCut? PlanCut(Vector3 globalPoint, out string why)
+    public SawCut? PlanCut(Vector3 globalPoint, float angleDeg, out string why)
     {
         var stock = Seat.Stock;
         why = null;
@@ -105,23 +105,30 @@ public partial class BenchVise : StaticBody3D, IInteractable, ISawable
         }
         float x = stock.ToLocal(globalPoint).X / M, half = stock.Blank.LengthMm / 2f;
         float jawEnd = -half + JawWidthM / M;
-        if (x < jawEnd + 3f)
+        SawCut? plan;
+        if (angleDeg == 0f && stock.Machined == null && stock.SectionAt(x) is { } section)
+        {
+            var basis = stock.GlobalBasis.Orthonormalized();
+            plan = new SawCut(stock.ToGlobal(new Vector3(x * M, 0f, 0f)), basis.X, -basis.Y, section.WidthMm * M, section.HeightMm * M, section.AreaMm2, x);
+        }
+        else
+            plan = VoxelSaw.Plan(stock.Voxels(), stock.GlobalTransform * stock.VoxelFrame, globalPoint,
+                VoxelSaw.Normal(stock.GlobalBasis.Orthonormalized().X, angleDeg), angleDeg, x);
+        if (plan is not { } cut)
+            return null;
+        // How far along the stock an angled cut reaches either side of where it is aimed.
+        float reach = cut.WidthM / M / 2f * Mathf.Abs(Mathf.Sin(Mathf.DegToRad(angleDeg)));
+        if (x - reach < jawEnd + 3f)
         {
             why = "Çenelerin içi kesilmez: mengenenin dışından kes";
             return null;
         }
-        if (x > half - 2f)
+        if (x + reach > half - 2f)
         {
             why = "Uca çok yakın";
             return null;
         }
-        if (stock.SectionAt(x) is not { } section)
-        {
-            why = "Frezelenmiş parça henüz testereyle kesilemiyor";
-            return null;
-        }
-        var basis = stock.GlobalBasis.Orthonormalized();
-        return new SawCut(stock.ToGlobal(new Vector3(x * M, 0f, 0f)), basis.X, -basis.Y, section.WidthMm * M, section.HeightMm * M, section.AreaMm2, x);
+        return cut;
     }
 
     public void FinishCut(SawCut cut)
@@ -129,19 +136,33 @@ public partial class BenchVise : StaticBody3D, IInteractable, ISawable
         var stock = Seat.Stock;
         if (stock == null)
             return;
-        var whole = stock.GlobalTransform;
-        var (near, _, far, farAt) = stock.SplitAt(cut.AtMm, KerfMm);
-        Seat.Discard();
         var scene = GetTree().CurrentScene;
-        if (near != null)
+        if (cut.AngleDeg == 0f && stock.Machined == null)
         {
-            scene.AddChild(near);
-            Seat.Put(near, this, SeatFor(near));
+            var whole = stock.GlobalTransform;
+            var (near, _, far, farAt) = stock.SplitAt(cut.AtMm, KerfMm);
+            Seat.Discard();
+            if (near != null)
+            {
+                scene.AddChild(near);
+                Seat.Put(near, this, SeatFor(near));
+            }
+            if (far != null)
+            {
+                scene.AddChild(far);
+                far.GlobalTransform = whole * new Transform3D(Basis.Identity, new Vector3(farAt * M, 0f, 0f));
+            }
+            return;
         }
-        if (far != null)
-        {
-            scene.AddChild(far);
-            far.GlobalTransform = whole * new Transform3D(Basis.Identity, new Vector3(farAt * M, 0f, 0f));
-        }
+
+        var voxels = stock.Voxels().Copy();
+        var voxelGlobal = stock.GlobalTransform * stock.VoxelFrame;
+        var inJaws = stock.ToGlobal(new Vector3((-stock.Blank.LengthMm / 2f) * M + JawWidthM / 2f, 0f, 0f));
+        var (dropped, _) = VoxelSaw.Split(voxels, voxelGlobal, cut, inJaws);
+        var material = stock.Blank.Material;
+        Seat.Discard();
+        if (VoxelSaw.Spawn(voxels, voxelGlobal, material, scene) is StockItem kept)
+            Seat.Put(kept, this, GlobalTransform.AffineInverse() * kept.GlobalTransform);
+        VoxelSaw.Spawn(dropped, voxelGlobal, material, scene);
     }
 }

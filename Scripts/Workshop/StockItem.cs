@@ -113,6 +113,57 @@ public partial class StockItem : Carryable, IMeasurable
         return item;
     }
 
+    /// <summary>The machined shape, when it has been milled.</summary>
+    public VoxelStockVisual Machined => GetChildren().OfType<VoxelStockVisual>().FirstOrDefault();
+
+    /// <summary>Where the voxel grid's frame sits in this item's frame (m):
+    /// the grid's y = 0 is the stock's top.</summary>
+    public Transform3D VoxelFrame => Machined?.Transform ?? new Transform3D(Basis.Identity, new Vector3(0f, Blank.BoundsM.Y / 2f, 0f));
+
+    private VoxelStock _voxels;
+
+    /// <summary>The shape as voxels (see VoxelFrame): the milled shape, or
+    /// the raw / turned one converted once.</summary>
+    public VoxelStock Voxels()
+    {
+        if (Machined is VoxelStockVisual machined)
+            return machined.Stock;
+        if (_voxels != null)
+            return _voxels;
+        var size = Blank.BoundsM / WorldScale.MmToM;
+        float step = VoxelStock.StepFor(size, 0.5f, 1_500_000);
+        _voxels = Turned is { } t ? VoxelStock.Revolved(t.RadiiMm, t.InnerMm, t.StepMm, step, t.SquareHalfMm)
+            : Blank.Shape == StockShape.Block ? VoxelStock.Block(size.X, size.Y, size.Z, step)
+            : VoxelStock.CylinderAlongX(size.X, size.Y, step);
+        return _voxels;
+    }
+
+    /// <summary>A piece made of voxels (cut off milled stock, or cut at an
+    /// angle): a block item as big as its material, drawn by the voxels.
+    /// centreMm: where its frame's origin is in the voxels' frame.</summary>
+    public static StockItem FromVoxels(VoxelStock voxels, MaterialKind material, out Vector3 centreMm)
+    {
+        centreMm = Vector3.Zero;
+        if (voxels.MaterialBounds() is not { } bounds)
+            return null;
+        var size = bounds.Max - bounds.Min;
+        if (size.X < 1f || size.Y < 1f || size.Z < 1f)
+            return null;
+        centreMm = (bounds.Min + bounds.Max) / 2f;
+        var cropped = voxels.Cropped(bounds.Min, bounds.Max);
+        // Block sizes: X length, Y across (local Z), Z height (local Y).
+        var item = Create(new StockBlank(StockShape.Block, new Vector3(size.X, size.Z, size.Y), material));
+        item.Name = "CutPiece";
+        item.DisplayName = $"Kesilmiş parça ({size.X:0} x {size.Z:0} x {size.Y:0} mm)";
+        item.Mass = Mathf.Max(0.01f, cropped.VolumeMm3() * 1e-9f * MaterialPreset.Get(material).DensityKgPerM3);
+        foreach (var mesh in item.GetChildren().OfType<MeshInstance3D>())
+            mesh.Visible = false;
+        var visual = new VoxelStockVisual { Name = "Machined", Position = -centreMm * WorldScale.MmToM };
+        item.AddChild(visual);
+        visual.Build(cropped);
+        return item;
+    }
+
     /// <summary>Its section across the length at local x (mm from the
     /// centre): width (local Z), height (local Y) and solid area. Null for
     /// milled stock, whose shape is a voxel field.</summary>

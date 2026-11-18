@@ -50,10 +50,10 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
 
     public MaterialKind SawMaterial => Saw?.SawMaterial ?? MaterialKind.Steel;
 
-    public SawCut? PlanCut(Vector3 globalPoint, out string why)
+    public SawCut? PlanCut(Vector3 globalPoint, float angleDeg, out string why)
     {
         why = null;
-        return Grip.HasBar ? Saw?.PlanCut(globalPoint, out why) : null;
+        return Grip.HasBar ? Saw?.PlanCut(globalPoint, angleDeg, out why) : null;
     }
 
     public void FinishCut(SawCut cut) => Saw?.FinishCut(cut);

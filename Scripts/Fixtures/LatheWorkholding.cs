@@ -156,7 +156,7 @@ public partial class LatheWorkholding : MachineSetup, ISawable
     public MaterialKind SawMaterial => _cutting.Material;
 
     /// <summary>A saw cut across the bar outside the jaws, with the spindle stopped.</summary>
-    public SawCut? PlanCut(Vector3 globalPoint, out string why)
+    public SawCut? PlanCut(Vector3 globalPoint, float angleDeg, out string why)
     {
         why = null;
         var profile = _workpiece.Profile;
@@ -165,6 +165,11 @@ public partial class LatheWorkholding : MachineSetup, ISawable
         if (System.Math.Abs(Bridge.State.SpindleRpm) > 1.0)
         {
             why = "İş mili dönerken testere vurulmaz!";
+            return null;
+        }
+        if (angleDeg != 0f)
+        {
+            why = "Aynadaki parça yalnız dik kesilir (açıyı sıfırla)";
             return null;
         }
         float z = _workpiece.ToLocal(globalPoint).X / M;

@@ -59,8 +59,16 @@ Done, each verified through scripted operators on real LinuxCNC:
   right-hand piece drops) splitting raw and turned stock
   (`StockItem.SplitAt`); a bar in the lathe chuck (`JawChuck.Saw` ->
   `LatheWorkholding`, spindle stopped, outside the jaws,
-  `LatheCutting.SawThrough`). Milled (voxel) stock and angled cuts: next.
-  Harnesses: `TmpSaw` (vise), `TmpLathe` saw (live).
+  `LatheCutting.SawThrough`; square cuts only), and the part in a mill
+  fixture or indexer chuck (`MillWorkholding`, found through
+  `Carryable.SawnBy`; the bigger piece stays, the smaller drops). The wheel
+  turns the cut up to 60 deg about the vertical while aiming. Square cuts on
+  raw / turned stock split exactly; angled cuts and milled stock go through
+  voxels (`VoxelSaw`: `VoxelStock.PlaneSection` / `RemoveBeyond` /
+  `Cropped`; a raw / turned item converts once, `StockItem.Voxels`), and
+  their pieces are block items drawn by their voxels (`StockItem.FromVoxels`).
+  Harnesses: `TmpSaw` (vise; CNC_SAW=angle), `TmpLathe` saw, `TmpFix` saw
+  (live).
 - Console immersion pass: BLOCK SKIP, OPT STOP, rapid override (new bridge
   commands 20-23, also COOLANT_FLOOD so coolant works mid-program), PRG
   RESTART (run from the PROG cursor line), WORK LIGHT, held jog key stays
