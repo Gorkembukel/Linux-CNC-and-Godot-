@@ -3,7 +3,7 @@ using CncTrainer.Procedural;
 
 namespace CncTrainer.Interaction;
 
-public enum HandToolKind { HexKey, ViseHandle, ChuckKey, Mallet, Brush, Parallels, PaperGauge, Caliper, DialIndicator, Micrometer, DepthGauge }
+public enum HandToolKind { HexKey, ViseHandle, ChuckKey, Mallet, Brush, Parallels, PaperGauge, Caliper, DialIndicator, Micrometer, DepthGauge, Hacksaw }
 
 /// <summary>A hand tool from the bench. What it does is decided by the thing
 /// it is used on (a fastener asks for a HexKey, a chuck for a ChuckKey...).</summary>
@@ -28,6 +28,7 @@ public partial class HandTool : Carryable
         HandToolKind.Caliper => "Kumpas",
         HandToolKind.Micrometer => "Mikrometre",
         HandToolKind.DepthGauge => "Derinlik mastarı",
+        HandToolKind.Hacksaw => "Demir testeresi",
         _ => "Komparatör",
     };
 
@@ -93,6 +94,16 @@ public partial class HandTool : Carryable
                 BodyParts.Box(tool, "Rod", new Vector3(0.004f, 0.12f, 0.004f), new Vector3(0f, 0.02f, 0f), steel);
                 BodyParts.Box(tool, "Slider", new Vector3(0.03f, 0.03f, 0.008f), new Vector3(0f, 0.03f, 0f), dark);
                 size = new Vector3(0.1f, 0.12f, 0.02f);
+                break;
+            case HandToolKind.Hacksaw:
+                // Blade along X, teeth down: its cutting edge is the local y = -0.006 line.
+                BodyParts.Box(tool, "Blade", new Vector3(0.33f, 0.012f, 0.0008f), Vector3.Zero, steel);
+                BodyParts.Box(tool, "FrameTop", new Vector3(0.35f, 0.012f, 0.008f), new Vector3(0f, 0.09f, 0f), dark);
+                foreach (float end in new[] { -1f, 1f })
+                    BodyParts.Box(tool, "FrameEnd", new Vector3(0.01f, 0.1f, 0.008f), new Vector3(end * 0.17f, 0.045f, 0f), dark);
+                BodyParts.Box(tool, "Handle", new Vector3(0.03f, 0.1f, 0.026f), new Vector3(-0.2f, 0.05f, 0f), BodyParts.Mat(new Color(0.75f, 0.12f, 0.1f), 0f, 0.6f));
+                size = new Vector3(0.43f, 0.11f, 0.03f);
+                tool.Mass = 0.6f;
                 break;
             default:
                 BodyParts.Box(tool, "MagBase", new Vector3(0.05f, 0.04f, 0.04f), Vector3.Zero, dark);

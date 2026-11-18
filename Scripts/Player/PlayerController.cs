@@ -91,6 +91,7 @@ public partial class PlayerController : CharacterBody3D
 
     private Node3D _carryPoint;
     private ToolBelt _belt;
+    private SawAction _saw;
     private RigidBody3D _heldPart;
     private StockStation _station;
     private bool _atStation;
@@ -187,6 +188,8 @@ public partial class PlayerController : CharacterBody3D
 
         _belt = new ToolBelt { Name = "ToolBelt", Position = new Vector3(0f, EyeHeight - BeltBelowEyes, 0f) };
         AddChild(_belt);
+        _saw = new SawAction { Name = "SawAction", Player = this };
+        AddChild(_saw);
 
         _head = new Node3D { Position = new Vector3(0f, EyeHeight, 0f), Name = "Head" };
         AddChild(_head);
@@ -269,6 +272,11 @@ public partial class PlayerController : CharacterBody3D
     {
         if (_focus.Active)
             return;
+        if (Input.MouseMode == Input.MouseModeEnum.Captured && _saw.HandleInput(@event))
+        {
+            GetViewport().SetInputAsHandled();
+            return;
+        }
         if (@event is InputEventMouseMotion headMove && Input.MouseMode == Input.MouseModeEnum.Captured && Input.IsKeyPressed(Key.Alt))
         {
             // Alt + mouse moves the head itself (peek into a machine), not the view.
@@ -567,7 +575,7 @@ public partial class PlayerController : CharacterBody3D
             (Input.IsKeyPressed(Key.S) ? 1 : 0) - (Input.IsKeyPressed(Key.W) ? 1 : 0)
         );
         inputDir = inputDir.Normalized();
-        if (_focus.Active)
+        if (_focus.Active || _saw.Locked)
             inputDir = Vector2.Zero;
         if (inputDir != Vector2.Zero)
             _headOffset = Vector3.Zero;
@@ -582,6 +590,7 @@ public partial class PlayerController : CharacterBody3D
 
         UpdateConsoleProximity();
         UpdateStationProximity();
+        _saw.Tick(LookedAt(PickupRange), LookPoint, delta);
         UpdateCarriedPart();
         UpdatePickupPrompt();
     }
@@ -625,7 +634,7 @@ public partial class PlayerController : CharacterBody3D
     private void UpdateCarriedPart()
     {
         if (_heldPart != null)
-            _heldPart.GlobalTransform = new Transform3D(GlobalBasis.Orthonormalized() * _heldTurn, _carryPoint.GlobalPosition);
+            _heldPart.GlobalTransform = _saw.HeldTransform ?? new Transform3D(GlobalBasis.Orthonormalized() * _heldTurn, _carryPoint.GlobalPosition);
     }
 
     /// <summary>Console prompt takes priority (it's the proven, primary
@@ -636,6 +645,7 @@ public partial class PlayerController : CharacterBody3D
     {
         if (HeldTool is { } gauge && Gauges.IsGauge(gauge.Kind) && IMeasurable.Find(LookedAt(PickupRange)) is IMeasurable measured)
             ToolStatus = measured.Reading(gauge.Kind, LookPoint) ?? $"{HandTool.NameOf(gauge.Kind)}: bu ölçü burada alınmaz";
+        ToolStatus ??= _saw.Status;
         _statusLabel.Text = ToolStatus ?? "";
         ToolStatus = null;
         ISetupSheet nearest = null;

@@ -10,6 +10,10 @@ public partial class Carryable : RigidBody3D
     /// <summary>False while the object is fitted to something.</summary>
     public virtual bool CanPickUp => true;
 
+    /// <summary>Who cuts this when a hand saw is put to it while it is held
+    /// somewhere that is not its parent (a machine's fixture).</summary>
+    public ISawable SawnBy;
+
     /// <summary>Called when the player takes the object into their hands.</summary>
     public virtual void OnPickedUp() { }
 

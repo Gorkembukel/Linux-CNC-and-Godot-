@@ -1,12 +1,14 @@
 using System.Linq;
 using Godot;
 using CncTrainer.Bridge;
+using CncTrainer.Chips;
 using CncTrainer.Interaction;
 using CncTrainer.Machining;
 using CncTrainer.Material;
 using CncTrainer.Player;
 using CncTrainer.Procedural;
 using CncTrainer.Spec;
+using CncTrainer.Workshop;
 
 namespace CncTrainer.Fixtures;
 
@@ -18,7 +20,7 @@ namespace CncTrainer.Fixtures;
 /// throws it out and stops the machine. The fixtures themselves come from a
 /// FixtureCart in the workshop.
 /// </summary>
-public partial class MillWorkholding : MachineSetup
+public partial class MillWorkholding : MachineSetup, ISawable
 {
     private const float M = WorldScale.MmToM;
 
@@ -49,6 +51,7 @@ public partial class MillWorkholding : MachineSetup
         {
             // On the rotary axis, where the fixed indexer chuck is drawn.
             Chuck = JawChuck.Create(m.StockHeight + 60f, 3, 30f, 30f);
+            Chuck.Saw = this;
             Chuck.Position = new Vector3(-m.StockSizeXMm / 2f * M + 0.02f, -m.StockHeight / 2f * M, 0f);
             body.WorkEnd.AddChild(Chuck);
         }
@@ -85,6 +88,41 @@ public partial class MillWorkholding : MachineSetup
         cutting.CutWhileLoose = ThrowPart;
     }
 
+    public MaterialKind SawMaterial => Fixture?.Seat.Stock?.Blank.Material ?? MaterialKind.Steel;
+
+    /// <summary>A saw cut through the part in the fixture, the spindle stopped.</summary>
+    public SawCut? PlanCut(Vector3 globalPoint, float angleDeg, out string why)
+    {
+        why = null;
+        var seat = Fixture?.Seat;
+        if (seat?.Stock == null)
+            return null;
+        if (seat.MachinedPart is not VoxelStockVisual visual)
+        {
+            why = "Parça henüz bağlanmadı";
+            return null;
+        }
+        if (System.Math.Abs(Bridge.State.SpindleRpm) > 1.0)
+        {
+            why = "İş mili dönerken testere vurulmaz!";
+            return null;
+        }
+        return VoxelSaw.Plan(visual.Stock, visual.GlobalTransform, globalPoint,
+            VoxelSaw.Normal(seat.Stock.GlobalBasis.Orthonormalized().X, angleDeg), angleDeg, 0f);
+    }
+
+    /// <summary>The bigger piece stays in the fixture; the other drops.</summary>
+    public void FinishCut(SawCut cut)
+    {
+        if (Fixture?.Seat.MachinedPart is not VoxelStockVisual visual)
+            return;
+        var (dropped, changed) = VoxelSaw.Split(visual.Stock, visual.GlobalTransform, cut, null);
+        if (changed.MaterialRemoved)
+            visual.MarkDirty(changed);
+        Fixture.Seat.WasCut = true;
+        VoxelSaw.Spawn(dropped, visual.GlobalTransform, SawMaterial, GetTree().CurrentScene);
+    }
+
     private Transform3D InWorkEnd(Node3D node) => _body.WorkEnd.GlobalTransform.AffineInverse() * node.GlobalTransform;
 
     public override void _Process(double delta)
@@ -92,6 +130,8 @@ public partial class MillWorkholding : MachineSetup
         var fixture = Fixture;
         var seat = fixture?.Seat;
         var stock = seat?.Stock;
+        if (stock != null)
+            stock.SawnBy = this;
 
         if (stock != null && stock != _mountedStock && seat.MachinedPart != null)
         {

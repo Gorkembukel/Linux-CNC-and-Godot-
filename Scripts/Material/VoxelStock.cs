@@ -136,6 +136,115 @@ public class VoxelStock
         return Mathf.Max(requestedStepMm, Mathf.Pow(volume / maxNodes, 1f / 3f));
     }
 
+    private VoxelStock(VoxelStock other)
+    {
+        StepMm = other.StepMm;
+        Origin = other.Origin;
+        CountX = other.CountX;
+        CountY = other.CountY;
+        CountZ = other.CountZ;
+        _distance = (float[])other._distance.Clone();
+    }
+
+    public VoxelStock Copy() => new(this);
+
+    /// <summary>Material volume (mm³).</summary>
+    public float VolumeMm3()
+    {
+        float sum = 0f;
+        foreach (float d in _distance)
+            sum += Occupancy(d);
+        return sum * StepMm * StepMm * StepMm;
+    }
+
+    /// <summary>Removes everything beyond a plane through pointMm, on the
+    /// side the normal points to, and marginMm short of it on this side (a
+    /// saw kerf is two margins wide).</summary>
+    public VoxelCutResult RemoveBeyond(Vector3 pointMm, Vector3 normal, float marginMm)
+    {
+        normal = normal.Normalized();
+        bool removed = false;
+        float volume = 0f, cellVolume = StepMm * StepMm * StepMm;
+        int minIx = int.MaxValue, maxIx = int.MinValue, minIy = int.MaxValue, maxIy = int.MinValue, minIz = int.MaxValue, maxIz = int.MinValue;
+        for (int iz = 0; iz < CountZ; iz++)
+            for (int iy = 0; iy < CountY; iy++)
+                for (int ix = 0; ix < CountX; ix++)
+                {
+                    int i = Index(ix, iy, iz);
+                    float old = _distance[i];
+                    float d = -normal.Dot(NodePosition(ix, iy, iz) - pointMm) - marginMm;
+                    if (d >= old || old <= -StepMm)
+                        continue;
+                    _distance[i] = d;
+                    volume += (Occupancy(old) - Occupancy(d)) * cellVolume;
+                    removed = true;
+                    minIx = Mathf.Min(minIx, ix); maxIx = Mathf.Max(maxIx, ix);
+                    minIy = Mathf.Min(minIy, iy); maxIy = Mathf.Max(maxIy, iy);
+                    minIz = Mathf.Min(minIz, iz); maxIz = Mathf.Max(maxIz, iz);
+                }
+        return removed ? new VoxelCutResult(true, volume, minIx, maxIx, minIy, maxIy, minIz, maxIz) : default;
+    }
+
+    /// <summary>The box around the material (mm), or null when none is left.</summary>
+    public (Vector3 Min, Vector3 Max)? MaterialBounds()
+    {
+        var min = Vector3.Inf;
+        var max = -Vector3.Inf;
+        for (int iz = 0; iz < CountZ; iz++)
+            for (int iy = 0; iy < CountY; iy++)
+                for (int ix = 0; ix < CountX; ix++)
+                    if (_distance[Index(ix, iy, iz)] > 0f)
+                    {
+                        var p = NodePosition(ix, iy, iz);
+                        min = min.Min(p);
+                        max = max.Max(p);
+                    }
+        // The surface lies between the last node inside and the first outside.
+        return min.X > max.X ? null : (min - Vector3.One * StepMm, max + Vector3.One * StepMm);
+    }
+
+    /// <summary>The same material on a grid just big enough for it
+    /// (min..max, mm, in this grid's frame); the nodes line up with these.</summary>
+    public VoxelStock Cropped(Vector3 min, Vector3 max)
+    {
+        var aligned = Origin + ((min - Origin) / StepMm).Floor() * StepMm + Vector3.One * StepMm;
+        var cropped = new VoxelStock(aligned, max, StepMm);
+        cropped.Fill(SampleDistance);
+        return cropped;
+    }
+
+    /// <summary>Where a plane through pointMm (normal) meets the material:
+    /// its middle, its size across (along down x normal) and along down, and
+    /// its area -- sampled no finer than 1 mm. Null when it misses.</summary>
+    public (Vector3 CentreMm, float WidthMm, float DepthMm, float AreaMm2)? PlaneSection(Vector3 pointMm, Vector3 normal, Vector3 down)
+    {
+        normal = normal.Normalized();
+        var across = down.Cross(normal).Normalized();
+        down = normal.Cross(across);
+        float ds = Mathf.Max(StepMm, 1f);
+        var far = Origin + new Vector3(CountX - 1, CountY - 1, CountZ - 1) * StepMm;
+        float u0 = float.MaxValue, u1 = float.MinValue, v0 = float.MaxValue, v1 = float.MinValue;
+        for (int corner = 0; corner < 8; corner++)
+        {
+            var c = new Vector3((corner & 1) == 0 ? Origin.X : far.X, (corner & 2) == 0 ? Origin.Y : far.Y, (corner & 4) == 0 ? Origin.Z : far.Z) - pointMm;
+            u0 = Mathf.Min(u0, c.Dot(across)); u1 = Mathf.Max(u1, c.Dot(across));
+            v0 = Mathf.Min(v0, c.Dot(down)); v1 = Mathf.Max(v1, c.Dot(down));
+        }
+        int count = 0;
+        float a0 = float.MaxValue, a1 = float.MinValue, b0 = float.MaxValue, b1 = float.MinValue;
+        for (float u = u0; u <= u1; u += ds)
+            for (float v = v0; v <= v1; v += ds)
+                if (SampleDistance(pointMm + across * u + down * v) > 0f)
+                {
+                    count++;
+                    a0 = Mathf.Min(a0, u); a1 = Mathf.Max(a1, u);
+                    b0 = Mathf.Min(b0, v); b1 = Mathf.Max(b1, v);
+                }
+        if (count == 0)
+            return null;
+        return (pointMm + across * ((a0 + a1) / 2f) + down * ((b0 + b1) / 2f), a1 - a0 + ds, b1 - b0 + ds, count * ds * ds);
+    }
+
     private void Fill(System.Func<Vector3, float> distance)
     {
         for (int iz = 0; iz < CountZ; iz++)

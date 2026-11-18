@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://Scripts/Workshop/SawBench.cs" id="1_saw"]
+
+[node name="SawBench" type="Node3D"]
+script = ExtResource("1_saw")

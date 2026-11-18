@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
+using CncTrainer.Chips;
 using CncTrainer.Interaction;
 using CncTrainer.Player;
 using CncTrainer.Procedural;
@@ -16,7 +17,7 @@ namespace CncTrainer.Fixtures;
 /// at the front face of the jaws on the centreline.
 /// </summary>
 [Tool]
-public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMeasurable
+public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMeasurable, ISawable
 {
     private const float M = WorldScale.MmToM;
     private const float JawHeight = 0.022f;
@@ -42,6 +43,20 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
 
     public string Reading(HandToolKind gauge, Vector3 globalPoint) =>
         !Grip.HasBar ? null : Measure != null ? Measure(gauge, globalPoint) : Stock.Reading(gauge, globalPoint);
+
+    /// <summary>Who cuts the bar when a hand saw is put to it; set by the
+    /// lathe (an indexer's chuck has none).</summary>
+    public ISawable Saw;
+
+    public MaterialKind SawMaterial => Saw?.SawMaterial ?? MaterialKind.Steel;
+
+    public SawCut? PlanCut(Vector3 globalPoint, float angleDeg, out string why)
+    {
+        why = null;
+        return Grip.HasBar ? Saw?.PlanCut(globalPoint, angleDeg, out why) : null;
+    }
+
+    public void FinishCut(SawCut cut) => Saw?.FinishCut(cut);
 
     private Node3D _rotor, _key;
     private readonly List<MeshInstance3D> _jaws = new();
