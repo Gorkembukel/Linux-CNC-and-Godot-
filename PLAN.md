@@ -89,6 +89,13 @@ Done, each verified through scripted operators on real LinuxCNC:
   bucket (`SweepBore`); mesh, finished parts, mass and caliper (bore vs
   outside) know it. Drill deeper than its flutes and a boring bar in a hole
   too small for it crash.
+- Face cuts: a tool removes only the ring its outline sweeps per bucket
+  (`CutSpan`): reaching the outside lowers it, reaching the bore / axis opens
+  the bore. An OD tool plunged at the face centre opens only what its insert
+  covers and its holder crashes on the rest of the face (realistic); a face
+  recess leaving a rim is drill + boring bar outward. A ring wholly inside
+  the wall (face groove) cannot be held by two radii: it opens toward the
+  side that loses less. Live: `TmpLathe` facein / faceout / recessbar.
 - Machine settings in `MachineSpec` (plugin inspector): spindle min/max rpm
   (+ chuck max rpm, INI `[SPINDLE_0]`), jog top speed (console dial scales),
   flood coolant yes/no, door interlock on/off, thermal growth, per axis home
