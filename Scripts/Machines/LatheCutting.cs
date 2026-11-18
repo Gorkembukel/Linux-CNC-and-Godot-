@@ -135,8 +135,8 @@ public sealed class LatheCutting : CuttingProcess
             return BoringBarInStock(profile, tip, tool);
         bool parting = tool.Kind == ToolKind.Parting;
         var shape = tool.LatheProfile;
-        float reach = parting ? (tool.Geometry?.DepthMm ?? 30f) : shape != null ? shape.Height : 9f;
-        float from = parting ? tip.Y - 6f : shape != null ? tip.Y : tip.Y + 6f;
+        float reach = parting ? (tool.Geometry?.DepthMm ?? 30f) : shape != null ? shape.Height : LatheRadiusProfile.PlainInsertHeightMm;
+        float from = parting ? tip.Y - 6f : shape != null ? tip.Y + profile.StepMm / 2f : tip.Y + 6f;
         float to = parting ? tip.Y + 6f : shape != null ? tip.Y + Mathf.Max(shape.ZMax, 12f) : tip.Y + 18f;
         for (float z = Mathf.Max(from, profile.ZMin); z <= Mathf.Min(to, profile.ZMax); z += profile.StepMm)
             if (profile.RadiusAt(profile.IndexAt(z)) > tip.X + reach + 0.3f)
