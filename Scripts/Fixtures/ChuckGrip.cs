@@ -55,7 +55,70 @@ public sealed class ChuckGrip
         BarLengthMm = lengthMm;
         Torque = 0;
         StickOutMm = Math.Max(MinStickOutMm, lengthMm - JawDepthMm);
+        SeatRunout();
         return true;
+    }
+
+    private readonly Random _rng = new();
+
+    /// <summary>How far the bar's axis sits off the spindle's at the jaws (mm),
+    /// in the bar's own frame, and how much further per 100 mm out (a
+    /// three-jaw chuck never holds dead true).</summary>
+    public (float X, float Y) OffsetMm { get; private set; }
+    public (float X, float Y) TiltPer100Mm { get; private set; }
+
+    private void SeatRunout()
+    {
+        double a = _rng.NextDouble() * Math.Tau, b = _rng.NextDouble() * Math.Tau;
+        float e = 0.015f + 0.045f * (float)_rng.NextDouble(), t = 0.02f * (float)_rng.NextDouble();
+        OffsetMm = (e * (float)Math.Cos(a), e * (float)Math.Sin(a));
+        TiltPer100Mm = (t * (float)Math.Cos(b), t * (float)Math.Sin(b));
+    }
+
+    /// <summary>More offset along the one there is (a burr under a jaw).</summary>
+    public void AddRunout(float mm)
+    {
+        float length = (float)Math.Sqrt(OffsetMm.X * OffsetMm.X + OffsetMm.Y * OffsetMm.Y);
+        float scale = length > 1e-6f ? (length + mm) / length : 1f;
+        OffsetMm = length > 1e-6f ? (OffsetMm.X * scale, OffsetMm.Y * scale) : (mm, 0f);
+    }
+
+    private (float X, float Y) OffsetAt(float outMm) =>
+        (OffsetMm.X + TiltPer100Mm.X * outMm / 100f, OffsetMm.Y + TiltPer100Mm.Y * outMm / 100f);
+
+    /// <summary>A dial indicator outMm from the jaws, touching the bar from
+    /// the direction at angle (rad, bar frame): how far the surface stands
+    /// out toward it.</summary>
+    public float Needle(float outMm, float angle)
+    {
+        var o = OffsetAt(outMm);
+        return o.X * (float)Math.Cos(angle) + o.Y * (float)Math.Sin(angle);
+    }
+
+    /// <summary>Total indicator reading over a turn outMm from the jaws.</summary>
+    public float RunoutMm(float outMm)
+    {
+        var o = OffsetAt(outMm);
+        return 2f * (float)Math.Sqrt(o.X * o.X + o.Y * o.Y);
+    }
+
+    /// <summary>A mallet tap on the bar from the direction at angle (bar
+    /// frame). Only a lightly tightened chuck lets the bar move: on its high
+    /// side it goes toward the centre, on the low side further off.
+    /// Returns what happened.</summary>
+    public string Tap(float angle)
+    {
+        if (!HasBar)
+            return null;
+        if (Torque >= FullTorque)
+            return "Ayna tam sıkı: vurmakla oynamaz, bir kademe gevşet";
+        if (Torque < 2)
+            return "Ayna gevşek: önce hafif sık, sonra vur";
+        float cos = (float)Math.Cos(angle), sin = (float)Math.Sin(angle);
+        float high = OffsetMm.X * cos + OffsetMm.Y * sin;
+        float push = high > 0f ? high * (0.5f + 0.2f * (float)_rng.NextDouble()) : 0.01f;
+        OffsetMm = (OffsetMm.X - cos * push, OffsetMm.Y - sin * push);
+        return high > 0f ? "Tık: parça merkeze yaklaştı" : "Tık: alçak taraftan vuruldu, salgı arttı";
     }
 
     public void Remove()

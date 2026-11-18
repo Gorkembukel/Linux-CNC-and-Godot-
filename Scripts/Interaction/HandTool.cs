@@ -3,7 +3,7 @@ using CncTrainer.Procedural;
 
 namespace CncTrainer.Interaction;
 
-public enum HandToolKind { HexKey, ViseHandle, ChuckKey, Mallet, Brush, Parallels, PaperGauge, Caliper, DialIndicator, Micrometer, DepthGauge, Hacksaw }
+public enum HandToolKind { HexKey, ViseHandle, ChuckKey, Mallet, Brush, Parallels, PaperGauge, Caliper, DialIndicator, Micrometer, DepthGauge, Hacksaw, SafetyGlasses, ChipHook, File, Deburrer, ThreadRing, PitchGauge }
 
 /// <summary>A hand tool from the bench. What it does is decided by the thing
 /// it is used on (a fastener asks for a HexKey, a chuck for a ChuckKey...).</summary>
@@ -29,6 +29,12 @@ public partial class HandTool : Carryable
         HandToolKind.Micrometer => "Mikrometre",
         HandToolKind.DepthGauge => "Derinlik mastarı",
         HandToolKind.Hacksaw => "Demir testeresi",
+        HandToolKind.SafetyGlasses => "Koruyucu gözlük",
+        HandToolKind.ChipHook => "Talaş kancası",
+        HandToolKind.File => "Eğe",
+        HandToolKind.Deburrer => "Çapak alma bıçağı",
+        HandToolKind.ThreadRing => "Diş bilezik mastarı M20x2 (geçer / geçmez)",
+        HandToolKind.PitchGauge => "Diş tarağı (adım mastarı)",
         _ => "Komparatör",
     };
 
@@ -104,6 +110,52 @@ public partial class HandTool : Carryable
                 BodyParts.Box(tool, "Handle", new Vector3(0.03f, 0.1f, 0.026f), new Vector3(-0.2f, 0.05f, 0f), BodyParts.Mat(new Color(0.75f, 0.12f, 0.1f), 0f, 0.6f));
                 size = new Vector3(0.43f, 0.11f, 0.03f);
                 tool.Mass = 0.6f;
+                break;
+            case HandToolKind.SafetyGlasses:
+                var lens = new StandardMaterial3D { AlbedoColor = new Color(0.8f, 0.9f, 1f, 0.35f), Transparency = BaseMaterial3D.TransparencyEnum.Alpha, Roughness = 0.1f };
+                foreach (float side in new[] { -1f, 1f })
+                {
+                    BodyParts.Box(tool, "Lens", new Vector3(0.003f, 0.035f, 0.055f), new Vector3(0f, 0f, side * 0.032f), lens);
+                    BodyParts.Box(tool, "Temple", new Vector3(0.12f, 0.006f, 0.003f), new Vector3(-0.06f, 0.01f, side * 0.065f), dark);
+                }
+                BodyParts.Box(tool, "Bridge", new Vector3(0.004f, 0.008f, 0.02f), new Vector3(0f, 0.012f, 0f), dark);
+                size = new Vector3(0.13f, 0.05f, 0.14f);
+                tool.Mass = 0.05f;
+                break;
+            case HandToolKind.ChipHook:
+                BodyParts.Cylinder(tool, "Rod", 0.003f, 0.34f, new Vector3(0.02f, 0f, 0f), Vector3.Right, steel);
+                BodyParts.Cylinder(tool, "Hook", 0.003f, 0.03f, new Vector3(0.19f, -0.012f, 0f), Vector3.Up, steel);
+                BodyParts.Cylinder(tool, "Handle", 0.011f, 0.1f, new Vector3(-0.19f, 0f, 0f), Vector3.Right, BodyParts.Mat(new Color(0.9f, 0.6f, 0.1f), 0f, 0.6f));
+                size = new Vector3(0.44f, 0.03f, 0.03f);
+                tool.Mass = 0.15f;
+                break;
+            case HandToolKind.File:
+                BodyParts.Box(tool, "Blade", new Vector3(0.22f, 0.005f, 0.02f), new Vector3(0.05f, 0f, 0f), BodyParts.Mat(new Color(0.35f, 0.35f, 0.37f), 0.6f, 0.8f));
+                BodyParts.Cylinder(tool, "Handle", 0.012f, 0.1f, new Vector3(-0.11f, 0f, 0f), Vector3.Right, BodyParts.Mat(new Color(0.55f, 0.4f, 0.22f), 0f, 0.8f));
+                size = new Vector3(0.32f, 0.025f, 0.025f);
+                break;
+            case HandToolKind.Deburrer:
+                BodyParts.Cylinder(tool, "Handle", 0.009f, 0.11f, Vector3.Zero, Vector3.Right, BodyParts.Mat(new Color(0.2f, 0.4f, 0.8f), 0f, 0.6f));
+                BodyParts.Cylinder(tool, "Shank", 0.002f, 0.05f, new Vector3(0.08f, 0f, 0f), Vector3.Right, steel);
+                BodyParts.Box(tool, "Blade", new Vector3(0.012f, 0.006f, 0.002f), new Vector3(0.108f, -0.003f, 0f), steel);
+                size = new Vector3(0.2f, 0.02f, 0.02f);
+                tool.Mass = 0.05f;
+                break;
+            case HandToolKind.ThreadRing:
+                foreach (var (offset, colour) in new[] { (-0.012f, new Color(0.15f, 0.6f, 0.2f)), (0.012f, new Color(0.75f, 0.15f, 0.12f)) })
+                    BodyParts.Cylinder(tool, "Ring", 0.032f, 0.016f, new Vector3(offset, 0f, 0f), Vector3.Right, BodyParts.Mat(colour, 0.6f, 0.4f));
+                size = new Vector3(0.05f, 0.065f, 0.065f);
+                tool.Mass = 0.3f;
+                break;
+            case HandToolKind.PitchGauge:
+                BodyParts.Box(tool, "Case", new Vector3(0.09f, 0.008f, 0.02f), Vector3.Zero, dark);
+                for (int leaf = 0; leaf < 5; leaf++)
+                {
+                    var blade = BodyParts.Box(tool, "Leaf", new Vector3(0.07f, 0.001f, 0.012f), Vector3.Zero, steel);
+                    blade.Transform = new Transform3D(new Basis(Vector3.Up, 0.25f * leaf), new Vector3(0.035f, 0.005f + 0.001f * leaf, 0f));
+                }
+                size = new Vector3(0.11f, 0.02f, 0.05f);
+                tool.Mass = 0.08f;
                 break;
             default:
                 BodyParts.Box(tool, "MagBase", new Vector3(0.05f, 0.04f, 0.04f), Vector3.Zero, dark);

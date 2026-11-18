@@ -61,6 +61,7 @@ public static class VoxelSaw
             return null;
         scene.AddChild(piece);
         piece.GlobalTransform = voxelGlobal * new Transform3D(Basis.Identity, centreMm * M);
+        piece.Burred = true;
         return piece;
     }
 }

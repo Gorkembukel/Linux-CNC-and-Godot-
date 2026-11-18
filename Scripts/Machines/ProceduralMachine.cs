@@ -123,6 +123,8 @@ public partial class ProceduralMachine : Node3D, IMachine
         GetNodeOrNull<ConsoleStand>("ConsoleStand")?.Configure(Rig);
 
         var chips = new ChipSpawner { Name = "ChipSpawner" };
+        chips.SpindleTurning = () => System.Math.Abs(bridge.State.SpindleRpm) > 1.0;
+        chips.Safety = Safety;
         _work.AddChild(chips);
         if (Spec.Kind == MachineKind.Mill)
         {
@@ -158,6 +160,22 @@ public partial class ProceduralMachine : Node3D, IMachine
         bridge.Connect(BridgeClient.SignalName.StateUpdated, Callable.From(Cutting.OnConfirmedState));
     }
 
+    private double _eyesWarned;
+
+    /// <summary>Chips fly while it cuts: anyone standing at the machine
+    /// without safety glasses goes on the record (once a minute).</summary>
+    private void CheckEyes(bool cutting, double delta)
+    {
+        _eyesWarned -= delta;
+        if (!cutting || _eyesWarned > 0 || GetTree().GetFirstNodeInGroup("player") is not Player.PlayerController player)
+            return;
+        if (!player.WearingGlasses && player.GlobalPosition.DistanceTo(GlobalPosition) < 3.5f)
+        {
+            Safety.Record(IncidentKind.NoGlasses, "GÖZLÜK YOK: tezgah keserken koruyucu gözlük tak (talaş gözüne gelebilir)");
+            _eyesWarned = 60.0;
+        }
+    }
+
     public override void _Process(double delta)
     {
         if (Engine.IsEditorHint())
@@ -176,6 +194,7 @@ public partial class ProceduralMachine : Node3D, IMachine
         {
             monitor.WearFactor = Rig.Bridge.State.Coolant ? Machining.CutMonitor.CoolantWearFactor : 1f;
             monitor.Tick(delta);
+            CheckEyes(monitor.Load.PowerW > 0f, delta);
         }
 
         if (Cutting is MillCutting mill && OS.HasEnvironment("CNC_DEBUG_PRINT"))

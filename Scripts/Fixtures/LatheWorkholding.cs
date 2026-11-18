@@ -4,6 +4,7 @@ using CncTrainer.Chips;
 using CncTrainer.Interaction;
 using CncTrainer.Machining;
 using CncTrainer.Material;
+using CncTrainer.Player;
 using CncTrainer.Procedural;
 using CncTrainer.Spec;
 using CncTrainer.Workshop;
@@ -18,7 +19,7 @@ namespace CncTrainer.Fixtures;
 /// player loads it, and every tool's tip sits a little off from where the
 /// control believes it is until a cut is measured and the tool touched off.
 /// </summary>
-public partial class LatheWorkholding : MachineSetup, ISawable
+public partial class LatheWorkholding : MachineSetup, ISawable, IThreaded
 {
     private const float M = WorldScale.MmToM;
     private const float MaxSpinDegPerSec = 600f;
@@ -62,6 +63,10 @@ public partial class LatheWorkholding : MachineSetup, ISawable
         Chuck.TakeMachined = () => _cutting.HasCut || Chuck.Stock?.Turned != null ? MakePart() : null;
         Chuck.Measure = Measure;
         Chuck.Saw = this;
+        Chuck.Threads = this;
+        Chuck.UseWith = UseOnChuck;
+        Chuck.TurnWith = TurnByHand;
+        Chuck.PromptWith = IndicatorPrompt;
     }
 
     private float LiveLengthMm() => (_workpiece.Profile.LiveRadii().Length - 1) * _workpiece.Profile.StepMm;
@@ -140,6 +145,8 @@ public partial class LatheWorkholding : MachineSetup, ISawable
 
     private string Measure(HandToolKind gauge, Vector3 globalPoint)
     {
+        if (gauge == HandToolKind.PitchGauge)
+            return System.Math.Abs(Bridge.State.SpindleRpm) > 1.0 ? "İş mili dönerken ölçülmez" : Gauges.Pitch(ThreadAt(globalPoint, out _));
         if (Gauges.Diameter(gauge, 0f) == null)
             return null;
         if (System.Math.Abs(Bridge.State.SpindleRpm) > 1.0)
@@ -192,6 +199,24 @@ public partial class LatheWorkholding : MachineSetup, ISawable
             LatheSection.Area(r, profile.SquareHalfMm) - Mathf.Pi * inner * inner, z);
     }
 
+    /// <summary>The bar's thread for a gauge: the spindle stopped, the ring goes on from the tip.</summary>
+    public ThreadSite? ThreadAt(Vector3 globalPoint, out string why)
+    {
+        why = null;
+        var profile = _workpiece.Profile;
+        if (profile == null)
+            return null;
+        if (System.Math.Abs(Bridge.State.SpindleRpm) > 1.0)
+        {
+            why = "İş mili dönerken mastar takılmaz";
+            return null;
+        }
+        var radii = profile.LiveRadii();
+        int index = Mathf.Clamp(profile.IndexAt(_workpiece.ToLocal(globalPoint).X / M), 0, radii.Length - 1);
+        return new ThreadSite(radii, profile.StepMm, index, _workpiece.ToGlobal(new Vector3(profile.ZMin * M, 0f, 0f)),
+            _workpiece.GlobalBasis.Orthonormalized().X, radii.Length - 1);
+    }
+
     public void FinishCut(SawCut cut) => _cutting.SawThrough(cut.AtMm, BenchVise.KerfMm);
 
     /// <summary>True diameter of the bar at a machine Z (mm).</summary>
@@ -207,6 +232,107 @@ public partial class LatheWorkholding : MachineSetup, ISawable
         _workpiece.RotateX(Mathf.DegToRad(spin));
         CheckDoorInterlock();
         CheckKeyLeftIn(Chuck, rpm > 1f, "AYNA ANAHTARI FIRLADI: anahtar aynada unutuldu, iş mili çalıştırıldı");
+        UpdateIndicator(rpm > 1f);
+    }
+
+    // A dial indicator on the bar, read while the chuck is turned by hand.
+    private HandTool _indicator;
+    private float _indicatorZ, _handTurn, _needleMin, _needleMax;
+    private const float HandTurnStep = Mathf.Pi / 18f;
+
+    private bool SpindleStopped => System.Math.Abs(Bridge.State.SpindleRpm) <= 1.0;
+
+    /// <summary>The direction, in the bar's own frame, that faces up now (where the plunger touches).</summary>
+    private float TopAngle => Mathf.Pi / 2f - _handTurn;
+
+    private float Needle => Chuck.Grip.Needle(_indicatorZ - _body.JawFrontZMm, TopAngle);
+
+    private void ResetSweep() => _needleMin = _needleMax = Needle;
+
+    private bool UseOnChuck(PlayerController player)
+    {
+        if (!Chuck.Grip.HasBar || _workpiece.Profile == null)
+            return false;
+        var kind = player.HeldTool?.Kind;
+        if (kind == HandToolKind.DialIndicator && _indicator == null)
+        {
+            float z = _workpiece.ToLocal(player.LookPoint).X / M;
+            if (!SpindleStopped)
+                PlayerController.Notify(this, "İş mili dönerken komparatör konmaz");
+            else if (z < _body.JawFrontZMm + 2f || z > _workpiece.Profile.ZMin + LiveLengthMm())
+                PlayerController.Notify(this, "Komparatörü kütüğün üstüne koy");
+            else
+            {
+                _indicator = (HandTool)player.ReleaseHeld();
+                _indicatorZ = z;
+                PlaceIndicator();
+                ResetSweep();
+            }
+            return true;
+        }
+        if (kind == HandToolKind.Mallet && _indicator != null)
+        {
+            if (Chuck.Grip.Tap(TopAngle) is string what)
+                PlayerController.Notify(this, what);
+            ResetSweep();
+            return true;
+        }
+        return false;
+    }
+
+    private bool TurnByHand(int steps)
+    {
+        if (_indicator == null || Chuck.Grip.KeyIn || !SpindleStopped)
+            return false;
+        _handTurn += steps * HandTurnStep;
+        Chuck.Spin(Mathf.RadToDeg(steps * HandTurnStep));
+        _workpiece.RotateX(steps * HandTurnStep);
+        _needleMin = Mathf.Min(_needleMin, Needle);
+        _needleMax = Mathf.Max(_needleMax, Needle);
+        return true;
+    }
+
+    private string IndicatorPrompt(PlayerController player)
+    {
+        if (!Chuck.Grip.HasBar)
+            return null;
+        if (_indicator == null)
+            return player.HeldTool?.Kind == HandToolKind.DialIndicator ? "[Tık] Komparatörü kütüğün üstüne koy (salgı ölç)" : null;
+        return player.HeldTool?.Kind == HandToolKind.Mallet
+            ? $"[Tık] İbrenin altına vur (ayna hafif sıkı olmalı: {Chuck.Grip.Torque}/{ChuckGrip.FullTorque})"
+            : player.Held == null ? "[Teker] Aynayı elle çevir   [F] Komparatörü al" : null;
+    }
+
+    private void PlaceIndicator()
+    {
+        float r = _workpiece.Profile.RadiusAt(_workpiece.Profile.IndexAt(_indicatorZ)) * M;
+        var axis = _workpiece.GlobalPosition + _workpiece.GlobalBasis.X.Normalized() * (_indicatorZ * M);
+        _indicator.Freeze = true;
+        _indicator.GlobalTransform = new Transform3D(_body.GlobalBasis.Orthonormalized(), axis + Vector3.Up * (r + 0.03f));
+    }
+
+    private void UpdateIndicator(bool turning)
+    {
+        if (_indicator == null)
+            return;
+        var player = GetTree().GetFirstNodeInGroup("player") as PlayerController;
+        if (!IsInstanceValid(_indicator) || player?.Held == _indicator || _indicator.Stowed || !Chuck.Grip.HasBar)
+        {
+            _indicator = null;
+            return;
+        }
+        if (turning)
+        {
+            var knocked = _indicator;
+            _indicator = null;
+            knocked.Freeze = false;
+            knocked.ApplyCentralImpulse(Vector3.Up * knocked.Mass * 2f);
+            Safety.Trip(IncidentKind.KeyLeftIn, "KOMPARATÖR FIRLADI: komparatör kütüğün üstünde unutuldu, iş mili çalıştırıldı");
+            return;
+        }
+        if (player != null && player.GlobalPosition.DistanceTo(_indicator.GlobalPosition) < 3f)
+            player.ToolStatus = System.FormattableString.Invariant(
+                $"Komparatör: {Needle:+0.000;-0.000} mm   en düşük {_needleMin:+0.000;-0.000}  en yüksek {_needleMax:+0.000;-0.000}  → salgı {_needleMax - _needleMin:0.000} mm (aynadan {_indicatorZ - _body.JawFrontZMm:0} mm)");
     }
 
     protected override string SheetBody
