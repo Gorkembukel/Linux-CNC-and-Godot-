@@ -84,7 +84,10 @@ Done, each verified through scripted operators on real LinuxCNC:
   the M20x2 ring gauge (`ThreadGaugeAction`, `ThreadCheck` / `ThreadSpec`
   6g: GO must run the thread, NO-GO stop within 1.5 turns). With the
   library 60 deg insert (0.1 nose) a nominal-depth P2 thread is fat: the
-  demo `lathe_dis.ngc` turns Ø19.85 and cuts K1.49. The crosshair looks past
+  demo `lathe_dis.ngc` turns Ø19.85 and cuts K1.49 (offline: GO on, NO-GO
+  stops). Live on the hands-on bench lathe the OD came out Ø20.16 (machine
+  errors / setup) and both sides refused on the major diameter: measure and
+  correct the X offset first, as on a real machine. The crosshair looks past
   the belt except for F. Harnesses: `TmpTools`, `TmpLathe` runout / m20.
 - Console immersion pass: BLOCK SKIP, OPT STOP, rapid override (new bridge
   commands 20-23, also COOLANT_FLOOD so coolant works mid-program), PRG
