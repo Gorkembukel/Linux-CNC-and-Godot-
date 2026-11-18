@@ -213,6 +213,28 @@ door on enclosed machines.
    Open questions: Project Settings vs a `GameSettings` resource vs
    `user://settings.cfg`; an in-game settings / instructor panel; per-machine
    overrides (MachineSpec already holds per-machine choices).
+10. **Idea: milled parts into the lathe chuck without losing lathe features.**
+    Blocked today by `JawChuck.MilledBefore` (1D radius profile vs voxel field).
+    - Recommended: **hybrid, part = lathe profile ∩ mill mask.** The lathe
+      cuts only the profile, so 0.1 mm, threads + helix, face cuts, part-off,
+      saw, dial indicator, thread / pitch gauges and body collisions stay as
+      they are. The mill cuts only the voxel mask; a part carries both layers
+      between machines (lathe -> mill already converts the profile with
+      `VoxelStock.Revolved`). Gauges read the profile where the mask is solid,
+      the voxels in a pocket / hole; the ring gauge refuses if a pocket
+      crosses the thread. Drawing per 4 mm `WorkpieceVisual` chunk: the exact
+      profile mesh where the mask is full there, the combined shape at voxel
+      resolution only in chunks a mill feature touches (later maybe a finer
+      local grid there). Steps: (1) carry the mask and accept it into the
+      chuck, (2) mask-aware readings, (3) per-chunk combined drawing,
+      (4) lathe <-> mill round trips with both layers.
+    - Rejected: envelope profile (pockets / flats vanish); 0.1 mm voxels
+      everywhere (~375 M nodes for Ø50x150); sparse narrow-band SDF /
+      OpenVDB style (too big an engineering job); polar height map r(z, θ)
+      (no internal holes / undercuts).
+    - Simpler interim option (loses thread / gauge precision on such parts):
+      a second LatheCutting path that turns voxel stock directly, using the
+      ring-per-bucket idea of `CutSpan`.
 
 ## Design decisions that are easy to undo by accident
 
