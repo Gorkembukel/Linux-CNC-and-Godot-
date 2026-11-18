@@ -31,6 +31,8 @@ public partial class SawAction : Node3D
     private double _warned;
     private MeshInstance3D _preview, _kerf;
 
+    private RigidBody3D _heldStill;
+
     public bool Locked => _locked;
 
     /// <summary>Where the saw sits while cutting; null when it is just carried.</summary>
@@ -131,6 +133,12 @@ public partial class SawAction : Node3D
             {
                 _cut = plan;
                 _locked = true;
+                // A loose piece is held still while it is sawn.
+                if (_target is RigidBody3D { Freeze: false } loose)
+                {
+                    loose.Freeze = true;
+                    _heldStill = loose;
+                }
                 _removedMm2 = 0f;
                 _stroke = 0f;
                 _preview.Visible = false;
@@ -197,6 +205,9 @@ public partial class SawAction : Node3D
     private void Cancel()
     {
         _locked = false;
+        if (IsInstanceValid(_heldStill))
+            _heldStill.Freeze = false;
+        _heldStill = null;
         _kerf.Visible = false;
         HeldTransform = null;
     }
