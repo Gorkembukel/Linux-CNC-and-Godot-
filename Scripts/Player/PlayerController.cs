@@ -92,6 +92,7 @@ public partial class PlayerController : CharacterBody3D
     private Node3D _carryPoint;
     private ToolBelt _belt;
     private SawAction _saw;
+    private FileAction _file;
     private RigidBody3D _heldPart;
     private StockStation _station;
     private bool _atStation;
@@ -190,6 +191,8 @@ public partial class PlayerController : CharacterBody3D
         AddChild(_belt);
         _saw = new SawAction { Name = "SawAction", Player = this };
         AddChild(_saw);
+        _file = new FileAction { Name = "FileAction", Player = this };
+        AddChild(_file);
 
         _head = new Node3D { Position = new Vector3(0f, EyeHeight, 0f), Name = "Head" };
         AddChild(_head);
@@ -277,7 +280,7 @@ public partial class PlayerController : CharacterBody3D
     {
         if (_focus.Active)
             return;
-        if (Input.MouseMode == Input.MouseModeEnum.Captured && _saw.HandleInput(@event))
+        if (Input.MouseMode == Input.MouseModeEnum.Captured && (_saw.HandleInput(@event) || _file.HandleInput(@event)))
         {
             GetViewport().SetInputAsHandled();
             return;
@@ -403,8 +406,10 @@ public partial class PlayerController : CharacterBody3D
 
     /// <summary>What the crosshair points at within `range`: a ray from
     /// the active camera straight ahead, past the player's own body and
-    /// whatever they carry. Null when it hits nothing.</summary>
-    private Node3D LookedAt(float range)
+    /// whatever they carry. Null when it hits nothing. The belt is looked
+    /// past unless includeBelt: only F (take / stow) is about the belt;
+    /// everything else reaches what is beyond it.</summary>
+    private Node3D LookedAt(float range, bool includeBelt = false)
     {
         var camera = GetViewport().GetCamera3D();
         if (camera == null)
@@ -414,6 +419,8 @@ public partial class PlayerController : CharacterBody3D
         var exclude = new Godot.Collections.Array<Rid> { GetRid() };
         if (_heldPart != null)
             exclude.Add(_heldPart.GetRid());
+        if (!includeBelt)
+            _belt.Exclude(exclude);
         query.Exclude = exclude;
         var result = GetWorld3D().DirectSpaceState.IntersectRay(query);
         if (result.Count == 0)
@@ -437,7 +444,7 @@ public partial class PlayerController : CharacterBody3D
 
     private void TogglePickup()
     {
-        if (_belt.SlotOf(LookedAt(PickupRange)) is int slot && slot >= 0)
+        if (_belt.SlotOf(LookedAt(PickupRange, includeBelt: true)) is int slot && slot >= 0)
         {
             UseBeltSlot(slot);
             return;
@@ -677,6 +684,7 @@ public partial class PlayerController : CharacterBody3D
         UpdateConsoleProximity();
         UpdateStationProximity();
         _saw.Tick(LookedAt(PickupRange), LookPoint, delta);
+        _file.Tick(LookedAt(PickupRange));
         UpdateCarriedPart();
         UpdatePickupPrompt();
     }
@@ -732,6 +740,7 @@ public partial class PlayerController : CharacterBody3D
         if (HeldTool is { } gauge && Gauges.IsGauge(gauge.Kind) && IMeasurable.Find(LookedAt(PickupRange)) is IMeasurable measured)
             ToolStatus = measured.Reading(gauge.Kind, LookPoint) ?? $"{HandTool.NameOf(gauge.Kind)}: bu ölçü burada alınmaz";
         ToolStatus ??= _saw.Status;
+        ToolStatus ??= _file.Status;
         if (ToolStatus == null && HeldTool?.Kind == HandToolKind.ChipHook)
         {
             int near = LookedAt(PickupRange) == null ? 0 : ChipsNear(LookPoint);
@@ -757,7 +766,7 @@ public partial class PlayerController : CharacterBody3D
             _interactPrompt.Visible = true;
             return;
         }
-        if (_belt.SlotOf(LookedAt(PickupRange)) is int slot && slot >= 0)
+        if (_belt.SlotOf(LookedAt(PickupRange, includeBelt: true)) is int slot && slot >= 0)
         {
             var inSlot = _belt.At(slot);
             _interactPrompt.Text = (_heldPart, inSlot) switch

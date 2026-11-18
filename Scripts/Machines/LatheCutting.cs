@@ -220,6 +220,8 @@ public sealed class LatheCutting : CuttingProcess
         if (part == null)
             return;
         part.DisplayName += SurfaceNote();
+        // Parted or sawn off: the cut face keeps a burr (the parting pip).
+        part.Burred = true;
         PartFinished?.Invoke();
         _parts.AddChild(part);
         float middle = profile.ZAt(severedIndex + 1) + part.Blank.LengthMm / 2f;

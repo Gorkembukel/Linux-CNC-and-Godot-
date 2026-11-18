@@ -76,6 +76,17 @@ public partial class ToolBelt : Node3D
         return -1;
     }
 
+    /// <summary>Adds the holsters and the tools in them to a ray's exclusions.</summary>
+    public void Exclude(Godot.Collections.Array<Rid> rids)
+    {
+        for (int i = 0; i < SlotCount; i++)
+        {
+            rids.Add(_holsters[i].GetRid());
+            if (_tools[i] != null)
+                rids.Add(_tools[i].GetRid());
+        }
+    }
+
     public HandTool At(int slot) => _tools[slot];
 
     /// <summary>Puts a tool into an empty holster.</summary>

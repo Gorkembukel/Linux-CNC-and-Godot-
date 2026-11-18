@@ -23,6 +23,24 @@ public partial class StockItem : Carryable, IMeasurable
     /// <summary>Size a chuck's jaws close on when the -X end goes in first.</summary>
     public float GripDiameterMm => Turned is { } t ? 2f * LatheSection.Reach(t.RadiiMm[0], t.SquareHalfMm) : Blank.DiameterMm;
 
+    private bool _burred;
+
+    /// <summary>A sawn or parted face still has its burr: it keeps the part
+    /// from seating true in a fixture until filed off.</summary>
+    public bool Burred
+    {
+        get => _burred;
+        set
+        {
+            if (value == _burred)
+                return;
+            _burred = value;
+            DisplayName = value ? DisplayName + BurrNote : DisplayName.Replace(BurrNote, "");
+        }
+    }
+
+    private const string BurrNote = " (çapaklı)";
+
     /// <summary>Held by a fixture: not free to pick up.</summary>
     public bool Fixed;
     public override bool CanPickUp => !Fixed;
@@ -196,11 +214,20 @@ public partial class StockItem : Carryable, IMeasurable
             int i1 = Mathf.Clamp(Mathf.RoundToInt((xMm + kerfMm / 2f + length / 2f) / t.StepMm), 0, last);
             var near = i0 >= 1 ? CreateTurned(t.RadiiMm[..(i0 + 1)], t.InnerMm[..(i0 + 1)], t.StepMm, Blank.Material, t.SquareHalfMm) : null;
             var far = last - i1 >= 1 ? CreateTurned(t.RadiiMm[i1..], t.InnerMm[i1..], t.StepMm, Blank.Material, t.SquareHalfMm) : null;
-            return (near, -length / 2f + i0 * t.StepMm / 2f, far, -length / 2f + (i1 + last) * t.StepMm / 2f);
+            return Burr((near, -length / 2f + i0 * t.StepMm / 2f, far, -length / 2f + (i1 + last) * t.StepMm / 2f));
         }
         float nearLength = xMm + length / 2f - kerfMm / 2f, farLength = length / 2f - xMm - kerfMm / 2f;
         StockItem Piece(float l) => l < 1f ? null : Create(Blank with { SizeMm = Blank.SizeMm with { X = l } });
-        return (Piece(nearLength), -length / 2f + nearLength / 2f, Piece(farLength), length / 2f - farLength / 2f);
+        return Burr((Piece(nearLength), -length / 2f + nearLength / 2f, Piece(farLength), length / 2f - farLength / 2f));
+    }
+
+    private static (StockItem, float, StockItem, float) Burr((StockItem Near, float NearAt, StockItem Far, float FarAt) split)
+    {
+        if (split.Near != null)
+            split.Near.Burred = true;
+        if (split.Far != null)
+            split.Far.Burred = true;
+        return split;
     }
 
     /// <summary>Turns a turned part end for end in its own data, so its -X

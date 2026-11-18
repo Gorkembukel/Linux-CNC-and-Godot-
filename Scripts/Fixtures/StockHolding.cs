@@ -54,6 +54,8 @@ public sealed class StockSeat
         item.Freeze = true;
         item.Reparent(holder);
         item.Transform = at;
+        if (item.Burred && holder is not BenchVise)
+            Player.PlayerController.Notify(holder, "Çapaklı parça bağlandı: çapak oturmayı bozar, önce eğeyle al");
     }
 
     public void ShowRaw(bool visible)
