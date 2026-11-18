@@ -11,6 +11,11 @@ public partial class HandTool : Carryable
 {
     public HandToolKind Kind { get; private set; }
 
+    /// <summary>In a holster of the player's belt (taken from there, not picked up).</summary>
+    public bool Stowed { get; set; }
+
+    public override bool CanPickUp => !Stowed;
+
     public static string NameOf(HandToolKind kind) => kind switch
     {
         HandToolKind.HexKey => "T kollu alyan",
