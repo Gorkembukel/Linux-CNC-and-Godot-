@@ -22,7 +22,7 @@ public partial class LatheWorkholding : MachineSetup
 {
     private const float M = WorldScale.MmToM;
     private const float MaxSpinDegPerSec = 600f;
-    private const float ProfileStepMm = 0.5f;
+    private const float ProfileStepMm = 0.1f;
 
     public JawChuck Chuck { get; private set; }
     public ToolSocket Turret { get; private set; }

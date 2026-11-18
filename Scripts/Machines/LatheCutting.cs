@@ -21,7 +21,7 @@ public sealed class LatheCutting : CuttingProcess
     /// <summary>Where the current threading pass started: every pass of a
     /// thread starts at the same Z, which keeps them in phase.</summary>
     private float? _threadAnchorZ;
-    private float _threadTravel, _threadRevs;
+    private float _threadTravel, _threadRevs, _threadPitch;
 
     /// <summary>Material has been removed since the last ResetStock.</summary>
     public bool HasCut { get; private set; }
@@ -81,9 +81,16 @@ public sealed class LatheCutting : CuttingProcess
             var kind = mounted.Spec.Kind;
             float drillRadius = kind == ToolKind.Drill ? mounted.Spec.DiameterMm / 2f : 0f;
             var shape = mounted.Spec.LatheProfile;
-            bool threading = shape != null && mounted.Spec.Geometry.IsThreading && rpm > 1f && feedPerRev > 0.2f
-                             && Mathf.Abs(position.Y - previous.Y) > Mathf.Abs(position.X - previous.X);
-            if (!threading)
+            float alongZ = Mathf.Abs(position.Y - previous.Y), acrossX = Mathf.Abs(position.X - previous.X);
+            bool inThread = _threadAnchorZ != null;
+            // Once a pass is on, it stays one while it slows down at the end.
+            bool threading = shape != null && mounted.Spec.Geometry.IsThreading && rpm > 1f && alongZ > acrossX
+                             && (inThread || feedPerRev > 0.2f);
+            // Backing out of the groove at the end of a pass: the tool sits in
+            // its own thread (the form is stamped every pitch from the anchor,
+            // not where the tool stopped), so it keeps the pass's phase.
+            bool leavingGroove = inThread && !threading && acrossX >= alongZ && Mathf.Abs(position.X) >= Mathf.Abs(previous.X);
+            if (!threading && !leavingGroove)
                 _threadAnchorZ = null;
             else if (_threadAnchorZ == null)
             {
@@ -94,10 +101,12 @@ public sealed class LatheCutting : CuttingProcess
             if (threading)
             {
                 // Sample-to-sample feed is noisy; over a pass the axis follows the spindle exactly.
-                _threadTravel += Mathf.Abs(position.Y - previous.Y);
+                _threadTravel += alongZ;
                 _threadRevs += rpm / 60f * seconds;
-                pitch = Mathf.Snapped(_threadRevs > 0.3f ? _threadTravel / _threadRevs : feedPerRev, 0.05f);
+                pitch = _threadPitch = Mathf.Snapped(_threadRevs > 0.3f ? _threadTravel / _threadRevs : feedPerRev, 0.05f);
             }
+            else if (leavingGroove)
+                pitch = _threadPitch;
             var result = kind == ToolKind.Drill ? profile.SweepBore(previous, position, s.ToolNoseRadius, drillRadius, mounted.Spec.TipAngleDeg)
                 : shape != null && kind == ToolKind.Boring ? profile.SweepProfileBore(previous, position, shape)
                 : shape != null ? profile.SweepProfile(previous, position, shape, pitch, _threadAnchorZ ?? 0f)

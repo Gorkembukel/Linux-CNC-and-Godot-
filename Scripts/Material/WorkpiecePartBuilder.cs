@@ -94,8 +94,7 @@ public static class WorkpiecePartBuilder
             angularSegments = 64;
         float massKg = (float)(volumeMm3 * 1e-9 * densityKgPerM3); // mm^3 -> m^3
 
-        var st = new SurfaceTool();
-        st.Begin(Godot.Mesh.PrimitiveType.Triangles);
+        var st = new MeshBuffer();
         var hullPoints = new System.Collections.Generic.List<Vector3>();
 
         float LocalX(int index) => (float)(startZmm + index * stepMm - centroidZmm) * WorldScale.MmToM;
@@ -105,7 +104,9 @@ public static class WorkpiecePartBuilder
             float x0 = LocalX(i), x1 = LocalX(i + 1);
             float r0 = radiiMm[i] * WorldScale.MmToM, r1 = radiiMm[i + 1] * WorldScale.MmToM;
             RevolutionMesh.AddSection(st, x0, r0, innerMm[i] * WorldScale.MmToM, x1, r1, innerMm[i + 1] * WorldScale.MmToM, angularSegments, clip);
-            AddRingPoints(hullPoints, x0, r0, angularSegments, clip);
+            // The hull only needs the shape at about a millimetre.
+            if (i % Mathf.Max(1, Mathf.RoundToInt(1f / stepMm)) == 0)
+                AddRingPoints(hullPoints, x0, r0, angularSegments, clip);
         }
 
         int lastIndex = radiiMm.Length - 1;
@@ -115,7 +116,6 @@ public static class WorkpiecePartBuilder
         RevolutionMesh.AddCap(st, LocalX(0), radiiMm[0] * WorldScale.MmToM, angularSegments, outwardNormalIsNegativeX: true, innerMm[0] * WorldScale.MmToM, clip);
         RevolutionMesh.AddCap(st, xLast, rLast, angularSegments, outwardNormalIsNegativeX: false, innerMm[lastIndex] * WorldScale.MmToM, clip);
 
-        st.GenerateNormals();
         var mesh = st.Commit();
         // Explicit small margin: Jolt's default (0.04m) is bigger than many
         // realistic turned-part cross-sections, which fails hull building

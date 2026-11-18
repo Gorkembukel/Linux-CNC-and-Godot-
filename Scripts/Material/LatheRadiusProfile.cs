@@ -26,6 +26,8 @@ public class LatheRadiusProfile : IMaterialModel
     private readonly float[] _radius;
     /// <summary>Bore radius per bucket (drilled / bored), 0 = solid.</summary>
     private readonly float[] _inner;
+    /// <summary>Thread pitch a threading pass left on each bucket, 0 = none (for drawing the helix).</summary>
+    private readonly float[] _pitch;
 
     public int BucketCount => _radius.Length;
 
@@ -41,6 +43,7 @@ public class LatheRadiusProfile : IMaterialModel
         int count = Mathf.Max(2, Mathf.CeilToInt((zMax - zMin) / stepMm) + 1);
         _radius = new float[count];
         _inner = new float[count];
+        _pitch = new float[count];
         for (int i = 0; i < count; i++)
             _radius[i] = stockRadiusMm;
     }
@@ -54,6 +57,7 @@ public class LatheRadiusProfile : IMaterialModel
         StepMm = stepMm;
         _radius = radiiMm;
         _inner = innerMm ?? new float[radiiMm.Length];
+        _pitch = new float[radiiMm.Length];
     }
 
     /// <summary>The radii from the chuck end up to where the bar ends (the
@@ -73,6 +77,18 @@ public class LatheRadiusProfile : IMaterialModel
 
     public float RadiusAt(int index) => _radius[Mathf.Clamp(index, 0, _radius.Length - 1)];
     public float InnerAt(int index) => _inner[Mathf.Clamp(index, 0, _inner.Length - 1)];
+    public float PitchAt(int index) => _pitch[Mathf.Clamp(index, 0, _pitch.Length - 1)];
+
+    /// <summary>The coarsest thread cut on this bar (0 = none).</summary>
+    public float MaxPitchMm { get; private set; }
+
+    /// <summary>Outside radius at any Z, linear between buckets.</summary>
+    public float RadiusAtZ(float z)
+    {
+        float f = Mathf.Clamp((z - ZMin) / StepMm, 0f, _radius.Length - 1);
+        int i = Mathf.Min((int)f, _radius.Length - 2);
+        return Mathf.Lerp(_radius[i], _radius[i + 1], f - i);
+    }
     public float ZAt(int index) => ZMin + index * StepMm;
 
     public int IndexAt(float z) => Mathf.Clamp(Mathf.RoundToInt((z - ZMin) / StepMm), 0, _radius.Length - 1);
@@ -185,6 +201,8 @@ public class LatheRadiusProfile : IMaterialModel
                 if (z < Mathf.Min(z0, z1) - tool.ZMax || z > Mathf.Max(z0, z1) + tool.ZMax)
                     continue;
                 float x = Mathf.Abs(z1 - z0) < 1e-6f ? Mathf.Min(x0, x1) : Mathf.Lerp(x0, x1, Mathf.Clamp((z - z0) / (z1 - z0), 0f, 1f));
+                _pitch[i] = threadPitchMm;
+                MaxPitchMm = Mathf.Max(MaxPitchMm, threadPitchMm);
                 float phase = Mathf.PosMod(z - anchorZ, threadPitchMm);
                 for (float dz = phase; dz <= tool.ZMax; dz += threadPitchMm)
                     Cover(i, x, dz);

@@ -62,6 +62,22 @@ public class ToolProfileTests
     }
 
     [Fact]
+    public void FinePitch_OnAFineProfile_ReachesItsFullDepth_AndRemembersThePitch()
+    {
+        var bar = new LatheRadiusProfile(10f, -40f, 0f, 0.1f);
+        var thread = new ToolProfile(InsertOutline.Build(new InsertParams(InsertShape.Thread60, 0f, 0.1f, 90f, ToolHand.Neutral, DepthMm: 4f)));
+        float depth = 0.613f;
+        for (float d = 0.2f; d < depth + 0.1f; d += 0.2f)
+            bar.SweepProfile(new Vector2(10f - Mathf.Min(d, depth), 2f), new Vector2(10f - Mathf.Min(d, depth), -30f), thread, threadPitchMm: 1f, anchorZ: 2f);
+
+        var section = Enumerable.Range(0, 10).Select(k => bar.RadiusAt(bar.IndexAt(-15f + k * 0.1f))).ToArray();
+        Assert.InRange(section.Max() - section.Min(), depth - 0.05f, depth + 0.05f);
+        Assert.Equal(1f, bar.PitchAt(bar.IndexAt(-15f)));
+        Assert.Equal(0f, bar.PitchAt(bar.IndexAt(-35f)));
+        Assert.Equal(1f, bar.MaxPitchMm);
+    }
+
+    [Fact]
     public void BoringInsert_OpensTheBoreWithItsTopSide()
     {
         var bar = Bar();

@@ -39,8 +39,10 @@ public partial class WorkpieceVisual : Node3D
     [Export] public bool StartEmpty;
     /// <summary>Segments around the bar's circumference in its mesh.</summary>
     [Export] public int AngularSegments = 24;
-    /// <summary>Profile steps per mesh chunk; a cut rebuilds only the chunks it touched.</summary>
-    [Export] public int BucketsPerChunk = 40;
+    /// <summary>Length of bar per mesh chunk (mm); a cut rebuilds only the chunks it touched.</summary>
+    [Export] public float ChunkLengthMm = 4f;
+
+    private int BucketsPerChunk => Mathf.Max(1, Mathf.RoundToInt(ChunkLengthMm / Profile.StepMm));
     /// <summary>Most chunks rebuilt in one frame, so a big cut does not stall the game.</summary>
     [Export] public int MaxChunkRebuildsPerCall = 4;
 
@@ -90,10 +92,13 @@ public partial class WorkpieceVisual : Node3D
     /// <summary>Call with the dirty bucket range reported by LatheRadiusProfile.Sweep.</summary>
     public void MarkDirty(int minBucketIndex, int maxBucketIndex)
     {
-        int c0 = minBucketIndex / BucketsPerChunk;
-        int c1 = maxBucketIndex / BucketsPerChunk;
-        for (int c = Mathf.Max(0, c0 - 1); c <= Mathf.Min(_chunkDirty.Length - 1, c1 + 1); c++)
-            _chunkDirty[c] = true; // neighbor chunks too, so the shared seam ring stays continuous
+        // A chunk's mesh reaches one bucket into each neighbour (its end rings
+        // and their normals), so a change within a bucket of an edge redraws both;
+        // a thread's ring shows the radii up to a pitch further on.
+        int c0 = Mathf.Max(0, minBucketIndex - 2 - Mathf.CeilToInt(Profile.MaxPitchMm / Profile.StepMm)) / BucketsPerChunk;
+        int c1 = (maxBucketIndex + 1) / BucketsPerChunk;
+        for (int c = c0; c <= Mathf.Min(_chunkDirty.Length - 1, c1); c++)
+            _chunkDirty[c] = true;
     }
 
     /// <summary>Call once per frame (or on the scheduler's "high priority" slot,
@@ -123,29 +128,84 @@ public partial class WorkpieceVisual : Node3D
             return;
         }
 
-        var st = new SurfaceTool();
-        st.Begin(Mesh.PrimitiveType.Triangles);
-        var clip = Profile.SquareHalfMm * WorldScale.MmToM;
+        // Profile data is in mm (LatheRadiusProfile's own unit); convert
+        // to meters here at the mesh-vertex boundary (see WorldScale.cs).
+        const float m = WorldScale.MmToM;
+        var st = new MeshBuffer();
+        var clip = Profile.SquareHalfMm * m;
         int segments = clip == Vector2.Zero ? AngularSegments : 64;
 
-        for (int i = startBucket; i < endBucket; i++)
+        // One section past each end too (only for the normals), so the
+        // normals on the chunk's end rings match the next chunk's: no seam.
+        for (int i = Mathf.Max(0, startBucket - 1); i < Mathf.Min(Profile.BucketCount - 1, endBucket + 1); i++)
         {
-            // Profile data is in mm (LatheRadiusProfile's own unit); convert
-            // to meters here at the mesh-vertex boundary (see WorldScale.cs).
-            const float m = WorldScale.MmToM;
-            RevolutionMesh.AddSection(st, Profile.ZAt(i) * m, Profile.RadiusAt(i) * m, Profile.InnerAt(i) * m,
-                Profile.ZAt(i + 1) * m, Profile.RadiusAt(i + 1) * m, Profile.InnerAt(i + 1) * m, segments, clip);
+            st.NormalsOnly = i < startBucket || i >= endBucket;
+            float[] twist0 = clip == Vector2.Zero ? Helix(i, segments) : null, twist1 = clip == Vector2.Zero ? Helix(i + 1, segments) : null;
+            if (twist0 == null && twist1 == null)
+            {
+                RevolutionMesh.AddSection(st, Profile.ZAt(i) * m, Profile.RadiusAt(i) * m, Profile.InnerAt(i) * m,
+                    Profile.ZAt(i + 1) * m, Profile.RadiusAt(i + 1) * m, Profile.InnerAt(i + 1) * m, segments, clip);
+                continue;
+            }
+            // Where the bar ends after a thread, the band closes down to the bore (the end face).
+            bool endsAfter = Profile.RadiusAt(i + 1) <= 0f, endsBefore = Profile.RadiusAt(i) <= 0f;
+            RevolutionMesh.AddRingSegment(st,
+                Profile.ZAt(i) * m, twist0 ?? Ring((endsBefore ? Profile.InnerAt(i + 1) : Profile.RadiusAt(i)) * m, segments), twist0 != null ? HelixSetBack(Profile.PitchAt(i), segments) : null,
+                Profile.ZAt(i + 1) * m, twist1 ?? Ring((endsAfter ? Profile.InnerAt(i) : Profile.RadiusAt(i + 1)) * m, segments), twist1 != null ? HelixSetBack(Profile.PitchAt(i + 1), segments) : null,
+                endFace: endsAfter || endsBefore);
+            if (!endsAfter && !endsBefore && (Profile.InnerAt(i) > 0f || Profile.InnerAt(i + 1) > 0f))
+                RevolutionMesh.AddBoreSegment(st, Profile.ZAt(i) * m, Profile.InnerAt(i) * m, Profile.ZAt(i + 1) * m, Profile.InnerAt(i + 1) * m, segments);
         }
 
+        st.NormalsOnly = false;
         if (startBucket == 0)
-            RevolutionMesh.AddCap(st, Profile.ZAt(startBucket) * WorldScale.MmToM, Profile.RadiusAt(startBucket) * WorldScale.MmToM, segments,
-                outwardNormalIsNegativeX: true, Profile.InnerAt(startBucket) * WorldScale.MmToM, clip);
-        if (endBucket == Profile.BucketCount - 1)
-            RevolutionMesh.AddCap(st, Profile.ZAt(endBucket) * WorldScale.MmToM, Profile.RadiusAt(endBucket) * WorldScale.MmToM, segments,
-                outwardNormalIsNegativeX: false, Profile.InnerAt(endBucket) * WorldScale.MmToM, clip);
+            RevolutionMesh.AddCap(st, Profile.ZAt(startBucket) * m, Profile.RadiusAt(startBucket) * m, segments,
+                outwardNormalIsNegativeX: true, Profile.InnerAt(startBucket) * m, clip);
+        if (endBucket == Profile.BucketCount - 1 && clip == Vector2.Zero && Helix(endBucket, segments) is { } endThread)
+            RevolutionMesh.AddRingSegment(st, Profile.ZAt(endBucket) * m, endThread, HelixSetBack(Profile.PitchAt(endBucket), segments),
+                Profile.ZAt(endBucket) * m, Ring(Profile.InnerAt(endBucket) * m, segments), null, endFace: true);
+        else if (endBucket == Profile.BucketCount - 1)
+            RevolutionMesh.AddCap(st, Profile.ZAt(endBucket) * m, Profile.RadiusAt(endBucket) * m, segments,
+                outwardNormalIsNegativeX: false, Profile.InnerAt(endBucket) * m, clip);
 
-        st.GenerateNormals();
         _chunkMeshes[chunkIndex].Mesh = st.Commit();
+    }
+
+    // A thread's helix: going round the bar its axial section advances one
+    // pitch per turn. Each ring vertex takes the radius of a whole bucket
+    // (no resampling, so the crests stay straight lines) and is set back
+    // along the axis by the rest of the advance, under one bucket.
+    private float[] Helix(int i, int segments)
+    {
+        float pitch = Profile.PitchAt(i);
+        if (pitch <= 0f || Profile.RadiusAt(i) <= 0f)
+            return null;
+        var ring = new float[segments];
+        for (int a = 0; a < segments; a++)
+        {
+            float advance = pitch * a / segments;
+            float r = Profile.RadiusAt(i + Mathf.FloorToInt(advance / Profile.StepMm + 1e-4f));
+            ring[a] = (r > 0f ? r : Profile.RadiusAt(i)) * WorldScale.MmToM;
+        }
+        return ring;
+    }
+
+    private float[] HelixSetBack(float pitch, int segments)
+    {
+        var back = new float[segments];
+        for (int a = 0; a < segments && pitch > 0f; a++)
+        {
+            float advance = pitch * a / segments;
+            back[a] = (advance - Mathf.FloorToInt(advance / Profile.StepMm + 1e-4f) * Profile.StepMm) * WorldScale.MmToM;
+        }
+        return back;
+    }
+
+    private static float[] Ring(float radius, int segments)
+    {
+        var ring = new float[segments];
+        System.Array.Fill(ring, radius);
+        return ring;
     }
 
     /// <summary>So a detached finished part (see WorkpiecePartBuilder) can
