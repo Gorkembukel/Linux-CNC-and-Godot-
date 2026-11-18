@@ -5,7 +5,9 @@
 # and PID namespace; the native config copy is private too because deploy.py
 # wipes it on every start. rtapi_app's control socket is not covered by any
 # of those namespaces, so it gets a name unique to this run (the PID as seen
-# outside the new PID namespace).
+# outside the new PID namespace). LinuxCNC's tool table is shared through
+# $HOME/.tool.mmap, which each new instance recreates under the others
+# (they then die with SIGBUS), so HOME is private as well.
 set -euo pipefail
 user=$1
 shift
@@ -17,6 +19,7 @@ exec unshare --mount --ipc --pid --fork --kill-child --mount-proc -- bash -c '
     mount -t tmpfs tmpfs /tmp
     mount -t tmpfs -o "uid=$(id -u "$1"),gid=$(id -g "$1")" tmpfs "$2/godot-cnc-trainer"
     user=$1
+    home=$2
     shift 2
-    exec runuser -u "$user" -- env "RTAPI_FIFO_PATH=/tmp/rtapi_fifo.$FIFO_ID" "$@"
+    exec runuser -u "$user" -- env "HOME=$home/godot-cnc-trainer" "RTAPI_FIFO_PATH=/tmp/rtapi_fifo.$FIFO_ID" "$@"
 ' _ "$user" "$home" "$@"
