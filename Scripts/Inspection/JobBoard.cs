@@ -42,7 +42,7 @@ public partial class JobBoard : Node3D, IInteractable, IJobCard
         BodyParts.SolidBox(this, "Board", new Vector3(1.2f, 0.8f, 0.03f), new Vector3(0f, 1.5f, 0f), BodyParts.Mat(new Color(0.55f, 0.42f, 0.28f), 0f, 0.9f));
         BodyParts.SolidBox(this, "Post", new Vector3(0.06f, 1.1f, 0.06f), new Vector3(0f, 0.55f, -0.03f), BodyParts.DarkSteel);
         AddChild(new Label3D { Text = "İŞ EMİRLERİ", PixelSize = 0.002f, FontSize = 44, Position = new Vector3(0f, 1.82f, 0.02f) });
-        _sign = new Label3D { PixelSize = 0.0012f, FontSize = 32, Position = new Vector3(0f, 1.5f, 0.02f), Width = 900f, AutowrapMode = TextServer.AutowrapMode.WordSmart };
+        _sign = new Label3D { PixelSize = 0.0018f, FontSize = 40, Position = new Vector3(0f, 1.5f, 0.02f), Width = 900f, AutowrapMode = TextServer.AutowrapMode.WordSmart };
         AddChild(_sign);
         if (Engine.IsEditorHint())
             return;

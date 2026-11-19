@@ -208,9 +208,14 @@ door on enclosed machines.
    after the change.
 5. The eleven demo programs in `linuxcnc-config/nc_files/` have never all
    run end to end live (the statue program only offline + `rs274`).
-   `lathe_kademeli_mil` had rapid retracts against its shoulders (now G1)
-   and needs 80+ mm out of the chuck (HandsOnLathe, preset 2); it and
-   `demo_mill_pocket` now run end to end.
+   `lathe_kademeli_mil` was rewritten: G1 retracts at its shoulders (G0
+   rubbed them), the big step is Ø36 to Z-64 so the 20 mm parting blade can
+   part it at Z-55 (part 52 long: the blade's controlled point is its chuck-
+   side corner), 95+ mm out of the chuck. It (HandsOnLathe, preset 2) and
+   `demo_mill_pocket` run end to end and pass their work orders. Found on
+   the way: `LatheRadiusProfile.Sever` stopped at the parting groove's own
+   empty buckets, so a blade wider than one bucket never let a part go.
+   `demo_facing_turning` on preset 1 still drives the tool into the chuck.
 6. Side finding, not investigated: `BridgeClient.LastCommandRttMs` stays NaN.
 7. Console: MC LOCK is back (`CuttingProcess.SetMachineLock`: the body
    stays, nothing cuts or collides; released after the control moved it

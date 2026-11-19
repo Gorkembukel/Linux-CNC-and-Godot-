@@ -88,4 +88,24 @@ public class ToolProfileTests
         Assert.InRange(bar.InnerAt(bar.IndexAt(-15f)), 10.9f, 11.1f);
         Assert.Equal(8f, bar.InnerAt(bar.IndexAt(-35f)), precision: 3);
     }
+
+    [Fact]
+    public void GroovingBlade_PartingToTheAxis_SeversThePart()
+    {
+        var bar = new LatheRadiusProfile(18f, -185f, 0f, 0.5f);
+        var blade = new ToolProfile(InsertOutline.Build(new InsertParams(InsertShape.Groove, 0f, 0.2f, 90f, ToolHand.Neutral, WidthMm: 3f, DepthMm: 20f)));
+        int? severed = null;
+        var from = new Vector2(19f, -55f);
+        for (float x = 19f; x >= -0.5f; x -= 0.25f)
+        {
+            var to = new Vector2(x, -55f);
+            var r = bar.SweepProfile(from, to, blade);
+            severed ??= r.SeveredIndex;
+            from = to;
+        }
+        Assert.NotNull(severed);
+        var piece = bar.Sever(severed.Value);
+        Assert.InRange((piece.Length - 1) * 0.5f, 50f, 55f);
+        Assert.All(piece, r => Assert.Equal(18f, r));
+    }
 }

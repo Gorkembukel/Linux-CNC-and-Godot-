@@ -19,10 +19,10 @@ NominalMm = 32.0
 
 [sub_resource type="Resource" id="Feature_d44"]
 script = ExtResource("2_feature")
-Label = "Ø44 büyük kademe"
+Label = "Ø36 büyük kademe"
 Kind = 0
 PositionMm = Vector3(40, 0, 0)
-NominalMm = 44.0
+NominalMm = 36.0
 
 [sub_resource type="Resource" id="Feature_len"]
 script = ExtResource("2_feature")
@@ -46,8 +46,8 @@ OrderNumber = "İE-0001"
 Machine = 1
 Material = 1
 StockShape = 1
-StockSizeMm = Vector3(120, 50, 50)
+StockSizeMm = Vector3(130, 50, 50)
 Program = "nc_files/lathe_kademeli_mil.ngc"
-Notes = "Kütüğü aynadan en az 80 mm dışarıda bağla (kesmede taret aynaya yaklaşır). Z0 = serbest alın.
+Notes = "Kütüğü aynadan en az 95 mm dışarıda bağla (kesmede taret aynaya yaklaşır). Z0 = serbest alın.
 Her kalemi ölç (OFS/SET), ilk parçayı SINGLE BLOCK ve düşük ilerlemeyle çalıştır."
 Features = Array[ExtResource("2_feature")]([SubResource("Feature_d20"), SubResource("Feature_d32"), SubResource("Feature_d44"), SubResource("Feature_len"), SubResource("Feature_ra")])

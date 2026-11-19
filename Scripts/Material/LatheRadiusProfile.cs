@@ -335,20 +335,25 @@ public class LatheRadiusProfile : IMaterialModel
         // first extraction's already-empty tail buckets as if they were
         // still live material (a degenerate zero-radius ghost on the new
         // piece's far end, growing with every subsequent part-off).
-        int end = index + 1;
+        // A blade wider than one bucket empties several at once: the piece
+        // starts past the groove it left.
+        int start = index + 1;
+        while (start < _radius.Length && _radius[start] <= 0f)
+            start++;
+        int end = start;
         while (end < _radius.Length && _radius[end] > 0f)
             end++;
 
-        int count = end - index - 1;
+        int count = end - start;
         if (count <= 0)
             return System.Array.Empty<float>();
 
         var removed = new float[count];
         removedInner = new float[count];
-        for (int i = index + 1; i < end; i++)
+        for (int i = start; i < end; i++)
         {
-            removed[i - index - 1] = _radius[i];
-            removedInner[i - index - 1] = _inner[i];
+            removed[i - start] = _radius[i];
+            removedInner[i - start] = _inner[i];
             _radius[i] = 0f;
             _inner[i] = 0f;
         }
