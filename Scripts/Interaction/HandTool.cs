@@ -40,6 +40,16 @@ public partial class HandTool : Carryable
         _ => "Komparatör",
     };
 
+    /// <summary>The axis (own frame) a tool turns about when it is used with
+    /// the wheel (keys, handles); zero for tools that are not turned.</summary>
+    public Vector3 TurnAxis => Kind switch
+    {
+        HandToolKind.HexKey => Vector3.Right,
+        HandToolKind.ViseHandle => Vector3.Back,
+        HandToolKind.ChuckKey or HandToolKind.CamKey => Vector3.Up,
+        _ => Vector3.Zero,
+    };
+
     public static HandTool Create(HandToolKind kind)
     {
         var tool = new HandTool { Kind = kind, DisplayName = NameOf(kind), Name = kind.ToString(), Mass = 0.4f };

@@ -23,9 +23,18 @@ DEFAULT_LATHE_JOINT_AXIS_MAP = ((0, AXIS_X), (1, AXIS_Z))
 
 
 class StatePublisher:
+    def _spindle_rpm(self, spindle0) -> float:
+        """Signed speed the spindle has reached (negative = M4). stat only
+        has the commanded speed, unsigned, with the direction apart."""
+        actual = self.spindle_actual()
+        if actual is not None:
+            return actual
+        direction = spindle0["direction"] or (1 if spindle0["speed"] >= 0 else -1)
+        return abs(spindle0["speed"]) * direction
+
     def __init__(self, stat, sock: socket.socket, dest_addr: tuple[str, int], rate_hz: float = 250.0,
                  joint_axis_map: tuple[tuple[int, int], ...] = DEFAULT_LATHE_JOINT_AXIS_MAP,
-                 tool_change_pending=lambda: False, error_channel=None):
+                 tool_change_pending=lambda: False, error_channel=None, spindle_actual=lambda: None):
         self.stat = stat
         self.sock = sock
         self.dest_addr = dest_addr
@@ -33,6 +42,7 @@ class StatePublisher:
         self.seq = 0
         self.joint_axis_map = joint_axis_map
         self.tool_change_pending = tool_change_pending
+        self.spindle_actual = spindle_actual
         self.error_channel = error_channel
         self.active_axis_mask = 0
         for _joint, axis in joint_axis_map:
@@ -104,7 +114,7 @@ class StatePublisher:
         spindle0 = self.stat.spindle[0]
         return StateSample(
             position=position, velocity=velocity,
-            feed_rate=self.stat.feedrate, spindle_rpm=spindle0["speed"],
+            feed_rate=self.stat.feedrate, spindle_rpm=self._spindle_rpm(spindle0),
             feed_override=self.stat.feedrate, spindle_override=spindle0["override"],
             tool_number=self.stat.tool_in_spindle, tool_nose_radius=self._tool_nose_radius(),
             spindle_enabled=bool(spindle0["enabled"]), task_mode=int(task_mode),

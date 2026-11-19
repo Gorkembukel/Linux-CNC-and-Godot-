@@ -10,7 +10,7 @@ public class ChuckRunoutTests
     {
         var grip = new ChuckGrip(maxOpeningMm: 80f, jawDepthMm: 30f, boreMm: 30f, boreDepthMm: 250f);
         grip.Insert(50f, 140f);
-        for (int i = 0; i < 20 && grip.OpeningMm > 50f; i++)
+        for (int i = 0; i < 60 && !grip.AtContact; i++)
             grip.TurnKey(1);
         for (int i = 0; i < torque; i++)
             grip.TurnKey(1);

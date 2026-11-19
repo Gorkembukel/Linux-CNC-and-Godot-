@@ -11,6 +11,29 @@ public static class SynthSounds
     private const int Rate = 22050;
 
     private static AudioStreamWav _click, _beep, _motor, _cut, _servo, _coolant, _chatter;
+    private static AudioStreamWav _clink, _clunk, _ratchet, _clack, _scrape;
+
+    /// <summary>A small steel part knocking on steel: high, inharmonic, short.</summary>
+    public static AudioStreamWav Clink => _clink ??= Make(Generate(0.25f, (t, rnd) =>
+        (Mathf.Sin(Tau * 2930f * t) * 0.4f + Mathf.Sin(Tau * 4170f * t) * 0.3f + Mathf.Sin(Tau * 6310f * t) * 0.2f)
+        * Mathf.Exp(-t * 28f) + Noise(rnd) * 0.3f * Mathf.Exp(-t * 400f)), false);
+
+    /// <summary>A jaw dropping into its groove: a lower, duller knock.</summary>
+    public static AudioStreamWav Clunk => _clunk ??= Make(Generate(0.3f, (t, rnd) =>
+        (Mathf.Sin(Tau * 870f * t) * 0.45f + Mathf.Sin(Tau * 1420f * t) * 0.3f + Mathf.Sin(Tau * 2350f * t) * 0.15f)
+        * Mathf.Exp(-t * 22f) + Noise(rnd) * 0.5f * Mathf.Exp(-t * 160f)), false);
+
+    /// <summary>One notch of a chuck key: the scroll's teeth ticking past.</summary>
+    public static AudioStreamWav Ratchet => _ratchet ??= Make(Generate(0.05f, (t, rnd) =>
+        (Noise(rnd) * 0.5f + Mathf.Sin(Tau * 1850f * t) * 0.4f) * Mathf.Exp(-t * 140f)), false);
+
+    /// <summary>The scroll's thread catching a jaw: a firm metallic clack.</summary>
+    public static AudioStreamWav Clack => _clack ??= Make(Generate(0.2f, (t, rnd) =>
+        (Mathf.Sin(Tau * 620f * t) * 0.5f + Mathf.Sin(Tau * 1130f * t) * 0.35f + Mathf.Sin(Tau * 3300f * t) * 0.15f)
+        * Mathf.Exp(-t * 35f) + Noise(rnd) * 0.6f * Mathf.Exp(-t * 250f)), false);
+
+    /// <summary>A jaw sliding out along its groove.</summary>
+    public static AudioStreamWav Scrape => _scrape ??= Make(Filtered(0.35f, 0.5f, 0.08f, 0.6f, t => 0f), false);
 
     public static AudioStreamWav Click => _click ??= Make(Generate(0.03f, (t, rnd) =>
         (Noise(rnd) * 0.6f + Mathf.Sin(Tau * 2600f * t) * 0.5f) * Mathf.Exp(-t * 220f)), false);

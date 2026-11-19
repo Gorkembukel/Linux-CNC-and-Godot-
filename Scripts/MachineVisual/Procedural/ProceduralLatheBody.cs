@@ -61,6 +61,15 @@ public partial class ProceduralLatheBody : Node3D
 
     /// <summary>The chuck now on the nose decides where its jaws end and
     /// what the carriage can run into.</summary>
+    /// <summary>No chuck on: only the spindle nose sticks out.</summary>
+    public void FitBareNose(float noseDiameterMm)
+    {
+        JawFrontZMm = NoseZMm + JawChuck.BareNoseLengthMm;
+        Chuck.Position = new Vector3(JawFrontZMm * M, 0f, 0f);
+        if (_chuckZone >= 0)
+            _fixedZones[_chuckZone] = new Zone("fener mili burnuna", NoseZMm, JawFrontZMm, noseDiameterMm / 2f);
+    }
+
     public void FitChuck(ChuckModel model)
     {
         JawFrontZMm = NoseZMm + model.LengthMm;

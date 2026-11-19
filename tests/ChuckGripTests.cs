@@ -31,7 +31,7 @@ public class ChuckGripTests
         Assert.False(grip.HoldsFirmly);
         for (int i = 0; i < 40; i++)
             grip.TurnKey(1);
-        Assert.Equal(50f, grip.OpeningMm);
+        Assert.InRange(grip.OpeningMm, 50f, 50f + grip.StepMm);
         Assert.Equal(ChuckGrip.FullTorque, grip.Torque);
         Assert.True(grip.HoldsFirmly);
         grip.TurnKey(-1);
@@ -93,12 +93,12 @@ public class ChuckGripTests
 
     private static ChuckGrip EmptyChuckWith(JawKind jaws) => new(ThreeJaw, jaws);
 
-    /// <summary>Opens the key until the next jaw comes off the scroll.</summary>
-    private static SeatedJaw? NextJawOut(ChuckGrip grip)
+    /// <summary>Turns the key back until the scroll lets go of a jaw; its slot.</summary>
+    private static int? NextJawLetGo(ChuckGrip grip)
     {
-        for (int i = 0; i < 100; i++)
-            if (grip.TurnKey(-1, canTakeJaw: true) is SeatedJaw jaw)
-                return jaw;
+        for (int i = 0; i < 200; i++)
+            if (grip.TurnKey(-1).Released is int slot)
+                return slot;
         return null;
     }
 
@@ -111,28 +111,87 @@ public class ChuckGripTests
 
     private static bool Fits(ChuckGrip grip, float diameter)
     {
-        for (int i = 0; i < 60 && !grip.CanInsert(diameter); i++)
+        for (int i = 0; i < 60 && !grip.CanInsert(diameter) && !grip.FullyOpen; i++)
             grip.TurnKey(-1);
         return grip.CanInsert(diameter);
     }
 
     [Fact]
-    public void Jaws_ComeOffTheScrollOneByOne_LastInFirstOut()
+    public void JawsTurnedBackPastWhereTheyWereCaught_LetGo_LastCaughtFirst_AndLieLoose()
     {
         var grip = new ChuckGrip(ThreeJaw) { KeyIn = true };
-        Assert.Equal(3, NextJawOut(grip)?.Number);
-        Assert.Equal(2, NextJawOut(grip)?.Number);
-        Assert.Equal(1, NextJawOut(grip)?.Number);
-        Assert.True(grip.Jaws.Empty);
+        Assert.Equal(2, NextJawLetGo(grip));
+        Assert.Equal(1, NextJawLetGo(grip));
+        Assert.Equal(0, NextJawLetGo(grip));
+        Assert.Equal(0, grip.Jaws.Seated);
+        Assert.Equal(3, grip.Jaws.Waiting(2)?.Number);
+        Assert.NotNull(grip.Jaws.TakeWaiting(2));
         Assert.NotNull(grip.WhyNot(40f));
     }
 
     [Fact]
-    public void AJawWaitingInHand_StopsTheKey()
+    public void ANotchTooFarAndBack_KeepsAJawAlreadyCaught()
+    {
+        var grip = new ChuckGrip(ThreeJaw, fitted: null) { KeyIn = true };
+        Assert.Null(grip.Jaws.Place(0, JawKind.Hard, 1, ChuckKind.ThreeJaw, ""));
+        Assert.Equal(1, grip.Jaws.Seated);
+        for (int i = 0; i < ChuckJaws.NotchesPerSlot + 1; i++)
+            grip.TurnKey(1);
+        grip.TurnKey(-1);
+        grip.TurnKey(-1);
+        Assert.Equal(1, grip.Jaws.Seated);
+        // Only back past where it was caught does it let go.
+        for (int i = 0; i < ChuckJaws.NotchesPerSlot; i++)
+            grip.TurnKey(-1);
+        Assert.Equal(0, grip.Jaws.Seated);
+        Assert.NotNull(grip.Jaws.Waiting(0));
+    }
+
+    [Fact]
+    public void ALooseJaw_IsCaughtAgainGoingIn()
     {
         var grip = new ChuckGrip(ThreeJaw) { KeyIn = true };
+        Assert.Equal(2, NextJawLetGo(grip));
+        int caught = -1;
+        for (int i = 0; i < 20 && caught < 0; i++)
+            caught = grip.TurnKey(1).Caught ?? -1;
+        Assert.Equal(2, caught);
+        Assert.True(grip.Jaws.Complete);
+        Assert.True(grip.Jaws.MeetAtCentre);
+    }
+
+    [Fact]
+    public void JawsLaidInAfterTheStartPassed_AreCaughtATurnLate()
+    {
+        var grip = new ChuckGrip(ThreeJaw, fitted: null) { KeyIn = true };
+        grip.TurnKey(1);
+        for (int n = 1; n <= 3; n++)
+            Assert.Null(grip.Jaws.Place(n - 1, JawKind.Hard, n, ChuckKind.ThreeJaw, ""));
+        for (int i = 0; i < 20 && !grip.Jaws.Complete; i++)
+            grip.TurnKey(1);
+        Assert.True(grip.Jaws.Complete);
+        Assert.False(grip.Jaws.MeetAtCentre);
+        Assert.InRange(grip.Jaws.ErrorMm(0), ThreeJaw.ScrollPitchMm * 0.5f, ThreeJaw.ScrollPitchMm);
+    }
+
+    [Fact]
+    public void AFullChuck_TurnsItsScrollWithTheKey()
+    {
+        var grip = new ChuckGrip(ThreeJaw) { KeyIn = true };
+        int notch = grip.Jaws.Notch;
+        float opening = grip.OpeningMm;
+        grip.TurnKey(1);
+        Assert.Equal(notch + 1, grip.Jaws.Notch);
+        Assert.Equal(opening - grip.StepMm, grip.OpeningMm, 3);
+    }
+
+    [Fact]
+    public void HoldingABar_TheKeyWillNotLetGoOfAJaw()
+    {
+        var grip = LoadedChuck();
+        grip.KeyIn = true;
         for (int i = 0; i < 100; i++)
-            Assert.Null(grip.TurnKey(-1, canTakeJaw: false));
+            Assert.Null(grip.TurnKey(-1).Released);
         Assert.True(grip.Jaws.Complete);
     }
 
@@ -154,13 +213,14 @@ public class ChuckGripTests
     public void AJawCaughtATurnLate_HoldsThePartOff()
     {
         var grip = new ChuckGrip(ThreeJaw, fitted: null) { KeyIn = true };
-        foreach (int n in new[] { 2, 3, 1 })
+        foreach (int jn in new[] { 2, 3, 1 })
         {
-            ScrollTo(grip, n - 1);
-            Assert.Null(grip.InstallJaw(JawKind.Hard, n, ChuckKind.ThreeJaw));
+            ScrollTo(grip, jn - 1);
+            Assert.Null(grip.InstallJaw(JawKind.Hard, jn, ChuckKind.ThreeJaw));
         }
         Assert.False(grip.Jaws.MeetAtCentre);
-        for (int i = 0; i < 30; i++) grip.TurnKey(-1, canTakeJaw: false);
+        while (!grip.CanInsert(40f) && grip.Jaws.Complete)
+            grip.TurnKey(-1);
         Assert.True(grip.Insert(40f, 100f));
         Assert.True(grip.RunoutMm(0f) > 1f, $"runout {grip.RunoutMm(0f)}");
     }
@@ -329,5 +389,40 @@ public class ChuckGripTests
         foreach (int n in new[] { 3, 1, 4, 2 })
             Assert.Null(grip.InstallJaw(JawKind.Hard, n, ChuckKind.FourJawIndependent));
         Assert.True(grip.Jaws.Complete);
+    }
+
+    [Fact]
+    public void BenchJaw_WaitsInItsGroove_UntilTheScrollStartComesRound()
+    {
+        var jaws = new ChuckJaws(ThreeJaw, fitted: null);
+        Assert.Null(jaws.Place(1, JawKind.Hard, 2, ChuckKind.ThreeJaw, ""));
+        Assert.Equal(0, jaws.Seated);
+        Assert.Equal(2, jaws.Waiting(1)?.Number);
+        for (int i = 0; i < ChuckJaws.NotchesPerSlot; i++)
+            jaws.Advance(1);
+        Assert.Equal(1, jaws.Seated);
+        Assert.Null(jaws.Waiting(1));
+    }
+
+    [Fact]
+    public void BenchJaws_LaidInAndCaughtInOrder_MeetAtTheCentre()
+    {
+        var jaws = new ChuckJaws(ThreeJaw, fitted: null);
+        Assert.Null(jaws.Place(0, JawKind.Hard, 1, ChuckKind.ThreeJaw, ""));
+        Assert.Null(jaws.Place(1, JawKind.Hard, 2, ChuckKind.ThreeJaw, ""));
+        Assert.Null(jaws.Place(2, JawKind.Hard, 3, ChuckKind.ThreeJaw, ""));
+        for (int i = 0; i < 9 && !jaws.Complete; i++)
+            jaws.Advance(1);
+        Assert.True(jaws.Complete);
+        Assert.True(jaws.MeetAtCentre);
+    }
+
+    [Fact]
+    public void JawsFitOnlyTheirOwnChuckSize()
+    {
+        var dims = ThreeJaw with { JawFamily = "ThreeJaw-125" };
+        var jaws = new ChuckJaws(dims, fitted: null);
+        Assert.NotNull(jaws.WhyNotJaw(0, JawKind.Hard, 1, ChuckKind.ThreeJaw, "ThreeJaw-160"));
+        Assert.Null(jaws.WhyNotJaw(0, JawKind.Hard, 1, ChuckKind.ThreeJaw, "ThreeJaw-125"));
     }
 }

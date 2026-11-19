@@ -96,6 +96,19 @@ def main() -> int:
 
         def set_probe(on: bool) -> None:
             hal_component["probe"] = on
+
+        # basic_sim's sim_spindle slews the commanded speed through
+        # limit_speed (rpm/s) and waits on near_speed for at-speed: give it
+        # this machine's spindle mass, and report the speed it has reached.
+        accel = linuxcnc.ini(ini_path).find("SPINDLE_0", "GODOT_ACCEL_RPM_PER_SEC")
+        if accel:
+            subprocess.run(["halcmd", "setp", "limit_speed.maxv", accel], check=True)
+
+        def spindle_actual():
+            try:
+                return float(hal.get_value("limit_speed.out"))
+            except Exception:  # noqa: BLE001 - a HAL without sim_spindle
+                return None
         stat = linuxcnc.stat()
         cmd = linuxcnc.command()
         stat.poll()
@@ -111,6 +124,7 @@ def main() -> int:
         publisher = StatePublisher(stat, command_sock, (dest_ip, args.state_port), rate_hz=args.rate_hz,
                                    joint_axis_map=joint_axis_map,
                                    tool_change_pending=lambda: hal.get_value("iocontrol.0.tool-change"),
+                                   spindle_actual=spindle_actual,
                                    error_channel=linuxcnc.error_channel())
 
         def retarget(addr):

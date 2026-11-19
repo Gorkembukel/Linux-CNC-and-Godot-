@@ -48,7 +48,14 @@ More in [`docs/screenshots/`](docs/screenshots/).
   costs the machine its reference, a key left in the chuck flies out, an open
   door blocks the cycle.
 - **Measuring.** Caliper, micrometer and depth gauge read the real cut
-  surface — on the machine and on finished parts.
+  surface — on the machine and on finished parts. A touch probe runs G38.2
+  on the real control; a Z setting block sets tool lengths.
+- **Chucks as a craft.** Chucks of many sizes and spindle noses in a curved
+  cabinet; changed on the lathe with the cam key; their jaws set by hand
+  into the guides on a chuck stand and caught by the turning scroll, with
+  the faults a real scroll chuck has (wrong slot, a turn late).
+- **Work orders.** Take a job from the board (with its drawing), make the
+  part, get it graded at the inspection table.
 - **Sound.** Key clicks, alarm beeps, spindle motor, cutting, axis servos and
   coolant, all synthesised and placed in 3D.
 - **Machine generator** (editor plugin). Describe a machine — axes, travels,
@@ -100,9 +107,12 @@ shows live data.
 | Q / R | lean left / right |
 | Left Alt + mouse | move the head (peek into a machine); Alt + wheel: head forward / back; tap Alt to bring it back |
 | V | first / third person |
-| F | pick up / drop what you are looking at |
+| F | pick up (held where it lies) / drop; Shift + F: straight into the hands |
+| B | bring what you hold up to your hands |
+| Mouse wheel | turn a bolt, the vise screw, a dial or the handwheel; holding something: nearer / further (Shift: finely) |
+| T (hold) + mouse, or middle drag | turn what you hold (Shift: finely); Z / X quarter turns |
 | Left click | use, place, press a console key |
-| Mouse wheel | turn a bolt, the vise screw, a dial or the handwheel |
+| K | near a console: turn the keyboard's CNC control and the corner window off / on |
 | E or Tab | at a console: close-up on the panel; at the stock station: its panel |
 | Esc | free / capture the mouse |
 | F2 | debug: 2D operator panel and status text |
@@ -223,13 +233,68 @@ take the key out, then with the **cam key** (on the rack) wheel back to undo
 the three cam locks; click the chuck with the other one in hand (the old one,
 with its jaws, comes off into your hands); wheel the cam key forward to lock
 the three cams again. Starting the spindle with a cam undone throws the
-chuck. The work now sits as far out as the new chuck is long.
+chuck. To take a chuck off without putting another on, undo the cams and
+click it with an empty hand: it comes off into your hands and the spindle
+nose stays bare until a chuck is put on it. The work now sits as far out as the new chuck is long.
 The **4-jaw independent** chuck seats a bar well off centre, then the mallet
 (with the dial on the bar) adjusts one jaw against the other, also when
 tight, down to microns; its jaws go in any order. The **ER32 collet** chuck
 takes one collet at a time from the box on the rack (each holds its size to
 1 mm under): collet in, bar in, key to tighten; loosened, the bar slides.
 Each chuck has its own speed limit; going faster is warned.
+
+The spindle takes time to get up to speed and to stop (a lathe's heavy
+chuck: 400 rpm/s by default, `MachineSpec.SpindleAccelRpmPerSec`); the
+control waits for it before feeding. M4 turns it the other way.
+
+### Chuck cabinet and stand
+
+Beside a console, K turns the keyboard's CNC control (and the console's
+corner window) off, so the keys are yours again; K again turns it back on.
+
+Carrying: F takes a thing where it lies and holds it there (Shift + F, or
+B while holding, brings it up to your hands); the wheel brings what you
+hold nearer or further without moving you (Shift: by the centimetre), T (or the middle button) held turns it with
+the mouse (Shift: finely), Z / X turn it a quarter. Keys and handles in the
+hand turn as the wheel turns them. Right mouse zooms the view.
+The chuck stand can be carried (F) to any bench: set it down and click to
+fix it there; click it again, empty, to free it. Its top is a turntable:
+the wheel turns the chuck to a handy angle (with the key in, Shift + wheel).
+The chucks are cut like real ones: T-slots through the face, the bore
+open, and down the slots the scroll's spiral thread turning with the key.
+
+`Scenes/Workshop/ChuckCabinet.tscn`: in its curved enclosure (built like a
+lathe guard; click a door and it slides round the curve) stand some twenty
+chucks, most for the D1-4 nose (Ø80-Ø150 three- and six-jaw, four-jaw
+independents, ER25/32/40) and the bigger ones for D1-3/5/6, each with its own
+sizes and spindle nose;
+a lathe takes only one made for its nose that clears its bed. Each drawer
+holds one chuck's spare jaws (hard, reversed, soft, all numbered) or its
+collets. On the worktop, the chuck stand: set a chuck on it face up and
+change its jaws off the machine, as in a real shop. Chuck key in, open past
+the end and the jaws are let go one by one (the last caught first) and lie
+loose in their grooves: lift them out. To fit them, set each jaw into its
+groove yourself: nothing snaps; a jaw is a solid thing, its narrow tongue
+goes down the groove only when it is square to it, and then it slides in
+the guides. It stays loose there until the key brings the scroll's thread
+start across that slot: only then is it caught (and becomes part of the
+chuck). Jaw 1
+first, then 2, then 3, each laid in before the start reaches it: a jaw in
+another number's slot sits off by a third of a pitch, one laid in after the
+start has passed is caught a turn late and sits a whole pitch out. A notch
+too far and back does nothing; only turning back past where a jaw was
+caught lets it go again.
+With **physical handling** on (Project Settings, cnc_trainer/workshop), what
+you carry is held up whatever it weighs but swings with some of its mass
+(`weight_feel`, 0-1, default 0.35; `hand_strength_n`): heavy chucks lag a
+little. On the stand it is also a test of hand and eye: nothing on screen
+says which slot the scroll is at or whether a jaw went in right. Watch the
+scroll's ridges down the grooves (a fresh ridge appears at a groove's outer
+end as the thread start passes that slot), feel a jaw being drawn into the
+groove as it comes square, and listen: a dull knock as it drops in, a clack
+when the scroll catches it, the key ratcheting, a scrape as one slides out.
+Off: things follow the view, jaws are clicked into the groove you look at,
+and the stand says what happened.
 
 ### Fanuc-style tool calls
 
@@ -317,7 +382,8 @@ Scripts/
                          procedural mill and lathe bodies, tool meshes
   Material/              lathe radius profile, voxel stock and mesher
   Fixtures/              vise, clamps, centring plate, chucks, mill / lathe setup
-  Workshop/              stock station, stock items, tool bench and carts
+  Workshop/              stock station, stock items, tool bench and carts,
+                         the chuck cabinet and its curved enclosure, settings
   Interaction/           what the player can look at, carry, use and measure
   Player/                player, posture, console close-up
   Audio/                 synthesised sounds, machine audio
@@ -333,8 +399,9 @@ PLAN.md                  current status, open work, environment gotchas
 
 ## Status and limits
 
-Working: everything above. The drawing on a work order is a text card, not
-a drawn 2D drawing yet.
+Working: everything above. Not yet: setting jaws physically on the lathe
+itself (that is done on the chuck stand), the probe sensing the vise or
+table, a tailstock counting as support for a slender bar.
 
 - Kinematics are plain trivkins (no tool-centre-point control); lathes are
   X/Z only.

@@ -22,7 +22,6 @@ namespace CncTrainer.Fixtures;
 public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMeasurable, ISawable, IThreaded
 {
     private const float M = WorldScale.MmToM;
-    private const float JawHeight = 0.022f;
 
     public ChuckGrip Grip { get; private set; }
     public StockSeat Seat { get; } = new();
@@ -77,12 +76,12 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
     }
 
     /// <summary>Cam locks holding the chuck to the spindle nose.</summary>
-    public const int CamCount = 3;
+    public int CamCount => Model.CamCount;
 
     /// <summary>The chuck's own sizes.</summary>
     public ChuckModel Model { get; private set; }
     /// <summary>Cam locks done up: all of them before the spindle may turn.</summary>
-    public int CamsLocked { get; private set; } = CamCount;
+    public int CamsLocked { get; private set; }
     public bool CamsDone => CamsLocked >= CamCount;
     /// <summary>Why the lathe will not take another chuck, null when it
     /// will; set by the lathe (an indexer's chuck stays on).</summary>
@@ -91,11 +90,18 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
     public System.Action Refitted;
     /// <summary>The spindle is turning (cam locks are not touched then); set by the lathe.</summary>
     public System.Func<bool> SpindleTurning;
+    /// <summary>The lathe's spindle nose, drawn bare when no chuck is on; set by the lathe.</summary>
+    public SpindleNose Nose = SpindleNose.D1_4;
+    /// <summary>A chuck is on the nose (off: lifted off, the nose is bare).</summary>
+    public bool Mounted { get; private set; } = true;
+    /// <summary>How far the bare nose stands out of the headstock.</summary>
+    public const float BareNoseLengthMm = 20f;
+    private Node3D _bareNose;
 
-    private Node3D _rotor, _key, _collet;
-    private readonly List<(MeshInstance3D Mesh, int Slot)> _jaws = new();
+    private Node3D _rotor, _key;
+    private ChuckVisual _visual;
+    private AudioStreamPlayer3D _ratchet;
     private CollisionShape3D _bodyShape, _barShape;
-    private float _bodyLengthM, _jawDepthM;
 
     /// <summary>A three-jaw chuck sized from the older per-machine settings.</summary>
     public static JawChuck Create(float diameterMm, int jawCount, float jawDepthMm, float boreDepthMm)
@@ -114,48 +120,37 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
         chuck._barShape = new CollisionShape3D { Shape = new CylinderShape3D(), RotationDegrees = new Vector3(0f, 0f, 90f), Disabled = true };
         chuck.AddChild(chuck._barShape);
         chuck.Fit(model, grip);
+        chuck.CamsLocked = model.CamCount;
         return chuck;
     }
 
-    /// <summary>Builds this chuck's body, jaws or collet nose and key from
-    /// its own sizes; the front face of the jaws stays at the origin.</summary>
+    /// <summary>Builds this chuck from its own sizes (<see cref="ChuckVisual"/>,
+    /// turned so its axis runs along +X) with the key; the front face of
+    /// the jaws stays at the origin.</summary>
     private void Fit(ChuckModel model, ChuckGrip grip)
     {
         Model = model;
         Grip = grip;
         RadiusM = model.DiameterMm / 2f * M;
-        _jawDepthM = model.JawDepthMm * M;
-        _bodyLengthM = model.BodyLengthMm * M;
         foreach (Node child in _rotor.GetChildren())
         {
             _rotor.RemoveChild(child);
             child.QueueFree();
         }
-        _jaws.Clear();
+        _visual = ChuckVisual.Create(model);
+        _visual.Visible = true;
+        // The visual stands on +Y; on the spindle its axis is +X.
+        _visual.Transform = new Transform3D(new Basis(new Vector3(0f, -1f, 0f), new Vector3(1f, 0f, 0f), new Vector3(0f, 0f, 1f)),
+            new Vector3(-_visual.LengthM, 0f, 0f));
+        _rotor.AddChild(_visual);
 
-        float bodyCentre = -_jawDepthM * 0.7f - _bodyLengthM / 2f;
-        BodyParts.Cylinder(_rotor, "Body", RadiusM, _bodyLengthM, new Vector3(bodyCentre, 0f, 0f), Vector3.Right, BodyParts.Steel);
-        for (int i = 0; i < grip.Jaws.SlotCount; i++)
-        {
-            var arm = new Node3D { Name = "Jaw", RotationDegrees = new Vector3(i * 360f / grip.Jaws.SlotCount, 0f, 0f) };
-            _rotor.AddChild(arm);
-            _jaws.Add((BodyParts.Box(arm, "JawBlock", new Vector3(_jawDepthM * 0.7f, RadiusM * 0.45f, JawHeight), Vector3.Zero, BodyParts.DarkSteel), i));
-        }
-        _collet = null;
-        if (grip.IsCollet)
-        {
-            BodyParts.Cylinder(_rotor, "Nose", RadiusM * 0.6f, _jawDepthM * 0.7f, new Vector3(-_jawDepthM * 0.35f, 0f, 0f), Vector3.Right,
-                BodyParts.DarkSteel, topRadius: RadiusM * 0.45f);
-            _collet = new Node3D { Name = "Collet" };
-            _rotor.AddChild(_collet);
-            BodyParts.Cylinder(_collet, "Collet", RadiusM * 0.3f, 0.004f, new Vector3(0.002f, 0f, 0f), Vector3.Right, BodyParts.Steel);
-        }
-        _key = new Node3D { Name = "Key", Position = new Vector3(bodyCentre, RadiusM, 0f), Visible = false };
+        float keyX = -_visual.LengthM + _visual.FaceM * 0.6f;
+        _key = new Node3D { Name = "Key", Position = new Vector3(keyX, RadiusM, 0f), Visible = false };
         _rotor.AddChild(_key);
         BodyParts.Cylinder(_key, "Shaft", 0.007f, 0.12f, new Vector3(0f, 0.05f, 0f), Vector3.Up, BodyParts.Steel);
         BodyParts.Cylinder(_key, "Handle", 0.006f, 0.14f, new Vector3(0f, 0.11f, 0f), Vector3.Right, BodyParts.Steel);
 
-        float length = _bodyLengthM + _jawDepthM * 0.7f;
+        float length = _visual.LengthM;
         ((CylinderShape3D)_bodyShape.Shape).Radius = RadiusM;
         ((CylinderShape3D)_bodyShape.Shape).Height = length;
         _bodyShape.Position = new Vector3(-length / 2f, 0f, 0f);
@@ -165,23 +160,7 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
     private void Refresh()
     {
         var g = Grip;
-        float inner = g.OpeningMm / 2f * M, jawRadial = RadiusM * 0.45f;
-        foreach (var (mesh, slot) in _jaws)
-        {
-            if (g.Jaws.Slot(slot) is not SeatedJaw seated)
-            {
-                mesh.Visible = false;
-                continue;
-            }
-            mesh.Visible = true;
-            // A jaw caught out of turn sits further out than the others.
-            float off = g.Jaws.ErrorMm(slot) * M;
-            float centre = (g.Inside ? inner - jawRadial / 2f : inner + jawRadial / 2f) + off;
-            mesh.Position = new Vector3(-g.JawDepthMm * M * 0.35f, Mathf.Min(centre, RadiusM - jawRadial / 2f), 0f);
-            mesh.MaterialOverride = BodyParts.Mat(JawItem.ColorOf(seated.Kind), seated.Kind == JawKind.Soft ? 0.5f : 0.7f, 0.45f);
-        }
-        if (_collet != null)
-            _collet.Visible = g.Jaws.ColletMm != null;
+        _visual.ShowGrip(g);
         _key.Visible = g.KeyIn;
 
         _barShape.Disabled = !g.HasBar;
@@ -194,6 +173,83 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
         _barShape.Position = new Vector3(stickOut / 2f, 0f, 0f);
         if (Stock != null)
             Stock.Transform = new Transform3D(Basis.Identity, new Vector3((g.StickOutMm - Stock.Blank.LengthMm / 2f) * M, 0f, 0f));
+    }
+
+    /// <summary>Why the chuck cannot be lifted off the nose now, or null.</summary>
+    private string WhyNotLift() =>
+        WhyNotMount == null ? "Bu ayna sökülmez"
+        : Grip.HasBar ? "Önce parçayı çıkar"
+        : Grip.KeyIn ? "Önce ayna anahtarını çıkar"
+        : CamsLocked > 0 ? $"Ayna fener miline kilitli: kam anahtarıyla kam kilitlerini çöz ({CamsLocked}/{CamCount} kilitli)"
+        : SpindleTurning?.Invoke() == true ? "İş mili dönüyor"
+        : null;
+
+    /// <summary>Lifts the chuck off the nose into the player's hands; the
+    /// nose stays bare until a chuck is put on.</summary>
+    private void Lift(PlayerController player)
+    {
+        if (WhyNotLift() is string why)
+        {
+            PlayerController.Notify(this, why);
+            return;
+        }
+        var removed = ChuckItem.Create(Model, Grip);
+        GetTree().CurrentScene.AddChild(removed);
+        player.Give(removed);
+        Mounted = false;
+        // An empty stand-in so nothing can be put into a chuck that is not there.
+        Grip = new ChuckGrip(new ChuckDims(ChuckKind.Collet, 0, 0f, 0f, 0f, 0f));
+        _visual.Visible = false;
+        _key.Visible = false;
+        ShowBareNose(true);
+        Refitted?.Invoke();
+        Changed?.Invoke();
+        PlayerController.Notify(this, $"{removed.DisplayName} fener milinden indirildi ({removed.Mass:0.#} kg): yere ya da dolaba bırak");
+    }
+
+    /// <summary>Puts a chuck onto the bare nose.</summary>
+    private void Mount(PlayerController player, ChuckItem item)
+    {
+        if (WhyNotMount?.Invoke(item.Model) is string why)
+        {
+            PlayerController.Notify(this, why);
+            return;
+        }
+        player.ReleaseHeld();
+        Fit(item.Model, item.Grip);
+        item.QueueFree();
+        Mounted = true;
+        ShowBareNose(false);
+        CamsLocked = 0;
+        Refitted?.Invoke();
+        Changed?.Invoke();
+        PlayerController.Notify(this, $"{Model.DisplayName} fener miline oturdu: kam anahtarıyla {CamCount} kam kilidini kilitle");
+    }
+
+    private void ShowBareNose(bool bare)
+    {
+        if (_bareNose == null)
+        {
+            float r = SpindleNoses.DiameterMm(Nose) / 2f * M, length = BareNoseLengthMm * M;
+            _bareNose = new Node3D { Name = "BareNose" };
+            AddChild(_bareNose);
+            BodyParts.Cylinder(_bareNose, "Nose", r, length, new Vector3(-length / 2f, 0f, 0f), Vector3.Right, BodyParts.Steel);
+            for (int i = 0; i < SpindleNoses.CamCount(Nose); i++)
+            {
+                float a = Mathf.Tau * (i + 0.5f) / SpindleNoses.CamCount(Nose);
+                BodyParts.Cylinder(_bareNose, "CamHole", 0.0065f, 0.003f,
+                    new Vector3(0.0005f, Mathf.Cos(a) * r * 0.75f, Mathf.Sin(a) * r * 0.75f), Vector3.Right, BodyParts.Mat(new Color(0.05f, 0.05f, 0.05f)));
+            }
+        }
+        _bareNose.Visible = bare;
+        var shape = (CylinderShape3D)_bodyShape.Shape;
+        if (bare)
+        {
+            RadiusM = SpindleNoses.DiameterMm(Nose) / 2f * M;
+            shape.Radius = RadiusM;
+            shape.Height = BareNoseLengthMm * M;
+            _bodyShape.Position = new Vector3(-shape.Height / 2f, 0f, 0f);
+        }
     }
 
     /// <summary>Why the chuck cannot come off now, or null.</summary>
@@ -238,13 +294,16 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
     private void InstallJaw(PlayerController player, JawItem jaw)
     {
         int slot = Grip.Jaws.OpenSlot ?? -1;
-        if (Grip.InstallJaw(jaw.Kind, jaw.Number, jaw.MadeFor) is string why)
+        if (Grip.InstallJaw(jaw.Kind, jaw.Number, jaw.MadeFor, jaw.Family) is string why)
         {
             PlayerController.Notify(this, why);
             return;
         }
         player.ReleaseHeld().QueueFree();
         Refresh();
+        _ratchet?.Play();
+        if (!JawHints)
+            return;
         string next = Grip.Jaws.Complete ? "Çeneler tamam: anahtarla kapatıp ortada buluştuklarına bak"
             : Grip.Jaws.Independent ? "Sıradaki çeneyi tak"
             : "Anahtarı çevir: spiralin başı sıradaki yuvaya gelsin";
@@ -292,9 +351,11 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
         get
         {
             var g = Grip;
+            if (!Mounted)
+                return $"[ ] Fener milinde ayna yok ({SpindleNoses.NameOf(Nose)}): bir ayna tak\n";
             string text = $"    Ayna: {Model.DisplayName}, {JawLine}\n";
             if (WhyNotMount != null)
-                text += Sheet.Mark(CamsDone) + $"Kam kilitleri {CamsLocked}/{CamCount}\n";
+                text += Sheet.Mark(CamsDone) + $"Kam kilitleri {CamsLocked}/{CamCount} ({SpindleNoses.NameOf(Model.Mount)})\n";
             text += Sheet.Mark(g.HasBar) + "Kütük aynada"
                 + (g.HasBar ? System.FormattableString.Invariant($"  Ø{g.BarDiameterMm:0.#} x {g.BarLengthMm:0.#}") : "") + "\n";
             if (!g.HasBar)
@@ -331,19 +392,24 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
         return key;
     }
 
-    /// <summary>One notch of the key; a jaw that comes off the scroll goes
-    /// to the player's hand (and the key stops while that hand is full).</summary>
+    /// <summary>One notch of the key. A jaw the scroll lets go of lies loose
+    /// in its slot until it is pulled out (an empty-hand click).</summary>
     public void TurnKey(int steps, PlayerController player = null)
     {
-        var released = Grip.TurnKey(steps, canTakeJaw: player != null && player.Held == null);
-        if (released is SeatedJaw jaw)
+        if (_ratchet == null)
         {
-            var item = JawItem.Create(jaw.Kind, jaw.Number, Model.Kind);
-            GetTree().CurrentScene.AddChild(item);
-            item.GlobalPosition = GlobalPosition;
-            player.Give(item);
-            PlayerController.Notify(this, $"{jaw.Number} numaralı çene spiralden kurtuldu, elinde");
+            _ratchet = new AudioStreamPlayer3D { Stream = Audio.SynthSounds.Ratchet, VolumeDb = -8f, UnitSize = 1.5f, MaxDistance = 14f };
+            AddChild(_ratchet);
         }
+        if (player != null)
+        {
+            _ratchet.PitchScale = (float)GD.RandRange(0.93, 1.07);
+            _ratchet.Play();
+        }
+        var turned = Grip.TurnKey(steps);
+        _key.RotateObjectLocal(Vector3.Up, steps * Mathf.Pi / 6f);
+        if (turned.Released is int slot && JawHints)
+            PlayerController.Notify(this, $"{slot + 1}. yuvadaki çene spiralden kurtuldu: elle çek");
         Refresh();
     }
 
@@ -402,6 +468,10 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
 
     public string Prompt(PlayerController player)
     {
+        if (!Mounted)
+            return player.Held is ChuckItem onto
+                ? WhyNotMount?.Invoke(onto.Model) ?? $"[Tık] {onto.DisplayName} fener miline tak"
+                : $"Fener mili burnu {SpindleNoses.NameOf(Nose)}: ayna takılı değil (bir ayna getir)";
         if (PromptWith?.Invoke(player) is string extra)
             return extra;
         var tool = player.HeldTool?.Kind;
@@ -415,13 +485,13 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
             return WhyNotSwap(other.Model) ?? $"[Tık] {other.DisplayName} tak ({Model.DisplayName} sök)";
         if (player.Held is JawItem jawItem)
             return g.IsCollet ? "Pens aynasına çene takılmaz"
-                : jawItem.MadeFor != Model.Kind ? "Bu çene bu aynanın değil"
+                : !jawItem.Fits(Model) ? "Bu çene bu aynanın değil"
                 : g.HasBar ? "Çene takmak için önce parçayı çıkar"
                 : !g.KeyIn ? "Çeneler ayna anahtarıyla takılır: önce anahtarı tak"
                 : g.Jaws.Set is JawKind set && set != jawItem.Kind ? "Farklı takım çeneler karıştırılmaz: önce takılı olanları sök"
-                : g.Jaws.OpenSlot is int slot ? $"[Tık] {jawItem.DisplayName} → {slot + 1}. yuvaya tak"
+                : g.Jaws.OpenSlot is int slot ? (JawHints ? $"[Tık] {jawItem.DisplayName} → {slot + 1}. yuvaya tak" : $"[Tık] {jawItem.DisplayName} tak")
                 : g.Jaws.Complete ? "Bütün yuvalar dolu"
-                : $"Spiralin başı {g.Jaws.StartSlot + 1}. yuvada, orası dolu: anahtarı çevir";
+                : JawHints ? $"Spiralin başı {g.Jaws.StartSlot + 1}. yuvada, orası dolu: anahtarı çevir" : null;
         if (player.Held is ColletItem colletItem)
             return !g.IsCollet ? "Bu ayna pens almaz"
                 : g.Jaws.ColletMm != null ? "Aynada zaten bir pens var: önce onu çıkar"
@@ -456,8 +526,13 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
         }
         if (player.Held != null)
             return null;
+        if (!g.IsCollet && g.Jaws.LooseSlot is int loose)
+            return (JawHints ? $"[Tık] {loose + 1}. yuvadaki gevşek çeneyi çek" : "[Tık] Çeneyi yuvadan çek")
+                + (g.KeyIn ? "   " + KeyPrompt : "");
         if (g.KeyIn)
             return KeyPrompt + "   [Tık] Anahtarı çıkar";
+        if (WhyNotMount != null && CamsLocked == 0 && !g.HasBar)
+            return $"Kam kilitleri çözük   [Tık] Aynayı fener milinden indir ({Model.MassKg:0.#} kg)";
         if (g.HasBar)
             return g.Torque > 0
                 ? $"Ayna sıkılı ({g.Torque}/{ChuckGrip.FullTorque}), çıkıntı {g.StickOutMm:0} mm. Gevşetmek için ayna anahtarını tak"
@@ -467,12 +542,17 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
         return $"{Model.DisplayName}: {JawLine}" + (g.IsCollet ? "" : $", açıklık Ø{g.OpeningMm:0} mm (ayna anahtarı gerekli)");
     }
 
+    /// <summary>Text about the jaws only without physical handling.</summary>
+    private static bool JawHints => !Workshop.WorkshopSettings.PhysicalHandling;
+
     /// <summary>What the key does now.</summary>
     private string KeyPrompt
     {
         get
         {
             var g = Grip;
+            if (!JawHints && !g.IsCollet && !g.AtContact)
+                return "[Tekerlek] Anahtarı çevir";
             if (g.IsCollet)
                 return g.HasBar ? $"[Tekerlek] Pensi sık / gevşet   sıkma {g.Torque}/{ChuckGrip.FullTorque}" : "Pens aynası: önce çubuğu sür";
             if (!g.Jaws.Complete)
@@ -493,6 +573,12 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
 
     public void Use(PlayerController player)
     {
+        if (!Mounted)
+        {
+            if (player.Held is ChuckItem onto)
+                Mount(player, onto);
+            return;
+        }
         if (UseWith?.Invoke(player) == true)
             return;
         if (player.HeldTool?.Kind == HandToolKind.ChuckKey)
@@ -532,10 +618,19 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
                 hollow.ReverseTurned();
             InsertBarInside(hollow, bore, depth);
         }
+        else if (player.Held == null && !Grip.IsCollet && Grip.Jaws.LooseSlot is int loose && Grip.Jaws.TakeWaiting(loose) is SeatedJaw pulled)
+        {
+            var pulledJaw = JawItem.Create(pulled.Kind, pulled.Number, Model);
+            GetTree().CurrentScene.AddChild(pulledJaw);
+            player.Give(pulledJaw);
+            Refresh();
+        }
         else if (player.Held == null && Grip.KeyIn)
             player.Give(TakeKey());
         else if (player.Held == null && Grip.HasBar && Grip.Torque == 0)
             player.Give(TakeBar());
+        else if (player.Held == null && WhyNotMount != null && CamsLocked == 0)
+            Lift(player);
         else if (player.Held == null && Grip.IsCollet && Grip.TakeCollet() is float colletSize)
         {
             var taken = ColletItem.Create(colletSize);
@@ -593,6 +688,8 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
 
     public void Turn(PlayerController player, int steps)
     {
+        if (!Mounted)
+            return;
         if (player.HeldTool?.Kind == HandToolKind.CamKey && WhyNotMount != null)
         {
             if (SpindleTurning?.Invoke() == true)
