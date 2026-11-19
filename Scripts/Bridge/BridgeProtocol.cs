@@ -12,6 +12,7 @@ public enum PacketType : byte
     State = 1,
     Event = 2,
     Preview = 3,
+    ToolTable = 4,
     Command = 16,
     Ack = 17,
     Subscribe = 18,
@@ -169,6 +170,19 @@ public struct PreviewSegment
             End = end,
             FeedRate = r.ReadDouble(),
         };
+    }
+}
+
+/// <summary>One tool of LinuxCNC's tool table (TOOL_TABLE packet).
+/// Diameter is the nose radius on a lathe.</summary>
+public readonly record struct ToolTableEntry(int Number, double X, double Z, double Diameter, int Orientation)
+{
+    public static ToolTableEntry[] ReadAll(BinaryReader r)
+    {
+        var entries = new ToolTableEntry[r.ReadUInt16()];
+        for (int i = 0; i < entries.Length; i++)
+            entries[i] = new ToolTableEntry(r.ReadInt32(), r.ReadDouble(), r.ReadDouble(), r.ReadDouble(), r.ReadInt32());
+        return entries;
     }
 }
 

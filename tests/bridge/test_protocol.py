@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "bridge"))
 from protocol import (  # noqa: E402
     AXIS_CAPACITY, AXIS_X, AXIS_Z, StateSample, PacketType, TaskMode, InterpState,
     Command, CommandKind, PreviewSegment, pack_event, unpack_event, pack_ack, unpack_ack,
-    pack_preview_chunk, unpack_preview_chunk, unpack_header,
+    pack_preview_chunk, unpack_preview_chunk, unpack_header, ToolTableEntry, pack_tool_table, unpack_tool_table,
 )
 
 
@@ -113,3 +113,14 @@ def test_preview_chunk_roundtrip_and_chunking():
     assert len(decoded) == 2
     assert decoded[0] == segs[0]
     assert decoded[1] == segs[1]
+
+
+def test_tool_table_roundtrip_and_size():
+    entries = [ToolTableEntry(1, 0.0, 110.0, 10.0, 0), ToolTableEntry(9, -0.25, 1.5, 0.4, 3)]
+    packet = pack_tool_table(seq=3, entries=entries)
+    packet_type, seq, _, hlen = unpack_header(packet)
+    assert packet_type == PacketType.TOOL_TABLE
+    assert seq == 3
+    assert len(packet) == hlen + 2 + 2 * 32
+    assert unpack_tool_table(packet[hlen:]) == entries
+    assert len(pack_tool_table(0, entries * 40)) < 1200

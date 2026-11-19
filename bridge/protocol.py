@@ -28,6 +28,7 @@ class PacketType(IntEnum):
     STATE = 1
     EVENT = 2
     PREVIEW = 3
+    TOOL_TABLE = 4
     COMMAND = 16
     ACK = 17
     SUBSCRIBE = 18
@@ -221,6 +222,32 @@ def unpack_preview_chunk(body: bytes):
         segments.append(PreviewSegment(motion_type, line_number, start, end, feed))
         offset += _SEGMENT.size
     return total_segments, chunk_index, segments
+
+
+@dataclass
+class ToolTableEntry:
+    number: int
+    x_offset: float
+    z_offset: float
+    diameter: float     # lathe: nose radius (LinuxCNC's D column)
+    orientation: int    # lathe: Q (insert orientation), 0 on a mill
+
+
+_TOOL_ENTRY = struct.Struct("<idddi")
+MAX_TOOL_TABLE_ENTRIES = 36  # one packet, comfortably under ~1200 bytes
+
+
+def pack_tool_table(seq: int, entries: list[ToolTableEntry]) -> bytes:
+    entries = entries[:MAX_TOOL_TABLE_ENTRIES]
+    body = struct.pack("<H", len(entries))
+    for e in entries:
+        body += _TOOL_ENTRY.pack(e.number, e.x_offset, e.z_offset, e.diameter, e.orientation)
+    return pack_header(PacketType.TOOL_TABLE, seq) + body
+
+
+def unpack_tool_table(body: bytes) -> list[ToolTableEntry]:
+    (count,) = struct.unpack_from("<H", body, 0)
+    return [ToolTableEntry(*_TOOL_ENTRY.unpack_from(body, 2 + i * _TOOL_ENTRY.size)) for i in range(count)]
 
 
 def pack_ack(seq: int, acked_client_seq: int, ok: bool, text: str = "") -> bytes:

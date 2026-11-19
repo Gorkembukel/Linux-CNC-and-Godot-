@@ -93,6 +93,26 @@ repeated segments_in_chunk times:
     f64 feed_rate      (program units/min, 0 for rapids)
 ```
 
+## TOOL_TABLE packet (bridge -> Godot), packet_type = 4
+
+LinuxCNC's tool table (`stat.tool_table`, each real tool once, sorted by
+number). Sent to the subscribed address whenever it changes (checked every
+0.25 s) and every 2 s anyway, so a lost packet or a late subscriber catches
+up. At most 36 tools (one packet under ~1200 bytes).
+
+```
+u16 count
+repeated count times:
+    i32 tool_number
+    f64 x_offset
+    f64 z_offset
+    f64 diameter      (lathe: nose radius)
+    i32 orientation   (lathe Q, 0 on a mill)
+```
+
+The control's geometry / wear split is Godot's (`ToolOffsetTable`):
+LinuxCNC holds geometry + wear, which is what G43 applies.
+
 ## COMMAND packet (Godot -> bridge), packet_type = 16, sent on user action
 
 ```
