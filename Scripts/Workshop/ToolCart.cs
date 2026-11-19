@@ -90,8 +90,16 @@ public partial class ToolLengthGauge : StaticBody3D, IInteractable
             return "Torna kalemi burada ölçülmez: deneme pasosu al, kumpasla ölç, TOUCH OFF";
         float gaugeLength = tool.TrueLengthMm + Spec.ToolLengthModel.HolderLengthMm;
         float table = Lengths.TableLengthMm(tool.Spec.LengthMm, tool.ErrorMm.Y);
+        string slender = tool.Mounted.Limits().Slender ? "  TIRLAR: çok uzun" : "";
         return System.FormattableString.Invariant(
-            $"Burun-uç boyu: {gaugeLength:0.00} mm   (nominal {tool.Spec.LengthMm + Spec.ToolLengthModel.HolderLengthMm:0.00}, fark {tool.ErrorMm.Y:+0.00;-0.00})   OFS'e: Z{table:0.00}   aşınma %{tool.State.Wear * 100f:0}");
+            $"Burun-uç boyu: {gaugeLength:0.00} mm   (nominal {tool.Spec.LengthMm + Spec.ToolLengthModel.HolderLengthMm:0.00}, fark {tool.ErrorMm.Y:+0.00;-0.00})   OFS'e: Z{table:0.00}   aşınma %{tool.State.Wear * 100f:0}\nTaşma {tool.TrueLengthMm:0.0} mm = çapın {tool.TrueLengthMm / Mathf.Max(tool.Spec.DiameterMm, 0.1f):0.0} katı{slender}   [Teker] pens içinde kaydır");
+    }
+
+    /// <summary>The wheel slides the cutter in its collet, 1 mm a notch.</summary>
+    public void Turn(PlayerController player, int steps)
+    {
+        if (player.Held is ToolItem { ForLathe: false } tool)
+            tool.SlideInHolder(steps);
     }
 
     public void Use(PlayerController player)

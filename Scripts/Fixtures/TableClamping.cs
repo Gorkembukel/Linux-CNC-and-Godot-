@@ -32,6 +32,8 @@ public partial class TableClamping : Node3D, IInteractable, IStockFixture
     private Vector3 Bounds => Seat.ExtentsM;
 
     public bool HoldsFirmly => _clamps.Any(c => c.Side < 0 && c.Nut.IsTight) && _clamps.Any(c => c.Side > 0 && c.Nut.IsTight);
+    /// <summary>Held, but with a clamp nut still loose: the part creeps under the cut.</summary>
+    public float SlipMmPerMm3 => HoldsFirmly && _clamps.Any(c => !c.Nut.IsTight) ? Vise.PartialClampSlipMmPerMm3 : 0f;
     public string LooseReason => _clamps.Count < 2
         ? "PARÇA FIRLADI: kütük pabuçla bağlanmamıştı (iki uçtan birer pabuç)"
         : "PARÇA FIRLADI: pabuç somunları tam sıkılmamıştı";

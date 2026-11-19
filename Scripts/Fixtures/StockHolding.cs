@@ -1,6 +1,7 @@
 using System.Linq;
 using Godot;
 using CncTrainer.Interaction;
+using CncTrainer.Machining;
 using CncTrainer.Workshop;
 
 namespace CncTrainer.Fixtures;
@@ -20,6 +21,9 @@ public interface IStockFixture
     string ToolCrash(Vector3 tip, float radius);
     /// <summary>Takes whatever is held out as a loose object.</summary>
     RigidBody3D TakeStock();
+    /// <summary>How far the part creeps under the cutting force per mm^3
+    /// cut: 0 when it is clamped fully tight, a little when it is only snug.</summary>
+    float SlipMmPerMm3 => 0f;
 }
 
 /// <summary>The stock a fixture holds: the raw piece the player brought,
@@ -31,8 +35,8 @@ public sealed class StockSeat
     public Node3D MachinedPart { get; private set; }
     /// <summary>The stock has had material removed.</summary>
     public bool WasCut;
-    /// <summary>What the cutting left on the surface, for the part's name.</summary>
-    public string SurfaceNote;
+    /// <summary>What the cutting left on the surface, handed to the part.</summary>
+    public SurfaceFinish Surface;
 
     public bool Occupied => Stock != null;
 
@@ -91,7 +95,10 @@ public sealed class StockSeat
             ShowRaw(true);
         }
         else if (WasCut)
-            stock.DisplayName = "İşlenmiş parça" + SurfaceNote;
+        {
+            stock.DisplayName = "İşlenmiş parça";
+            stock.FinishSurface(Surface);
+        }
         stock.Fixed = false;
         stock.Reparent(stock.GetTree().CurrentScene);
         Stock = null;

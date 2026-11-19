@@ -1,0 +1,53 @@
+[gd_resource type="Resource" script_class="WorkOrder" load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Inspection/WorkOrder.cs" id="1_order"]
+[ext_resource type="Script" path="res://Scripts/Inspection/PartFeature.cs" id="2_feature"]
+
+[sub_resource type="Resource" id="Feature_d20"]
+script = ExtResource("2_feature")
+Label = "Ø20 uç kademe"
+Kind = 0
+PositionMm = Vector3(8, 0, 0)
+NominalMm = 20.0
+
+[sub_resource type="Resource" id="Feature_d32"]
+script = ExtResource("2_feature")
+Label = "Ø32 orta kademe"
+Kind = 0
+PositionMm = Vector3(24, 0, 0)
+NominalMm = 32.0
+
+[sub_resource type="Resource" id="Feature_d44"]
+script = ExtResource("2_feature")
+Label = "Ø44 büyük kademe"
+Kind = 0
+PositionMm = Vector3(40, 0, 0)
+NominalMm = 44.0
+
+[sub_resource type="Resource" id="Feature_len"]
+script = ExtResource("2_feature")
+Label = "Toplam boy"
+Kind = 2
+NominalMm = 52.0
+LowerToleranceMm = -0.5
+UpperToleranceMm = 0.5
+
+[sub_resource type="Resource" id="Feature_ra"]
+script = ExtResource("2_feature")
+Label = "Yüzey Ra"
+Kind = 5
+LowerToleranceMm = 0.0
+UpperToleranceMm = 3.2
+
+[resource]
+script = ExtResource("1_order")
+Title = "Kademeli mil"
+OrderNumber = "İE-0001"
+Machine = 1
+Material = 1
+StockShape = 1
+StockSizeMm = Vector3(120, 50, 50)
+Program = "nc_files/lathe_kademeli_mil.ngc"
+Notes = "Kütüğü aynadan en az 80 mm dışarıda bağla (kesmede taret aynaya yaklaşır). Z0 = serbest alın.
+Her kalemi ölç (OFS/SET), ilk parçayı SINGLE BLOCK ve düşük ilerlemeyle çalıştır."
+Features = Array[ExtResource("2_feature")]([SubResource("Feature_d20"), SubResource("Feature_d32"), SubResource("Feature_d44"), SubResource("Feature_len"), SubResource("Feature_ra")])

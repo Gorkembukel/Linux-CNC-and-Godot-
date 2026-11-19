@@ -2,6 +2,19 @@ using System;
 
 namespace CncTrainer.Fixtures;
 
+/// <summary>The set of jaws on a chuck.</summary>
+public enum JawKind
+{
+    /// <summary>Hardened stepped jaws, as delivered: grip from small bars up to the chuck's capacity.</summary>
+    Hard,
+    /// <summary>The hard jaws turned round: their outer steps reach large
+    /// diameters, but they cannot close on small bars.</summary>
+    HardReversed,
+    /// <summary>Soft (mild steel / aluminium) jaws: they only hold a part
+    /// once bored to its diameter, and then hold it almost dead true.</summary>
+    Soft,
+}
+
 /// <summary>
 /// State of a jaw chuck and the round bar in it: jaw opening, how hard it is
 /// tightened, whether the key is still in it, and how far the bar sticks
@@ -13,6 +26,8 @@ public sealed class ChuckGrip
     public const float JawStepMm = 4f;
     /// <summary>Less bar than this inside the jaws does not hold.</summary>
     public const float MinGripMm = 15f;
+    /// <summary>Soft jaws bored for one diameter hold bars this close to it.</summary>
+    public const float SoftJawFitMm = 0.3f;
 
     public readonly float MaxOpeningMm;
     public readonly float JawDepthMm;
@@ -27,6 +42,15 @@ public sealed class ChuckGrip
     public float BarDiameterMm { get; private set; }
     public float BarLengthMm { get; private set; }
     public float StickOutMm { get; private set; }
+    public JawKind Jaws { get; private set; } = JawKind.Hard;
+    /// <summary>The diameter the soft jaws were bored for; null until they are.</summary>
+    public float? SoftBoredForMm { get; private set; }
+
+    /// <summary>Smallest and largest diameter the mounted jaws close on.</summary>
+    public float MinGripDiameterMm => Jaws == JawKind.HardReversed ? MaxOpeningMm * 0.5f : 0f;
+    public float MaxGripDiameterMm => Jaws == JawKind.HardReversed ? MaxOpeningMm * 1.3f : MaxOpeningMm;
+
+    public bool SoftJawsFit(float diameterMm) => SoftBoredForMm is float bored && Math.Abs(bored - diameterMm) <= SoftJawFitMm;
 
     public ChuckGrip(float maxOpeningMm, float jawDepthMm, float boreMm, float boreDepthMm)
     {
@@ -42,8 +66,44 @@ public sealed class ChuckGrip
 
     public float GripLengthMm => HasBar ? Math.Min(BarLengthMm - StickOutMm, JawDepthMm) : 0f;
     public bool HoldsFirmly => HasBar && Torque >= 2 && GripLengthMm >= MinGripMm;
+    /// <summary>How many diameters the bar sticks out of the jaws.</summary>
+    public float Slenderness => HasBar && BarDiameterMm > 0f ? StickOutMm / BarDiameterMm : 0f;
 
-    public bool CanInsert(float diameterMm) => !HasBar && diameterMm <= MaxOpeningMm && OpeningMm >= diameterMm + 1f;
+    public bool CanInsert(float diameterMm) => !HasBar && diameterMm >= MinGripDiameterMm && diameterMm <= MaxGripDiameterMm
+        && OpeningMm >= diameterMm + 1f && (Jaws != JawKind.Soft || SoftJawsFit(diameterMm));
+
+    /// <summary>Why a bar of this diameter cannot go into the mounted jaws,
+    /// or null when it can (opening the jaws aside).</summary>
+    public string WhyNot(float diameterMm) =>
+        diameterMm > MaxGripDiameterMm ? $"Parça bu çenelere sığmaz (en fazla {MaxGripDiameterMm:0} mm)"
+        : diameterMm < MinGripDiameterMm ? $"Ters çeneler bu kadar küçüğe kapanmaz (en az {MinGripDiameterMm:0} mm): sert çeneleri tak"
+        : Jaws == JawKind.Soft && !SoftJawsFit(diameterMm) ? "Yumuşak çeneler bu çapa tornalanmadı"
+        : null;
+
+    /// <summary>Swaps the jaw set; only with the key in and nothing in the
+    /// chuck. Returns why not, or null when done.</summary>
+    public string ChangeJaws(JawKind kind)
+    {
+        if (HasBar)
+            return "Çene değiştirmek için önce parçayı çıkar";
+        if (!KeyIn)
+            return "Çeneler ayna anahtarıyla sökülür: önce anahtarı tak";
+        Jaws = kind;
+        SoftBoredForMm = null;
+        OpeningMm = Math.Clamp(OpeningMm, MinGripDiameterMm, MaxGripDiameterMm);
+        return null;
+    }
+
+    /// <summary>Bores the soft jaws to hold this diameter (the operator
+    /// clamps a ring in them and takes a light cut across their faces).</summary>
+    public bool BoreSoftJaws(float diameterMm)
+    {
+        if (Jaws != JawKind.Soft || HasBar || diameterMm > MaxGripDiameterMm)
+            return false;
+        SoftBoredForMm = diameterMm;
+        OpeningMm = Math.Max(OpeningMm, diameterMm + 2f);
+        return true;
+    }
 
     /// <summary>Puts a bar in, pushed back as far as the jaws (or the bore) allow.</summary>
     public bool Insert(float diameterMm, float lengthMm)
@@ -70,7 +130,9 @@ public sealed class ChuckGrip
     private void SeatRunout()
     {
         double a = _rng.NextDouble() * Math.Tau, b = _rng.NextDouble() * Math.Tau;
-        float e = 0.015f + 0.045f * (float)_rng.NextDouble(), t = 0.02f * (float)_rng.NextDouble();
+        // Jaws bored in place for this very diameter hold it nearly true.
+        float scale = Jaws == JawKind.Soft ? 0.12f : 1f;
+        float e = scale * (0.015f + 0.045f * (float)_rng.NextDouble()), t = scale * 0.02f * (float)_rng.NextDouble();
         OffsetMm = (e * (float)Math.Cos(a), e * (float)Math.Sin(a));
         TiltPer100Mm = (t * (float)Math.Cos(b), t * (float)Math.Sin(b));
     }
@@ -155,6 +217,6 @@ public sealed class ChuckGrip
         else if (Torque > 0)
             Torque--;
         else
-            OpeningMm = Math.Min(MaxOpeningMm, OpeningMm + JawStepMm);
+            OpeningMm = Math.Min(MaxGripDiameterMm, OpeningMm + JawStepMm);
     }
 }

@@ -37,12 +37,21 @@ public sealed class CutMonitor
 
     /// <summary>The verdict on the cutting going on now; empty when idle.</summary>
     public CutLoad Load { get; private set; }
+    /// <summary>Chips that cannot get out of a deep pocket or slot.</summary>
+    public ChipEvacuation Chips { get; } = new();
     /// <summary>1 = dry cutting; set lower while coolant runs.</summary>
     public float WearFactor = 1f;
-    /// <summary>Worst tool load and whether chatter marked the surface since
-    /// the last ResetQuality: what the finished part's surface shows.</summary>
+    /// <summary>Worst tool load and the roughest surface since the last
+    /// ResetQuality: what the finished part shows.</summary>
     public float PeakToolLoad { get; private set; }
-    public bool ChatterMarks { get; private set; }
+    /// <summary>Ra is the feed marks of the last tool that cut (a finishing
+    /// pass wipes out the roughing marks; a parting blade only makes the
+    /// end face); chatter marks stay.</summary>
+    public SurfaceFinish Surface => _chatter ? new SurfaceFinish(false, _raUm).WithChatter() : new SurfaceFinish(false, _raUm);
+    public bool ChatterMarks => _chatter;
+    private bool _chatter;
+    private float _raUm;
+    private int _raTool = -1;
 
     public CutMonitor(MachineSpec spec, CuttingProcess cutting, MachineSafety safety)
     {
@@ -55,7 +64,9 @@ public sealed class CutMonitor
     public void ResetQuality()
     {
         PeakToolLoad = 0f;
-        ChatterMarks = false;
+        _chatter = false;
+        _raUm = 0f;
+        _raTool = -1;
     }
 
     private void OnCut(CutSample sample)
@@ -117,6 +128,7 @@ public sealed class CutMonitor
             _surfaceSpeed = 0f;
             _overloadSeconds = 0f;
             Load = default;
+            Chips.Clear(dt, WearFactor < 1f);
             return;
         }
         // The force is power over cutting speed. The averaged power lags the
@@ -127,10 +139,20 @@ public sealed class CutMonitor
         float speed = Mathf.Max(_surfaceSpeed, _last.SurfaceSpeedMmPerSec);
 
         var load = CuttingLoad.Evaluate(_removalRate, _last.SpindleRpm, speed, _last.FeedPerRevMm,
-            tool.Limits(), MaterialPreset.Get(_cutting.Material), _spec.SpindlePowerKw * 1000f, WearFactor);
+            mounted.Limits(), MaterialPreset.Get(_cutting.Material), _spec.SpindlePowerKw * 1000f, WearFactor, _cutting.WorkSlenderness());
         Load = load;
         PeakToolLoad = Mathf.Max(PeakToolLoad, load.ToolLoad);
-        ChatterMarks |= load.Chatter;
+        _chatter |= load.Chatter;
+        if (tool.Kind != ToolKind.Parting)
+        {
+            if (tool.Number != _raTool)
+            {
+                _raTool = tool.Number;
+                _raUm = 0f;
+            }
+            _raUm = Mathf.Max(_raUm, SurfaceFinish.RaUmFor(_last.FeedPerRevMm,
+                tool.IsLatheTool ? tool.TipRadiusMm : tool.DiameterMm / 2f, tool.Flutes, tool.IsLatheTool));
+        }
         var state = mounted.State;
 
         if (load.Fault == CutFault.ToolOverload)
@@ -139,6 +161,18 @@ public sealed class CutMonitor
                 $"TAKIM KIRILDI: {Name(tool)} kesme kuvvetine dayanamadı ({load.ForceN:0} N). Paso ya da ilerleme çok yüksek"));
             return;
         }
+        var material = MaterialPreset.Get(_cutting.Material);
+        switch (Chips.Track(dt, _removalRate, tool.IsLatheTool ? 0f : _last.DepthMm / Mathf.Max(tool.DiameterMm, 0.1f), material, WearFactor < 1f))
+        {
+            case ChipEvacuation.Verdict.Packed:
+                Break(state, $"TALAŞ SIKIŞTI: {Name(tool)} kanallarına {material.Name} talaşı sıvandı ve kırıldı. Derin cepte soğutma aç (M8), pasoyu böl");
+                return;
+            case ChipEvacuation.Verdict.Building when _sinceWarning > WarnEverySeconds:
+                _sinceWarning = 0.0;
+                _safety.Warn("Talaş cepten çıkamıyor, takımın etrafında birikiyor: soğutma aç ya da pasoyu böl");
+                break;
+        }
+
         _overloadSeconds = load.Fault == CutFault.SpindleOverload ? _overloadSeconds + dt : 0f;
         if (_overloadSeconds > StallAfterSeconds)
         {
@@ -155,10 +189,10 @@ public sealed class CutMonitor
             return;
         }
 
-        if (WearFactor >= 1f && _cutting.Material == MaterialKind.Steel && _sinceCut < 0.1 && _sinceDryWarning > DryWarnEverySeconds)
+        if (WearFactor >= 1f && MaterialPreset.Get(_cutting.Material).NeedsCoolant && _sinceCut < 0.1 && _sinceDryWarning > DryWarnEverySeconds)
         {
             _sinceDryWarning = 0.0;
-            _safety.Warn("Çelik kuru kesiliyor: soğutma sıvısını aç (M8), takım daha yavaş körelir");
+            _safety.Warn($"{MaterialPreset.Get(_cutting.Material).Name} kuru kesiliyor: soğutma sıvısını aç (M8), takım daha yavaş körelir");
         }
 
         // Feed ramps through "too fine" at the start and end of every move.

@@ -1,6 +1,6 @@
 %
 ( TORNA - KADEMELI MIL )
-( Makine: Lathe / BenchLathe. Kutuk: cap 50mm, aynadan 55mm disarida )
+( Makine: Lathe / BenchLathe. Kutuk: cap 50mm, aynadan en az 80mm disarida: kesmede taret aynaya yaklasir )
 ( Z0 = kutugun serbest ucu, eksi Z aynaya dogru. X = YARICAP - G8 )
 ( T1 kaba, T2 ince, T3 kesme kalemi )
 ( Sonuc: R10 / R16 / R22 uc kademe, kademe baslarinda 1mm pah, Z-52'de kesme )
@@ -20,35 +20,35 @@ G0 Z2.0
 ( --- kaba: en buyuk kademe, Z-48'e kadar --- )
 G0 X22.2
 G1 Z-48.0 F150
-G0 X26.0
+G1 X26.0 F300
 G0 Z2.0
 
 ( --- kaba: orta kademe, Z-32'ye kadar --- )
 G0 X20.0
 G1 Z-32.0 F150
-G0 X26.0
+G1 X26.0 F300
 G0 Z2.0
 G0 X18.0
 G1 Z-32.0 F150
-G0 X26.0
+G1 X26.0 F300
 G0 Z2.0
 G0 X16.2
 G1 Z-32.0 F150
-G0 X26.0
+G1 X26.0 F300
 G0 Z2.0
 
 ( --- kaba: uc kademe, Z-15'e kadar --- )
 G0 X14.0
 G1 Z-15.0 F150
-G0 X26.0
+G1 X26.0 F300
 G0 Z2.0
 G0 X12.0
 G1 Z-15.0 F150
-G0 X26.0
+G1 X26.0 F300
 G0 Z2.0
 G0 X10.2
 G1 Z-15.0 F150
-G0 X26.0
+G1 X26.0 F300
 G0 Z5.0
 
 ( --- ince: tek pasoda butun profil, pahlarla --- )

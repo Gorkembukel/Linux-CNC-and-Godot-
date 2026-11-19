@@ -5,12 +5,12 @@ namespace CncTrainer.Audio;
 
 /// <summary>A machine's running sounds, driven by its confirmed state:
 /// spindle motor (pitch follows rpm), cutting (loudness follows the cutting
-/// load), axis servos (follow the feed speed) and flood coolant.</summary>
+/// load), chatter, axis servos (follow the feed speed) and flood coolant.</summary>
 public partial class MachineAudio : Node3D
 {
     public MachineRig Rig;
 
-    private AudioStreamPlayer3D _motor, _cut, _servo, _coolant;
+    private AudioStreamPlayer3D _motor, _cut, _servo, _coolant, _chatter;
 
     public override void _Ready()
     {
@@ -18,6 +18,7 @@ public partial class MachineAudio : Node3D
         _cut = Player(SynthSounds.Cut);
         _servo = Player(SynthSounds.Servo);
         _coolant = Player(SynthSounds.Coolant);
+        _chatter = Player(SynthSounds.Chatter);
     }
 
     private AudioStreamPlayer3D Player(AudioStream stream)
@@ -43,6 +44,8 @@ public partial class MachineAudio : Node3D
         float load = live ? Rig.Monitor?.Load.SpindleLoad ?? 0f : 0f;
         Fade(_cut, spinning && load > 0.003f ? Mathf.LinearToDb(Mathf.Clamp(0.25f + load, 0f, 1.2f)) - 4f : -80f, dt * 2f);
         _cut.PitchScale = Mathf.Clamp(0.7f + rpm / 6000f, 0.5f, 2f);
+        bool chatter = spinning && load > 0.003f && (Rig.Monitor?.Load.Chatter ?? false);
+        Fade(_chatter, chatter ? -8f : -80f, dt * 3f);
 
         float speed = live ? (float)s.Velocity.Length() : 0f;
         Fade(_servo, speed > 0.05f ? Mathf.LinearToDb(Mathf.Clamp(speed / 60f, 0.15f, 1f)) - 16f : -80f, dt * 2f);

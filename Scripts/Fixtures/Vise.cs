@@ -35,6 +35,11 @@ public partial class Vise : BoltedFixture, IInteractable, IStockFixture
 
     public bool StockClamped => Stock != null && Torque >= 2;
     public bool HoldsFirmly => BoltsTight && StockClamped;
+    /// <summary>Squeezed to 2/3 the part holds, but creeps under the cut.</summary>
+    public float SlipMmPerMm3 => HoldsFirmly && Torque < 3 ? PartialClampSlipMmPerMm3 : 0f;
+    /// <summary>Creep of a part clamped snug but not fully tight: a 6000 mm^3
+    /// pocket moves it about 0.3 mm, three times a typical tolerance.</summary>
+    public const float PartialClampSlipMmPerMm3 = 5e-5f;
     public string LooseReason => BoltsTight
         ? "PARÇA FIRLADI: mengene sıkılmadan kesime girildi"
         : "PARÇA FIRLADI: mengene cıvataları tam sıkılmamıştı";

@@ -187,12 +187,7 @@ public partial class SawAction : Node3D
     }
 
     /// <summary>Section a forward stroke gets through, per metre of stroke.</summary>
-    private static float RateMm2PerM(MaterialKind material) => material switch
-    {
-        MaterialKind.Aluminum => 1500f,
-        MaterialKind.Brass => 1000f,
-        _ => 500f,
-    };
+    private static float RateMm2PerM(MaterialKind material) => MaterialPreset.Get(material).SawRateMm2PerM;
 
     private void Complete()
     {

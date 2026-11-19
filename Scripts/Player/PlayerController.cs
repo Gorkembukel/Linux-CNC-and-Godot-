@@ -105,7 +105,7 @@ public partial class PlayerController : CharacterBody3D
     private Label _noticeLabel;
     private Label _crosshair;
     private Label _statusLabel;
-    private Label _sheetLabel;
+    private Label _sheetLabel, _jobLabel;
 
     /// <summary>A live reading from whatever the player is measuring with;
     /// set every frame by its source, shown under the crosshair.</summary>
@@ -253,6 +253,12 @@ public partial class PlayerController : CharacterBody3D
         _sheetLabel.AnchorLeft = _sheetLabel.AnchorRight = 1f;
         _sheetLabel.AnchorTop = _sheetLabel.AnchorBottom = 0.32f;
         _sheetLabel.OffsetLeft = -330f;
+
+        _jobLabel = new Label { Position = new Vector2(12f, 40f) };
+        _jobLabel.AddThemeFontOverride("font", new SystemFont { FontNames = new[] { "Consolas", "DejaVu Sans Mono", "Monospace" } });
+        _jobLabel.AddThemeFontSizeOverride("font_size", 13);
+        _jobLabel.AddThemeColorOverride("font_shadow_color", new Color(0f, 0f, 0f, 0.8f));
+        ui.AddChild(_jobLabel);
 
         _glassesLabel = new Label { Text = "Koruyucu gözlük takılı   [G] çıkar", Visible = false };
         _glassesLabel.AddThemeColorOverride("font_color", new Color(0.6f, 0.85f, 1f));
@@ -759,6 +765,7 @@ public partial class PlayerController : CharacterBody3D
                 && (nearest == null || GlobalPosition.DistanceTo(sheet.SheetPosition) < GlobalPosition.DistanceTo(nearest.SheetPosition)))
                 nearest = sheet;
         _sheetLabel.Text = nearest?.SheetText ?? "";
+        _jobLabel.Text = (GetTree().GetFirstNodeInGroup(IJobCard.Group) as IJobCard)?.CardText ?? "";
         _noticeTime -= GetPhysicsProcessDeltaTime();
         if (_noticeTime <= 0.0)
             _noticeLabel.Text = "";

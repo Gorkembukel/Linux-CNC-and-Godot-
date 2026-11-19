@@ -30,10 +30,5 @@ public readonly record struct StockBlank(StockShape Shape, Vector3 SizeMm, Mater
         ? $"{SizeMm.X:0.#} x {SizeMm.Y:0.#} x {SizeMm.Z:0.#} mm"
         : $"Ø{DiameterMm:0.#} x {LengthMm:0.#} mm";
 
-    public static string NameOf(MaterialKind material) => material switch
-    {
-        MaterialKind.Steel => "Çelik",
-        MaterialKind.Aluminum => "Alüminyum",
-        _ => "Pirinç",
-    };
+    public static string NameOf(MaterialKind material) => MaterialPreset.Get(material).Name;
 }

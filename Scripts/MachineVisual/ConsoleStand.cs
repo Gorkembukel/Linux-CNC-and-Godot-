@@ -492,7 +492,7 @@ public partial class ConsoleStand : Node3D
             ("OPT\nSTOP", () => { _optionalStop = !_optionalStop; _bridge.SetOptionalStop(_optionalStop); }, () => _optionalStop),
             ("PRG\nRESTART", () => _restartArmed = !_restartArmed, () => _restartArmed),
         });
-        KeyRow(face, top, left, 1452, new (string, Action, Func<bool>)[] { ("", null, null), ("", null, null), ("", null, null), ("", null, null) });
+        KeyRow(face, top, left, 1452, new (string, Action, Func<bool>)[] { ("MC\nLOCK", ToggleMachineLock, () => MachineLocked), ("", null, null), ("", null, null), ("", null, null) });
         string[] steps = { "x1\nF0", "x10\n25%", "x100\n50%", "x1000\n100%" };
         KeyRow(face, top, left, 1497, Enumerable.Range(0, 4)
             .Select(i => (steps[i], (Action)(() => StepOrRapidKey(i)), (Func<bool>)(() => StepKeysSelectStep ? _step == i : _rapidIndex == i))).ToArray());
@@ -916,13 +916,14 @@ public partial class ConsoleStand : Node3D
     private void CycleStart()
     {
         var s = S;
+        // A feed hold pauses AUTO and MDI alike; CYCLE START resumes either.
+        if (s.InterpState == InterpState.Paused && _mode is Mode.Auto or Mode.Mdi)
+        {
+            if (_singleBlock && _mode == Mode.Auto) _bridge.StepProgram(); else _bridge.RunProgram();
+            return;
+        }
         if (_mode == Mode.Auto)
         {
-            if (s.InterpState == InterpState.Paused)
-            {
-                if (_singleBlock) _bridge.StepProgram(); else _bridge.RunProgram();
-                return;
-            }
             if (s.InCycle)
                 return;
             if (_programLines.Count == 0)
@@ -1440,7 +1441,8 @@ public partial class ConsoleStand : Node3D
             if (_trail.Count > 6000)
                 _trail.RemoveRange(0, 1000);
         }
-        _screen.SetPlot(connected && _page == Page.Custom && _subPage == 1 ? _trail : null, tool);
+        bool graph = connected && _page == Page.Custom && _subPage == 1;
+        _screen.SetPlot(graph ? _trail : null, tool, graph ? ProgramPlot() : null);
 
         bool alarm = connected && s.Estop;
         if (alarm && !_wasAlarm)
@@ -1469,10 +1471,49 @@ public partial class ConsoleStand : Node3D
 
     /// <summary>The tool position as the GRAPH page draws it: lathe Z
     /// across and X up, mill X across and Y up (work coordinates).</summary>
-    private Vector2 PlotPoint(MachineState s)
+    private Vector2 PlotPoint(MachineState s) => Plot(s.WorkPosition);
+
+    private Vector2 Plot(AxisVector w) =>
+        IsLathe ? new Vector2((float)w.Get(AxisId.Z), (float)w.Get(AxisId.X)) : new Vector2((float)w.Get(AxisId.X), (float)w.Get(AxisId.Y));
+
+    private const int MaxPlottedSegments = 8000;
+    private IReadOnlyList<PreviewSegment> _plottedPath;
+    private (Vector2, Vector2, bool)[] _programPlot = Array.Empty<(Vector2, Vector2, bool)>();
+
+    /// <summary>The opened program's whole path in the GRAPH page's
+    /// projection, thinned out for very long programs.</summary>
+    private (Vector2, Vector2, bool)[] ProgramPlot()
     {
-        var w = s.WorkPosition;
-        return IsLathe ? new Vector2((float)w.Get(AxisId.Z), (float)w.Get(AxisId.X)) : new Vector2((float)w.Get(AxisId.X), (float)w.Get(AxisId.Y));
+        var path = _bridge.ProgramPath;
+        if (ReferenceEquals(path, _plottedPath))
+            return _programPlot;
+        _plottedPath = path;
+        int stride = Math.Max(1, path.Count / MaxPlottedSegments);
+        _programPlot = Enumerable.Range(0, path.Count / stride)
+            .Select(i => (First: path[i * stride], Last: path[Math.Min(path.Count - 1, i * stride + stride - 1)]))
+            .Select(p => (Plot(p.First.Start), Plot(p.Last.End), p.First.MotionType == MotionType.Rapid))
+            .ToArray();
+        return _programPlot;
+    }
+
+    private bool MachineLocked => (GetParent() as ProceduralMachine)?.Cutting?.MachineLock ?? false;
+
+    private void ToggleMachineLock()
+    {
+        if ((GetParent() as ProceduralMachine)?.Cutting is not CuttingProcess cutting)
+            return;
+        if (S.InCycle)
+        {
+            PlayerController.Notify(this, "MC LOCK program çalışırken değiştirilmez");
+            return;
+        }
+        bool locking = !cutting.MachineLock;
+        if (cutting.SetMachineLock(locking))
+            PlayerController.Notify(this, locking
+                ? "MACHINE LOCK: eksenler kilitli. Program çalışır, ekran ilerler, makine kıpırdamaz (GRAPH ile kontrol et)"
+                : "MACHINE LOCK kapandı");
+        else
+            PlayerController.Notify(this, "MACHINE LOCK kapandı: kontrol hareket etti, eksenler etmedi. Referans kayboldu: makineyi aç, HOME ALL");
     }
 
     private string ProgramName()

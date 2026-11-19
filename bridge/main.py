@@ -12,6 +12,7 @@ import socket
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 
 import hal
@@ -23,6 +24,12 @@ from linuxcnc_process import LinuxCNCProcess  # noqa: E402
 from net import discover_windows_host_ip, discover_own_ip  # noqa: E402
 from state_publisher import StatePublisher  # noqa: E402
 from command_server import CommandServer  # noqa: E402
+from preview import preview_program  # noqa: E402
+from protocol import MAX_SEGMENTS_PER_CHUNK, pack_preview_chunk  # noqa: E402
+
+# A 38,000-line 3+2 program is ~40,000 segments: enough for the plot, and
+# ~1000 packets sent paced so the UDP burst is not dropped.
+MAX_PREVIEW_SEGMENTS = 40000
 
 STATE_PORT = 9200
 COMMAND_PORT = 9201
@@ -95,9 +102,32 @@ def main() -> int:
         def retarget(addr):
             publisher.dest_addr = addr
 
+        # The preview parses with its own interpreter and its own stat, on a
+        # thread of its own: a long program must not hold up the commands.
+        preview_stat = linuxcnc.stat()
+        preview_seq = [0]
+
+        def send_preview(program: str) -> None:
+            def work():
+                try:
+                    preview_stat.poll()
+                    segments = preview_program(preview_stat, str(Path(ini_path).parent / program),
+                                               str(Path(ini_path).parent))[:MAX_PREVIEW_SEGMENTS]
+                except Exception as e:  # noqa: BLE001 - a program the preview cannot parse still runs
+                    print(f"[bridge] preview of {program} failed: {e}")
+                    return
+                chunks = [segments[i:i + MAX_SEGMENTS_PER_CHUNK]
+                          for i in range(0, len(segments), MAX_SEGMENTS_PER_CHUNK)] or [[]]
+                for index, chunk in enumerate(chunks):
+                    command_sock.sendto(pack_preview_chunk(preview_seq[0], len(segments), index, chunk),
+                                        publisher.dest_addr)
+                    preview_seq[0] += 1
+                    time.sleep(0.001)
+            threading.Thread(target=work, daemon=True).start()
+
         server = CommandServer(stat, cmd, command_sock, on_subscribe=retarget,
                                before_program_open=lambda: sync_nc_files(str(REPO_CONFIG_DIR)),
-                               joint_axis_map=joint_axis_map)
+                               joint_axis_map=joint_axis_map, after_program_open=send_preview)
 
         command_thread = threading.Thread(target=server.run_forever, args=(stop_event.is_set,), daemon=True)
         command_thread.start()

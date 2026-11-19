@@ -21,13 +21,14 @@ _JOG_STOP = linuxcnc.JOG_STOP
 
 class CommandServer:
     def __init__(self, stat, cmd, sock: socket.socket, on_subscribe=None, before_program_open=None,
-                 joint_axis_map=()):
+                 joint_axis_map=(), after_program_open=None):
         self.stat = stat
         self.joint_to_axis = dict(joint_axis_map)
         self.cmd = cmd
         self.sock = sock
         self.on_subscribe = on_subscribe
         self.before_program_open = before_program_open
+        self.after_program_open = after_program_open
         self._highest_client_seq: dict[int, int] = {}
         self._ack_seq = 0
         self._lock = threading.Lock()
@@ -84,6 +85,8 @@ class CommandServer:
                 self.before_program_open()
             self.cmd.mode(linuxcnc.MODE_AUTO)
             self.cmd.program_open(args.decode("utf-8"))
+            if self.after_program_open:
+                self.after_program_open(args.decode("utf-8"))
         elif kind == CommandKind.PROGRAM_RUN:
             (start_line,) = struct.unpack("<i", args)
             if self.stat.paused:

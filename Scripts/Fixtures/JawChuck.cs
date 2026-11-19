@@ -121,8 +121,12 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
     private void Refresh()
     {
         float inner = Grip.OpeningMm / 2f * M, jawRadial = RadiusM * 0.45f;
+        var look = BodyParts.Mat(JawSetItem.ColorOf(Grip.Jaws), Grip.Jaws == JawKind.Soft ? 0.5f : 0.7f, 0.45f);
         foreach (var jaw in _jaws)
+        {
             jaw.Position = new Vector3(-Grip.JawDepthMm * M * 0.35f, inner + jawRadial / 2f, 0f);
+            jaw.MaterialOverride = look;
+        }
         _key.Visible = Grip.KeyIn;
 
         _barShape.Disabled = !Grip.HasBar;
@@ -135,6 +139,23 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
         _barShape.Position = new Vector3(stickOut / 2f, 0f, 0f);
         if (Stock != null)
             Stock.Transform = new Transform3D(Basis.Identity, new Vector3((Grip.StickOutMm - Stock.Blank.LengthMm / 2f) * M, 0f, 0f));
+    }
+
+    private void SwapJaws(PlayerController player, JawSetItem set)
+    {
+        var old = Grip.Jaws;
+        if (Grip.ChangeJaws(set.Kind) is string why)
+        {
+            PlayerController.Notify(this, why);
+            return;
+        }
+        player.ReleaseHeld().QueueFree();
+        var removed = JawSetItem.Create(old);
+        GetTree().CurrentScene.AddChild(removed);
+        player.Give(removed);
+        Refresh();
+        if (Grip.Jaws == JawKind.Soft)
+            PlayerController.Notify(this, "Yumuşak çeneler takıldı: tutmadan önce parçanın çapına tornalanmalı (parçayla tıkla)");
     }
 
     /// <summary>Turns the jaws and the key with the spindle.</summary>
@@ -153,12 +174,17 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
         get
         {
             var g = Grip;
-            string text = Sheet.Mark(g.HasBar) + "Kütük aynada"
+            string jaws = g.Jaws == JawKind.Soft && g.SoftBoredForMm is float bored
+                ? System.FormattableString.Invariant($"{JawSetItem.NameOf(g.Jaws)} (Ø{bored:0.##} için tornalı)")
+                : JawSetItem.NameOf(g.Jaws);
+            string text = $"    Çeneler: {jaws}\n" + Sheet.Mark(g.HasBar) + "Kütük aynada"
                 + (g.HasBar ? System.FormattableString.Invariant($"  Ø{g.BarDiameterMm:0.#} x {g.BarLengthMm:0.#}") : "") + "\n";
             if (!g.HasBar)
                 return text + "    Ayna anahtarını tak, çeneleri aç,\n    yuvarlak çubuğu aynaya sür\n";
             text += Sheet.Mark(g.GripLengthMm >= ChuckGrip.MinGripMm)
                 + System.FormattableString.Invariant($"Çıkıntı {g.StickOutMm:0} mm, çenede {g.GripLengthMm:0} mm\n");
+            if (g.Slenderness > Machining.CuttingLoad.SlenderWorkRatio)
+                text += System.FormattableString.Invariant($"[!] Çıkıntı çapın {g.Slenderness:0.#} katı: tırlar, kısa bağla\n");
             text += Sheet.Mark(g.Torque >= ChuckGrip.FullTorque) + $"Ayna sıkıldı  {g.Torque}/{ChuckGrip.FullTorque}\n";
             text += Sheet.Mark(!g.KeyIn) + "Anahtar aynadan çıkarıldı\n";
             return text;
@@ -247,8 +273,10 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
             if (Placement(player, held) is not var (turn, reversed))
                 return "Parçayı ayna ekseni doğrultusunda tut ([Z/X] ya da orta tuşla çevir)";
             float size = GripSizeMm(held, turn, reversed);
-            if (size > g.MaxOpeningMm)
-                return $"Parça aynaya sığmaz (en fazla {g.MaxOpeningMm:0} mm)";
+            if (g.Jaws == JawKind.Soft && !g.SoftJawsFit(size) && size <= g.MaxGripDiameterMm)
+                return System.FormattableString.Invariant($"[Tık] Yumuşak çeneleri bu parçaya göre tornala (Ø{size:0.##})");
+            if (g.WhyNot(size) is string why)
+                return why;
             string what = held.Blank.Shape == StockShape.Block
                 ? System.FormattableString.Invariant($"  (eksen boyunca {SquareTurn.Extents(turn, held.Blank.BoundsM).X / WorldScale.MmToM:0} mm, çeneler {size:0} mm)")
                 : held.Turned != null ? (reversed ? "  (+X ucu aynaya)" : "  (-X ucu aynaya)") : "";
@@ -256,6 +284,10 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
                 ? "[Tık] Aynaya sür" + what
                 : $"Çeneler dar: {g.OpeningMm:0} mm, tutulan kısım {size:0.#} mm (ayna anahtarıyla aç)";
         }
+        if (player.Held is JawSetItem set)
+            return g.HasBar ? "Çene değiştirmek için önce parçayı çıkar"
+                : !g.KeyIn ? "Çeneler ayna anahtarıyla sökülür: önce anahtarı tak"
+                : $"[Tık] {set.DisplayName} tak ({JawSetItem.NameOf(g.Jaws).ToLowerInvariant()} çıkar)";
         if (player.Held != null)
             return null;
         if (g.KeyIn)
@@ -277,6 +309,15 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
         {
             player.ReleaseHeld().QueueFree();
             InsertKey();
+        }
+        else if (player.Held is JawSetItem set)
+            SwapJaws(player, set);
+        else if (player.Held is StockItem bar && Grip.Jaws == JawKind.Soft && !Grip.HasBar && !MilledBefore(bar)
+                 && Placement(player, bar) is var (barTurn, barReversed) && GripSizeMm(bar, barTurn, barReversed) is var size
+                 && !Grip.SoftJawsFit(size) && Grip.BoreSoftJaws(size))
+        {
+            PlayerController.Notify(this, System.FormattableString.Invariant($"Yumuşak çeneler Ø{size:0.##} için tornalandı: parça artık neredeyse salgısız oturur"));
+            Refresh();
         }
         else if (player.Held is StockItem item && !MilledBefore(item) && !Grip.HasBar
                  && Placement(player, item) is var (turn, reversed) && Grip.CanInsert(GripSizeMm(item, turn, reversed)))

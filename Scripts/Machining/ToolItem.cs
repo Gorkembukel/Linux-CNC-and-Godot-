@@ -23,6 +23,17 @@ public partial class ToolItem : Carryable
     public Vector3 ErrorMm;
 
     public float TrueLengthMm => Spec.LengthMm + ErrorMm.Y;
+
+    /// <summary>Loosens the collet and slides a mill cutter: shorter sticks
+    /// out less and chatters less but reaches less deep. Between 60 % and
+    /// 150 % of its catalogue length. Its length must be measured again.</summary>
+    public void SlideInHolder(float mm)
+    {
+        if (ForLathe)
+            return;
+        float length = Mathf.Clamp(TrueLengthMm + mm, 0.6f * Spec.LengthMm, 1.5f * Spec.LengthMm);
+        ErrorMm = new Vector3(ErrorMm.X, length - Spec.LengthMm, ErrorMm.Z);
+    }
     public MountedTool Mounted => new(Spec, State, ErrorMm);
 
     public string Label => $"T{Spec.Number} {Spec.Description}" + (State.Broken ? " (KIRIK)" : "");
