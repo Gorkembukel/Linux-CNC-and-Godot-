@@ -337,6 +337,8 @@ public partial class ChuckStand : Carryable, IInteractable
             return g.IsCollet ? $"[Tık] {collet.DisplayName} tak" : "Bu ayna pens almaz";
         if (player.Held != null)
             return null;
+        if (WaitingSlot() is int looseSlot)
+            return Hints ? $"[Tık] {looseSlot + 1}. kanaldaki gevşek çeneyi çek" : "[Tık] Çeneyi kanaldan çek";
         if (_keyIn && !Hints)
             return g.IsCollet ? "Pens aynası: anahtarın burada işi yok" : "[Tekerlek] Anahtarı çevir   [Shift+Tekerlek] Tablayı çevir   [Tık] Anahtarı çıkar";
         if (_keyIn)
@@ -345,8 +347,6 @@ public partial class ChuckStand : Carryable, IInteractable
                 : $"[Tekerlek] Spirali çevir: başı {g.Jaws.StartSlot + 1}. kanalda")
                 + (g.Jaws.Complete && !g.HasBar && g.OpeningMm <= ChuckGrip.JawStepMm && !g.Jaws.MeetAtCentre ? "   ÇENELER ORTADA BULUŞMUYOR" : "")
                 + "   [Tık] Anahtarı çıkar";
-        if (WaitingSlot() is int waiting)
-            return Hints ? $"[Tık] {waiting + 1}. kanalda bekleyen çeneyi geri al" : "[Tık] Bekleyen çeneyi kanaldan geri al";
         if (g.IsCollet && g.Jaws.ColletMm != null)
             return "[Tık] Pensi çıkar";
         return (Hints ? $"{Chuck.Model.DisplayName}: {g.Jaws.Seated}/{g.Jaws.SlotCount} çene   " : $"{Chuck.Model.DisplayName}   ")
@@ -392,14 +392,6 @@ public partial class ChuckStand : Carryable, IInteractable
         }
         else if (player.Held != null)
             return;
-        else if (_keyIn)
-        {
-            SetKey(false);
-            var key = HandTool.Create(HandToolKind.ChuckKey);
-            GetTree().CurrentScene.AddChild(key);
-            key.GlobalPosition = GlobalPosition + Vector3.Up * 0.2f;
-            player.Give(key);
-        }
         else if (WaitingSlot() is int waiting && g.Jaws.TakeWaiting(waiting) is SeatedJaw back)
         {
             var item = JawItem.Create(back.Kind, back.Number, Chuck.Model);
@@ -408,6 +400,14 @@ public partial class ChuckStand : Carryable, IInteractable
             player.Give(item);
             Chuck.Refresh();
             UpdateWatch();
+        }
+        else if (_keyIn)
+        {
+            SetKey(false);
+            var key = HandTool.Create(HandToolKind.ChuckKey);
+            GetTree().CurrentScene.AddChild(key);
+            key.GlobalPosition = GlobalPosition + Vector3.Up * 0.2f;
+            player.Give(key);
         }
         else if (g.IsCollet && g.TakeCollet() is float size)
         {
@@ -435,20 +435,23 @@ public partial class ChuckStand : Carryable, IInteractable
         if (Grip.IsCollet)
             return;
         var g = Grip;
-        int before = g.Jaws.Seated;
-        var released = g.TurnKey(steps, canTakeJaw: true);
+        var turned = g.TurnKey(steps);
         _key.RotateObjectLocal(Vector3.Back, steps * Mathf.Pi / 6f);
         Play(_ratchet);
-        if (released is SeatedJaw jaw)
-            Eject(jaw, g.Jaws.LastReleasedSlot);
         Chuck.Refresh();
-        if (g.Jaws.Seated > before)
+        if (turned.Caught is int caught)
         {
             Play(_clack);
-            AfterJawChange($"Spiral {g.Jaws.StartSlot + 1}. kanaldaki çeneyi yakaladı");
+            AfterJawChange($"Spiral {caught + 1}. kanaldaki çeneyi yakaladı");
         }
-        else if (released != null)
+        else if (turned.Released is int released)
+        {
+            // Let go, it lies loose in its slot: pulled out by hand, or caught
+            // again going in.
+            Play(_scrape);
+            Say($"{released + 1}. kanaldaki çene spiralden kurtuldu, kanalda gevşek duruyor");
             UpdateWatch();
+        }
     }
 
     private void SetKey(bool inside)

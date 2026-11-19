@@ -54,6 +54,10 @@ public partial class PlayerController : CharacterBody3D
     /// <summary>Held down, the mouse turns what is carried instead of the
     /// view (Shift: finely). The middle button does the same.</summary>
     [Export] public Key RotateHeldKey = Key.T;
+    /// <summary>Turns the keyboard's CNC control (jog, cycle start, feed
+    /// hold... near a console) and the console's corner window off and on,
+    /// so the keys are the player's again beside a machine.</summary>
+    [Export] public Key ConsoleKeysToggleKey = Key.K;
     /// <summary>How far in front of the eyes a carried thing is held by
     /// default, and how near / far the wheel can bring it (m).</summary>
     [Export] public float HoldDistance = 0.6f;
@@ -79,6 +83,9 @@ public partial class PlayerController : CharacterBody3D
     private ConsoleFocus _focus;
     private ConsolePip _pip;
     private bool _nearConsole;
+    private bool _consoleKeysOn = true;
+    /// <summary>Near a console with its keyboard control on.</summary>
+    private bool ConsoleKeys => _nearConsole && _consoleKeysOn;
     private bool _crouchToggled;
     private float _crouch, _lean, _zoom;
     private Vector3 _headOffset, _headOffsetShown;
@@ -475,7 +482,14 @@ public partial class PlayerController : CharacterBody3D
         }
         else if (@event is InputEventKey keyEvent && keyEvent.Pressed)
         {
-            if (_nearConsole && !keyEvent.Echo && _consoleStand.TryShortcut(keyEvent.Keycode))
+            if (keyEvent.Keycode == ConsoleKeysToggleKey && !keyEvent.Echo)
+            {
+                _consoleKeysOn = !_consoleKeysOn;
+                Notify(this, _consoleKeysOn ? "CNC klavye kontrolü AÇIK (konsol penceresi gösterilir)" : "CNC klavye kontrolü KAPALI: tuşlar sende, konsol penceresi gizli");
+                GetViewport().SetInputAsHandled();
+                return;
+            }
+            if (ConsoleKeys && !keyEvent.Echo && _consoleStand.TryShortcut(keyEvent.Keycode))
             {
                 GetViewport().SetInputAsHandled();
                 return;
@@ -822,7 +836,7 @@ public partial class PlayerController : CharacterBody3D
         var velocity = Velocity;
         if (!IsOnFloor())
             velocity.Y -= Gravity * (float)delta;
-        else if (Input.IsKeyPressed(Key.Space) && !_nearConsole)
+        else if (Input.IsKeyPressed(Key.Space) && !ConsoleKeys)
             velocity.Y = JumpVelocity;
 
         Vector2 inputDir = new(
@@ -860,7 +874,7 @@ public partial class PlayerController : CharacterBody3D
                 GlobalPosition.DistanceTo(stand.GlobalPosition) < GlobalPosition.DistanceTo(_consoleStand.GlobalPosition)))
                 _consoleStand = stand;
         _nearConsole = _consoleStand != null && GlobalPosition.DistanceTo(_consoleStand.GlobalPosition) <= OperateRange;
-        _pip.Show(_nearConsole && !_focus.Active ? _consoleStand : null);
+        _pip.Show(ConsoleKeys && !_focus.Active ? _consoleStand : null);
         if (_consoleStand == null)
             return;
         bool inRange =GlobalPosition.DistanceTo(_consoleStand.GlobalPosition) <= InteractRange;
@@ -999,10 +1013,10 @@ public partial class PlayerController : CharacterBody3D
             return;
         }
 
-        _interactPrompt.Text = ConsoleKeysHint;
+        _interactPrompt.Text = _consoleKeysOn ? ConsoleKeysHint : $"[{ConsoleKeysToggleKey}] CNC klavye kontrolünü aç";
         _interactPrompt.Visible = _nearConsole;
     }
 
     private const string ConsoleKeysHint =
-        "[Oklar/PgUp/PgDn] jog   [Enter] CYCLE START   [Boşluk] FEED HOLD   [-/=] feed override   [Esc] imleç: köşedeki panele tıkla";
+        "[Oklar/PgUp/PgDn] jog   [Enter] CYCLE START   [Boşluk] FEED HOLD   [-/=] feed override   [Esc] imleç: köşedeki panele tıkla   [K] CNC klavyesini kapat";
 }

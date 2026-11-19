@@ -239,6 +239,9 @@ control waits for it before feeding. M4 turns it the other way.
 
 ### Chuck cabinet and stand
 
+Beside a console, K turns the keyboard's CNC control (and the console's
+corner window) off, so the keys are yours again; K again turns it back on.
+
 Carrying: F takes a thing where it lies and holds it there (Shift + F, or
 B while holding, brings it up to your hands); the wheel brings what you
 hold nearer or further without moving you (Shift: by the centimetre), T (or the middle button) held turns it with
@@ -250,16 +253,24 @@ the wheel turns the chuck to a handy angle (with the key in, Shift + wheel).
 The chucks are cut like real ones: T-slots through the face, the bore
 open, and down the slots the scroll's spiral thread turning with the key.
 
-`Scenes/Workshop/ChuckCabinet.tscn`: behind its glass doors (click to open)
-stand chucks of every size, Ø80 to Ø250 three-jaw, four-jaw independents and
-ER collet chucks, each with its own sizes and spindle nose (D1-3 ... D1-6);
+`Scenes/Workshop/ChuckCabinet.tscn`: in its curved enclosure (built like a
+lathe guard; click a door and it slides round the curve) stand some twenty
+chucks, most for the D1-4 nose (Ø80-Ø150 three- and six-jaw, four-jaw
+independents, ER25/32/40) and the bigger ones for D1-3/5/6, each with its own
+sizes and spindle nose;
 a lathe takes only one made for its nose that clears its bed. Each drawer
 holds one chuck's spare jaws (hard, reversed, soft, all numbered) or its
 collets. On the worktop, the chuck stand: set a chuck on it face up and
 change its jaws off the machine, as in a real shop. Chuck key in, open past
-the end and the jaws slide out of their grooves one by one; to fit them, lay
-each jaw square in its groove and flat on the face (it drops in), then turn
-the key: the scroll's thread start catches each one as it comes round.
+the end and the jaws are let go one by one (the last caught first) and lie
+loose in their grooves: pull them out by hand. To fit them, lay each jaw
+square in its groove and flat on the face (it drops in), then turn the key:
+the scroll's thread start catches each one as it crosses its slot. Jaw 1
+first, then 2, then 3, each laid in before the start reaches it: a jaw in
+another number's slot sits off by a third of a pitch, one laid in after the
+start has passed is caught a turn late and sits a whole pitch out. A notch
+too far and back does nothing; only turning back past where a jaw was
+caught lets it go again.
 With **physical handling** on (Project Settings, cnc_trainer/workshop), what
 you carry is held up whatever it weighs but swings with some of its mass
 (`weight_feel`, 0-1, default 0.35; `hand_strength_n`): heavy chucks lag a

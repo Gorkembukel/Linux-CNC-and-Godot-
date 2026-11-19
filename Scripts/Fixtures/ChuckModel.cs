@@ -153,17 +153,56 @@ public partial class ChuckModel : Resource
     };
 
     /// <summary>A jaw chuck with proportions typical of its size.</summary>
-    public static ChuckModel Scaled(ChuckKind kind, float diameterMm, SpindleNose mount, float maxRpm)
+    public static ChuckModel Scaled(ChuckKind kind, float diameterMm, SpindleNose mount, float maxRpm, int jaws = 0)
     {
         bool four = kind == ChuckKind.FourJawIndependent;
+        int count = jaws > 0 ? jaws : four ? 4 : 3;
+        string what = four ? "4 ayaklı bağımsız" : $"{count} ayaklı";
         return new ChuckModel
         {
-            DisplayName = System.FormattableString.Invariant($"{(four ? "4 ayaklı bağımsız" : "3 ayaklı")} ayna Ø{diameterMm:0}"),
+            DisplayName = System.FormattableString.Invariant($"{what} ayna Ø{diameterMm:0} {SpindleNoses.NameOf(mount)}"),
             Kind = kind, Mount = mount, DiameterMm = diameterMm,
-            LengthMm = 45f + diameterMm * 0.3f, JawCount = four ? 4 : 3,
+            LengthMm = 45f + diameterMm * 0.3f, JawCount = count,
             JawDepthMm = 15f + diameterMm * 0.1f, MaxOpeningMm = diameterMm * (four ? 0.88f : 0.8f), BoreMm = diameterMm * 0.27f,
             MaxRpm = maxRpm, ScrollPitchMm = 4f + diameterMm * 0.02f,
             MassKg = Mathf.Round(diameterMm * diameterMm * 0.0007f * (four ? 1.2f : 1f) * 2f) / 2f,
         };
     }
+
+    /// <summary>A collet chuck of one ER size on one nose.</summary>
+    public static ChuckModel Collet(string er, float diameterMm, float capacityMm, float[] sizes, SpindleNose mount, float maxRpm) => new()
+    {
+        DisplayName = System.FormattableString.Invariant($"{er} pens aynası {SpindleNoses.NameOf(mount)}"),
+        Kind = ChuckKind.Collet, Mount = mount, DiameterMm = diameterMm, LengthMm = 55f + diameterMm * 0.25f,
+        JawCount = 0, JawDepthMm = 20f + capacityMm * 0.5f, MaxOpeningMm = capacityMm, BoreMm = capacityMm, MaxRpm = maxRpm,
+        ColletSizesMm = sizes, MassKg = Mathf.Round(diameterMm * diameterMm * 0.0006f * 2f) / 2f,
+    };
+
+    /// <summary>What the chuck enclosure shows: most sizes for the common
+    /// D1-4 nose (scroll chucks Ø80-Ø150 with 3 or 6 jaws, four-jaw
+    /// independents, ER collet chucks), and the bigger D1-3/5/6 chucks.</summary>
+    public static ChuckModel[] Showcase() => new[]
+    {
+        Scaled(ChuckKind.ThreeJaw, 80f, SpindleNose.D1_4, 5000f),
+        Scaled(ChuckKind.ThreeJaw, 100f, SpindleNose.D1_4, 4500f),
+        Scaled(ChuckKind.ThreeJaw, 110f, SpindleNose.D1_4, 4500f),
+        Scaled(ChuckKind.ThreeJaw, 125f, SpindleNose.D1_4, 4000f),
+        Scaled(ChuckKind.ThreeJaw, 135f, SpindleNose.D1_4, 4000f),
+        Scaled(ChuckKind.ThreeJaw, 150f, SpindleNose.D1_4, 3800f),
+        Scaled(ChuckKind.ThreeJaw, 125f, SpindleNose.D1_4, 3500f, jaws: 6),
+        Scaled(ChuckKind.FourJawIndependent, 100f, SpindleNose.D1_4, 2500f),
+        Scaled(ChuckKind.FourJawIndependent, 125f, SpindleNose.D1_4, 2000f),
+        Scaled(ChuckKind.FourJawIndependent, 150f, SpindleNose.D1_4, 1800f),
+        Collet("ER25", 75f, 16f, new[] { 4f, 6f, 8f, 10f, 12f, 16f }, SpindleNose.D1_4, 7000f),
+        ColletEr32(),
+        Collet("ER40", 110f, 26f, new[] { 10f, 14f, 18f, 22f, 26f }, SpindleNose.D1_4, 5500f),
+        Scaled(ChuckKind.ThreeJaw, 80f, SpindleNose.D1_3, 5000f),
+        Scaled(ChuckKind.ThreeJaw, 100f, SpindleNose.D1_3, 4500f),
+        Scaled(ChuckKind.ThreeJaw, 160f, SpindleNose.D1_5, 3500f),
+        Scaled(ChuckKind.FourJawIndependent, 160f, SpindleNose.D1_5, 1600f),
+        Scaled(ChuckKind.ThreeJaw, 200f, SpindleNose.D1_6, 3000f),
+        Scaled(ChuckKind.ThreeJaw, 250f, SpindleNose.D1_6, 2500f),
+        Scaled(ChuckKind.FourJawIndependent, 200f, SpindleNose.D1_6, 1500f),
+        Collet("ER40", 120f, 26f, new[] { 10f, 14f, 18f, 22f, 26f }, SpindleNose.D1_6, 5000f),
+    };
 }

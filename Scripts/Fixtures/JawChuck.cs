@@ -392,8 +392,8 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
         return key;
     }
 
-    /// <summary>One notch of the key; a jaw that comes off the scroll goes
-    /// to the player's hand (and the key stops while that hand is full).</summary>
+    /// <summary>One notch of the key. A jaw the scroll lets go of lies loose
+    /// in its slot until it is pulled out (an empty-hand click).</summary>
     public void TurnKey(int steps, PlayerController player = null)
     {
         if (_ratchet == null)
@@ -406,17 +406,10 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
             _ratchet.PitchScale = (float)GD.RandRange(0.93, 1.07);
             _ratchet.Play();
         }
-        var released = Grip.TurnKey(steps, canTakeJaw: player != null && player.Held == null);
+        var turned = Grip.TurnKey(steps);
         _key.RotateObjectLocal(Vector3.Up, steps * Mathf.Pi / 6f);
-        if (released is SeatedJaw jaw)
-        {
-            var item = JawItem.Create(jaw.Kind, jaw.Number, Model);
-            GetTree().CurrentScene.AddChild(item);
-            item.GlobalPosition = GlobalPosition;
-            player.Give(item);
-            if (JawHints)
-                PlayerController.Notify(this, $"{jaw.Number} numaralı çene spiralden kurtuldu, elinde");
-        }
+        if (turned.Released is int slot && JawHints)
+            PlayerController.Notify(this, $"{slot + 1}. yuvadaki çene spiralden kurtuldu: elle çek");
         Refresh();
     }
 
@@ -533,6 +526,9 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
         }
         if (player.Held != null)
             return null;
+        if (!g.IsCollet && g.Jaws.LooseSlot is int loose)
+            return (JawHints ? $"[Tık] {loose + 1}. yuvadaki gevşek çeneyi çek" : "[Tık] Çeneyi yuvadan çek")
+                + (g.KeyIn ? "   " + KeyPrompt : "");
         if (g.KeyIn)
             return KeyPrompt + "   [Tık] Anahtarı çıkar";
         if (WhyNotMount != null && CamsLocked == 0 && !g.HasBar)
@@ -621,6 +617,13 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
             if (hollowReversed)
                 hollow.ReverseTurned();
             InsertBarInside(hollow, bore, depth);
+        }
+        else if (player.Held == null && !Grip.IsCollet && Grip.Jaws.LooseSlot is int loose && Grip.Jaws.TakeWaiting(loose) is SeatedJaw pulled)
+        {
+            var pulledJaw = JawItem.Create(pulled.Kind, pulled.Number, Model);
+            GetTree().CurrentScene.AddChild(pulledJaw);
+            player.Give(pulledJaw);
+            Refresh();
         }
         else if (player.Held == null && Grip.KeyIn)
             player.Give(TakeKey());

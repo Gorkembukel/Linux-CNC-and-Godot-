@@ -9,19 +9,23 @@ using CncTrainer.Procedural;
 namespace CncTrainer.Workshop;
 
 /// <summary>
-/// The chuck cabinet: a glass-doored case above with chucks of every size
-/// on its shelves, each with its hard jaws in; a drawer unit below with a
-/// drawer per chuck holding its spare jaw sets (or its collets); a worktop
-/// with a chuck stand between, where a chuck's jaws are changed. Which
+/// The chuck cabinet: above, a curved enclosure like a big lathe's guard
+/// (<see cref="ChuckEnclosure"/>) with chucks of every size along its
+/// shelves, each with its hard jaws in; a drawer unit below with a drawer
+/// per chuck holding its spare jaw sets (or its collets); a worktop with a
+/// chuck stand between, where a chuck's jaws are changed. Which
 /// lathe takes which chuck is the lathe's business (spindle nose, size).
 /// Everything inside lies still (frozen) until taken.
 /// </summary>
 [GlobalClass]
 public partial class ChuckCabinet : StaticBody3D
 {
-    /// <summary>The chucks it holds; empty = the standard catalogue
-    /// (scroll chucks Ø80-Ø250, four-jaw independents, collet chucks).</summary>
+    /// <summary>The chucks whose spare jaws (or collets) fill the drawers;
+    /// empty = the standard catalogue.</summary>
     [Export] public Godot.Collections.Array<ChuckModel> Chucks = new();
+    /// <summary>The chucks standing in the curved enclosure; empty = the
+    /// showcase (most sizes on the D1-4 nose, and the bigger noses).</summary>
+    [Export] public Godot.Collections.Array<ChuckModel> DisplayChucks = new();
     /// <summary>Spindle bore depth the chucks' bars may go into (mm), as on
     /// the lathes they go on.</summary>
     [Export] public float BoreDepthMm = 300f;
@@ -35,7 +39,7 @@ public partial class ChuckCabinet : StaticBody3D
     /// worktop's front edge: its drawer fronts line up under it.</summary>
     private const float UnitBackZ = -Depth / 2f, UnitFrontZ = TopFrontZ - 0.02f;
     private const float UnitDepth = UnitFrontZ - UnitBackZ, UnitMidZ = (UnitFrontZ + UnitBackZ) / 2f;
-    private const float CaseBottom = 1.25f, CaseHeight = 0.8f, CaseDepth = 0.4f;
+    private const float CaseBottom = 1.25f;
 
     public override void _Ready()
     {
@@ -49,7 +53,10 @@ public partial class ChuckCabinet : StaticBody3D
         AddChild(stand);
         stand.Position = new Vector3(-TopWidth * 0.25f, DrawerHeight + Top, TopFrontZ - 0.3f);
         stand.FixInPlace();
-        BuildCase(models);
+        var shown = DisplayChucks.Where(c => c != null).ToArray();
+        var enclosure = ChuckEnclosure.Create(shown.Length > 0 ? shown : ChuckModel.Showcase(), BoreDepthMm);
+        enclosure.Position = new Vector3(0f, CaseBottom, -Depth / 2f);
+        AddChild(enclosure);
         BuildDrawers(models);
     }
 
@@ -72,44 +79,6 @@ public partial class ChuckCabinet : StaticBody3D
                 new Vector3(side * (Width / 2f - 0.02f), (CaseBottom + DrawerHeight + Top) / 2f, -Depth / 2f + 0.02f), body);
     }
 
-    private float CaseZ => -Depth / 2f + CaseDepth / 2f;
-
-    private void BuildCase(ChuckModel[] models)
-    {
-        var body = BodyParts.Mat(new Color(0.32f, 0.36f, 0.42f), 0.3f, 0.5f);
-        var shelfMat = BodyParts.Mat(new Color(0.45f, 0.47f, 0.5f), 0.4f, 0.5f);
-        float z = CaseZ, mid = CaseBottom + CaseHeight / 2f;
-        foreach (float side in new[] { -1f, 1f })
-            BodyParts.SolidBox(this, "CaseSide", new Vector3(0.02f, CaseHeight, CaseDepth), new Vector3(side * (Width / 2f - 0.01f), mid, z), body);
-        BodyParts.SolidBox(this, "CaseBack", new Vector3(Width, CaseHeight, 0.02f), new Vector3(0f, mid, -Depth / 2f + 0.01f), body);
-        BodyParts.SolidBox(this, "CaseTop", new Vector3(Width, 0.02f, CaseDepth), new Vector3(0f, CaseBottom + CaseHeight - 0.01f, z), body);
-        float[] shelves = { CaseBottom + 0.01f, CaseBottom + CaseHeight * 0.5f };
-        foreach (float y in shelves)
-            BodyParts.SolidBox(this, "Shelf", new Vector3(Width - 0.04f, 0.02f, CaseDepth - 0.02f), new Vector3(0f, y, z), shelfMat);
-
-        // Chucks along the shelves, largest first, each standing on its back.
-        int shelf = 0;
-        float x = -Width / 2f + 0.04f;
-        foreach (var model in models.OrderByDescending(m => m.DiameterMm))
-        {
-            float d = model.DiameterMm * WorldScale.MmToM;
-            if (x + d > Width / 2f - 0.04f && shelf < shelves.Length - 1)
-            {
-                shelf++;
-                x = -Width / 2f + 0.04f;
-            }
-            var chuck = ChuckItem.Create(model, new ChuckGrip(model.Dims(BoreDepthMm)));
-            chuck.Freeze = true;
-            AddChild(chuck);
-            chuck.Position = new Vector3(x + d / 2f, shelves[shelf] + 0.01f, z + 0.02f);
-            x += d + 0.025f;
-        }
-
-        // Two glass doors hinged at the outer edges.
-        foreach (float side in new[] { -1f, 1f })
-            AddChild(CabinetDoor.Create(side, Width / 2f, CaseHeight - 0.02f, new Vector3(side * (Width / 2f), mid, z + CaseDepth / 2f)));
-    }
-
     private void BuildDrawers(ChuckModel[] models)
     {
         int rows = Mathf.Max(1, Mathf.CeilToInt(models.Length / 2f));
@@ -130,6 +99,7 @@ public partial class ChuckCabinet : StaticBody3D
 
     private static string Label(ChuckModel model) => model.Kind == ChuckKind.Collet
         ? $"{model.DisplayName}: pensler"
+        : model.DisplayName.Contains(SpindleNoses.NameOf(model.Mount)) ? $"{model.DisplayName}: çeneler"
         : $"{model.DisplayName}: çeneler ({SpindleNoses.NameOf(model.Mount)})";
 
     /// <summary>A drawer's spare jaw sets (hard, reversed, soft; four-jaw:
@@ -159,57 +129,6 @@ public partial class ChuckCabinet : StaticBody3D
             item.Position = new Vector3(-drawer.TrayWidth / 2f + across * (i % perRow + 1), 0.006f, -drawer.TrayDepth / 2f + along * (i / perRow + 1));
             // Jaws lie along the drawer, tongue down.
             item.RotationDegrees = new Vector3(0f, 90f, 0f);
-        }
-    }
-}
-
-/// <summary>A glass case door on a hinge: a click swings it open or shut.</summary>
-public partial class CabinetDoor : Node3D
-{
-    private StaticBody3D _leaf;
-    private bool _open;
-    private float _side;
-
-    public static CabinetDoor Create(float side, float width, float height, Vector3 hinge)
-    {
-        var door = new CabinetDoor { Name = "Door", Position = hinge, _side = side };
-        var leaf = new DoorLeaf { Name = "Leaf", Door = door, CollisionLayer = Fastener.InteractionLayer | 1, CollisionMask = 0 };
-        door.AddChild(leaf);
-        door._leaf = leaf;
-        var frame = BodyParts.Mat(new Color(0.25f, 0.28f, 0.33f), 0.3f, 0.5f);
-        var glass = new StandardMaterial3D
-        {
-            AlbedoColor = new Color(0.75f, 0.85f, 0.95f, 0.18f), Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
-            Roughness = 0.05f, Metallic = 0.1f,
-        };
-        float cx = -side * width / 2f, bar = 0.035f;
-        foreach (float y in new[] { -height / 2f + bar / 2f, height / 2f - bar / 2f })
-            BodyParts.Box(leaf, "Rail", new Vector3(width, bar, 0.02f), new Vector3(cx, y, 0f), frame);
-        foreach (float x in new[] { cx - width / 2f + bar / 2f, cx + width / 2f - bar / 2f })
-            BodyParts.Box(leaf, "Stile", new Vector3(bar, height, 0.02f), new Vector3(x, 0f, 0f), frame);
-        BodyParts.Box(leaf, "Glass", new Vector3(width - 2f * bar, height - 2f * bar, 0.004f), new Vector3(cx, 0f, 0f), glass);
-        BodyParts.Cylinder(leaf, "Knob", 0.01f, 0.03f, new Vector3(cx - side * (width / 2f - 0.06f), 0f, 0.02f), Vector3.Back, BodyParts.Steel);
-        leaf.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = new Vector3(width, height, 0.02f) }, Position = new Vector3(cx, 0f, 0f) });
-        return door;
-    }
-
-    public string Prompt => _open ? "[Tık] Kapağı kapat" : "[Tık] Kapağı aç";
-
-    public void Toggle()
-    {
-        _open = !_open;
-        CreateTween().TweenProperty(this, "rotation:y", _open ? _side * Mathf.DegToRad(105f) : 0f, 0.4)
-            .SetTrans(Tween.TransitionType.Sine);
-    }
-
-    private partial class DoorLeaf : StaticBody3D, IInteractable
-    {
-        public CabinetDoor Door;
-        public string Prompt(PlayerController player) => player.Held == null ? Door.Prompt : null;
-        public void Use(PlayerController player)
-        {
-            if (player.Held == null)
-                Door.Toggle();
         }
     }
 }

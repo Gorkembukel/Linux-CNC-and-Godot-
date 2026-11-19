@@ -54,7 +54,15 @@ public sealed class ChuckGrip
     public ChuckKind Kind => Dims.Kind;
     public bool IsCollet => Jaws.IsCollet;
 
-    public float OpeningMm { get; private set; }
+    /// <summary>Jaw opening (diameter, mm). A scroll chuck's comes from its
+    /// jaws' radii (the innermost jaw); a reversed set grips further out by
+    /// its outer step. Other chucks keep their own.</summary>
+    public float OpeningMm => Jaws.Scroll && Jaws.Seated > 0 ? 2f * Jaws.MinRadiusMm + ReversedStepMm : _openingMm;
+    private float _openingMm;
+    /// <summary>How much further out the outer step of reversed jaws grips.</summary>
+    private float ReversedStepMm => JawSet == JawKind.HardReversed ? MaxOpeningMm * 0.3f : 0f;
+    /// <summary>How far one key notch moves the opening (diameter, mm).</summary>
+    public float StepMm => Jaws.Scroll ? 2f * Dims.ScrollPitchMm / (Jaws.SlotCount * ChuckJaws.NotchesPerSlot) : JawStepMm;
     public int Torque { get; private set; }
     public bool KeyIn;
     public bool HasBar { get; private set; }
@@ -79,7 +87,7 @@ public sealed class ChuckGrip
 
     /// <summary>The jaws are on the part (closed onto it, or opened out
     /// into its bore): the key now tightens instead of moving them.</summary>
-    public bool AtContact => HasBar && (IsCollet || (Inside ? OpeningMm >= _boreMm : OpeningMm <= BarDiameterMm));
+    public bool AtContact => HasBar && (IsCollet || Torque > 0 || (Inside ? OpeningMm + StepMm > _boreMm : OpeningMm - StepMm < BarDiameterMm));
 
     /// <summary>Smallest and largest diameter the jaws (or the collet) close on.</summary>
     public float MinGripDiameterMm => IsCollet ? (Jaws.ColletMm ?? 0f) - ChuckJaws.ColletRangeMm
@@ -94,7 +102,7 @@ public sealed class ChuckGrip
     {
         Dims = dims;
         Jaws = new ChuckJaws(dims, dims.Kind == ChuckKind.Collet ? null : fitted);
-        OpeningMm = Jaws.Complete ? dims.MaxOpeningMm * 0.75f : dims.MaxOpeningMm;
+        _openingMm = Jaws.Complete ? dims.MaxOpeningMm * 0.75f : dims.MaxOpeningMm;
     }
 
     /// <summary>A three-jaw chuck with its hard jaws in.</summary>
@@ -181,8 +189,8 @@ public sealed class ChuckGrip
         if (Jaws.Install(kind, number, madeFor, family) is string why)
             return why;
         SoftBoredForMm = null;
-        if (Jaws.Complete)
-            OpeningMm = MaxGripDiameterMm;
+        if (Jaws.Complete && !Jaws.Scroll)
+            _openingMm = MaxGripDiameterMm;
         return null;
     }
 
@@ -198,7 +206,8 @@ public sealed class ChuckGrip
         if (!Jaws.Complete || JawSet != JawKind.Soft || HasBar || diameterMm > MaxGripDiameterMm)
             return false;
         SoftBoredForMm = diameterMm;
-        OpeningMm = Math.Max(OpeningMm, diameterMm + 2f);
+        if (!Jaws.Scroll)
+            _openingMm = Math.Max(_openingMm, diameterMm + 2f);
         return true;
     }
 
@@ -330,17 +339,19 @@ public sealed class ChuckGrip
         BarLengthMm = lengthMm;
     }
 
-    /// <summary>The jaws are as far open as they go: opening further runs
-    /// them off the scroll, one by one.</summary>
-    public bool FullyOpen => !HasBar && Torque == 0 && (!Jaws.Complete || OpeningMm >= MaxGripDiameterMm);
+    /// <summary>The jaws are as far open as they go while still held: turning
+    /// back further lets them go, the last one caught first.</summary>
+    public bool FullyOpen => !HasBar && Torque == 0 && (Jaws.Scroll
+        ? Jaws.Seated == 0 || Jaws.Notch <= Jaws.LastCatchNotch
+        : !Jaws.Complete || _openingMm >= MaxGripDiameterMm);
 
-    /// <summary>One notch of the key. +1 closes the jaws, then tightens;
-    /// holding a bore it opens them out, then tightens; a collet is only
-    /// tightened or let go. With jaws missing, or opened past the end, the
-    /// key turns the scroll: a jaw comes out where it lets go of one
-    /// (returned), unless <paramref name="canTakeJaw"/> is false, then the
-    /// key stops there.</summary>
-    public SeatedJaw? TurnKey(int steps, bool canTakeJaw = false)
+    /// <summary>One notch of the key. Closing (+1) runs the jaws in until they
+    /// meet the bar, then tightens; holding a bore it opens them out against
+    /// it, then tightens; a collet is only tightened or let go. On a scroll
+    /// chuck every notch turns the scroll: it catches a loose jaw as its
+    /// thread start crosses that slot, and turned back it lets go of any jaw
+    /// past where it was caught (it lies loose in its slot).</summary>
+    public ScrollEvent TurnKey(int steps)
     {
         if (IsCollet)
         {
@@ -348,64 +359,86 @@ public sealed class ChuckGrip
                 Torque = Math.Min(FullTorque, Torque + 1);
             else if (steps < 0 && Torque > 0)
                 Torque--;
-            return null;
+            return default;
         }
+        return Jaws.Scroll ? TurnScroll(steps) : TurnScrews(steps);
+    }
+
+    private ScrollEvent TurnScroll(int steps)
+    {
         if (Inside)
         {
-            if (steps > 0 && OpeningMm < _boreMm)
-                OpeningMm = Math.Min(_boreMm, OpeningMm + JawStepMm);
+            // Opening out against the bore is turning the scroll back.
+            if (steps > 0 && Torque == 0 && OpeningMm + StepMm <= _boreMm)
+                return Jaws.Advance(-1);
+            if (steps > 0)
+                Torque = Math.Min(FullTorque, Torque + 1);
+            else if (Torque > 0)
+                Torque--;
+            else
+                return Jaws.Advance(1);
+            return default;
+        }
+        if (steps > 0)
+        {
+            if (HasBar && Jaws.Seated > 0 && 2f * Jaws.MinRadiusAfterMm(1) + ReversedStepMm < BarDiameterMm)
+            {
+                Torque = Math.Min(FullTorque, Torque + 1);
+                return default;
+            }
+            // Jaws closed right in stop the key.
+            if (Jaws.Seated > 0 && Jaws.MinRadiusAfterMm(1) < 0.5f)
+                return default;
+            var caught = Jaws.Advance(1);
+            if (caught.Caught != null)
+                SoftBoredForMm = null;
+            return caught;
+        }
+        if (Torque > 0)
+        {
+            Torque--;
+            return default;
+        }
+        if (HasBar && Jaws.Seated > 0 && Jaws.Notch - 1 < Jaws.LastCatchNotch)
+            return default; // would let go of a jaw holding the bar
+        var released = Jaws.Advance(-1);
+        if (released.Released != null)
+            SoftBoredForMm = null;
+        return released;
+    }
+
+    /// <summary>An independent chuck: the key works each jaw's own screw.</summary>
+    private ScrollEvent TurnScrews(int steps)
+    {
+        if (Inside)
+        {
+            if (steps > 0 && _openingMm < _boreMm)
+                _openingMm = Math.Min(_boreMm, _openingMm + JawStepMm);
             else if (steps > 0)
                 Torque = Math.Min(FullTorque, Torque + 1);
             else if (Torque > 0)
                 Torque--;
             else
-                OpeningMm = Math.Max(MinGripDiameterMm, OpeningMm - JawStepMm);
-            return null;
+                _openingMm = Math.Max(MinGripDiameterMm, _openingMm - JawStepMm);
+            return default;
         }
-        if (!Jaws.Complete || (steps < 0 && FullyOpen))
-            return TurnScroll(steps, canTakeJaw);
-
         float contact = HasBar ? BarDiameterMm : 0f;
         if (steps > 0)
         {
-            if (OpeningMm > contact)
-                OpeningMm = Math.Max(contact, OpeningMm - JawStepMm);
+            if (!Jaws.Complete)
+                return default;
+            if (_openingMm > contact)
+                _openingMm = Math.Max(contact, _openingMm - JawStepMm);
             else if (HasBar)
                 Torque = Math.Min(FullTorque, Torque + 1);
+            return default;
         }
-        else if (Torque > 0)
+        if (Torque > 0)
             Torque--;
+        else if (FullyOpen && !HasBar)
+            return new ScrollEvent(null, Jaws.ReleaseLast());
         else
-            OpeningMm = Math.Min(MaxGripDiameterMm, OpeningMm + JawStepMm);
-        return null;
-    }
-
-    private SeatedJaw? TurnScroll(int steps, bool canTakeJaw)
-    {
-        if (HasBar)
-            return null;
-        if (steps > 0)
-        {
-            Jaws.Advance(1);
-            if (Jaws.Complete)
-            {
-                SoftBoredForMm = null;
-                OpeningMm = MaxGripDiameterMm;
-            }
-            return null;
-        }
-        // Backing the scroll off: the jaw at the slot it now lets go of comes out.
-        Jaws.Advance(-1);
-        bool jawHere = Jaws.Independent ? Jaws.Seated > 0 : Jaws.Slot(Jaws.StartSlot) != null;
-        if (!jawHere)
-            return null;
-        if (!canTakeJaw)
-        {
-            Jaws.Advance(1);
-            return null;
-        }
-        SoftBoredForMm = null;
-        OpeningMm = MaxOpeningMm;
-        return Jaws.Release();
+            _openingMm = Math.Min(MaxGripDiameterMm, _openingMm + JawStepMm);
+        return default;
     }
 }

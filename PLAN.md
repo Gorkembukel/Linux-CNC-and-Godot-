@@ -280,6 +280,15 @@ door on enclosed machines.
    reversed set in order meets, out of order 4 mm off (TIR ~8 mm), cams
    3->0, ER32 fitted (jaw face -150 -> -155), Ø20 collet 0.005 mm, loosened
    bar slid, turned with no incident; cams left undone -> Crash.
+   Jaw mechanics (`ChuckJaws`): one scroll position (Notch); a scroll jaw's
+   radius = catch radius - pitch x (Notch - CaughtNotch) / turn - pitch x
+   (number - 1) / N, so opening, centre error and drawing all follow from
+   it. Caught only when the thread start crosses its slot going in; let go
+   (loose in its slot, pulled out by hand) only when turned back past its
+   catch point; the key never lets go of a jaw holding a bar. The key turns
+   the scroll on a full chuck too (1.3 mm of opening per notch on Ø100).
+   Tests cover: in order meets; wrong slot; laid in late; a notch too far
+   and back; loose jaw caught again; LIFO let-go.
    Chuck stand and cabinet: `ChuckVisual` draws every chuck from its model
    (back plate + cam studs, grooves with lips and the scroll thread,
    key sockets, slot numbers; collet taper + hex nut) and its jaws
@@ -297,7 +306,8 @@ door on enclosed machines.
    (`ProceduralLatheBody.FitBareNose`) until one is mounted. Handed-over
    things now start at the hands (`PlayerController.Give`): the old chuck
    used to be made at the scene origin and yanked across by the hands.
-   `ChuckCabinet` (glass doors, a drawer per chuck, `ChuckModel.Catalogue`)
+   `ChuckCabinet` (curved `ChuckEnclosure` with sliding curved doors and
+   `ChuckModel.Showcase`, 21 chucks; a drawer per `Catalogue` chuck)
    still has to be placed in Main.tscn. Physical handling
    (`WorkshopSettings.PhysicalHandling`, `HandStrengthN`): carried bodies
    other than hand tools stay dynamic, driven by a force- and

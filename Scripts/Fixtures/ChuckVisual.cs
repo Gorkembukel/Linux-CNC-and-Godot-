@@ -274,12 +274,14 @@ public partial class ChuckVisual : Node3D
                 JawMesh.Build(holder, jaw.Kind, jaw.Number, jawLength, _jawHeight, _grooveWidth);
                 _jawKinds[i] = jaw.Kind;
             }
-            bool waiting = grip.Jaws.Slot(i) == null;
-            // Caught while the others are still going in, a jaw comes in
-            // with the scroll from where it was caught.
-            float r = waiting ? _r - jawLength
-                : !grip.Jaws.Complete ? _r - jawLength - _pitch * (grip.Jaws.Notch - jaw.CaughtNotch) / (float)(_jawHolders.Count * ChuckJaws.NotchesPerSlot)
-                : (grip.Inside ? grip.OpeningMm / 2f * M - jawLength : grip.OpeningMm / 2f * M) + grip.Jaws.ErrorMm(i) * M;
+            bool loose = grip.Jaws.Slot(i) == null;
+            // A scroll jaw sits where the thread has brought it since it was
+            // caught (out of turn: off from the others); a loose one lies at
+            // the slot's outer end; an independent one where its screw is.
+            float grippingFace = loose ? _r - jawLength
+                : grip.Jaws.Scroll ? grip.Jaws.RadiusMm(i) * M
+                : grip.OpeningMm / 2f * M;
+            float r = grip.Inside && !loose ? grippingFace - jawLength : grippingFace;
             r = Mathf.Clamp(r, Model.BoreMm / 2f * M, _r - jawLength);
             holder.Position = SlotDirection(i) * r + Vector3.Up * _body;
         }
