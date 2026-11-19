@@ -100,6 +100,7 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
 
     private Node3D _rotor, _key;
     private ChuckVisual _visual;
+    private AudioStreamPlayer3D _ratchet;
     private CollisionShape3D _bodyShape, _barShape;
 
     /// <summary>A three-jaw chuck sized from the older per-machine settings.</summary>
@@ -300,6 +301,9 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
         }
         player.ReleaseHeld().QueueFree();
         Refresh();
+        _ratchet?.Play();
+        if (!JawHints)
+            return;
         string next = Grip.Jaws.Complete ? "Çeneler tamam: anahtarla kapatıp ortada buluştuklarına bak"
             : Grip.Jaws.Independent ? "Sıradaki çeneyi tak"
             : "Anahtarı çevir: spiralin başı sıradaki yuvaya gelsin";
@@ -392,6 +396,16 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
     /// to the player's hand (and the key stops while that hand is full).</summary>
     public void TurnKey(int steps, PlayerController player = null)
     {
+        if (_ratchet == null)
+        {
+            _ratchet = new AudioStreamPlayer3D { Stream = Audio.SynthSounds.Ratchet, VolumeDb = -8f, UnitSize = 1.5f, MaxDistance = 14f };
+            AddChild(_ratchet);
+        }
+        if (player != null)
+        {
+            _ratchet.PitchScale = (float)GD.RandRange(0.93, 1.07);
+            _ratchet.Play();
+        }
         var released = Grip.TurnKey(steps, canTakeJaw: player != null && player.Held == null);
         if (released is SeatedJaw jaw)
         {
@@ -399,7 +413,8 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
             GetTree().CurrentScene.AddChild(item);
             item.GlobalPosition = GlobalPosition;
             player.Give(item);
-            PlayerController.Notify(this, $"{jaw.Number} numaralı çene spiralden kurtuldu, elinde");
+            if (JawHints)
+                PlayerController.Notify(this, $"{jaw.Number} numaralı çene spiralden kurtuldu, elinde");
         }
         Refresh();
     }
@@ -480,9 +495,9 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
                 : g.HasBar ? "Çene takmak için önce parçayı çıkar"
                 : !g.KeyIn ? "Çeneler ayna anahtarıyla takılır: önce anahtarı tak"
                 : g.Jaws.Set is JawKind set && set != jawItem.Kind ? "Farklı takım çeneler karıştırılmaz: önce takılı olanları sök"
-                : g.Jaws.OpenSlot is int slot ? $"[Tık] {jawItem.DisplayName} → {slot + 1}. yuvaya tak"
+                : g.Jaws.OpenSlot is int slot ? (JawHints ? $"[Tık] {jawItem.DisplayName} → {slot + 1}. yuvaya tak" : $"[Tık] {jawItem.DisplayName} tak")
                 : g.Jaws.Complete ? "Bütün yuvalar dolu"
-                : $"Spiralin başı {g.Jaws.StartSlot + 1}. yuvada, orası dolu: anahtarı çevir";
+                : JawHints ? $"Spiralin başı {g.Jaws.StartSlot + 1}. yuvada, orası dolu: anahtarı çevir" : null;
         if (player.Held is ColletItem colletItem)
             return !g.IsCollet ? "Bu ayna pens almaz"
                 : g.Jaws.ColletMm != null ? "Aynada zaten bir pens var: önce onu çıkar"
@@ -530,12 +545,17 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
         return $"{Model.DisplayName}: {JawLine}" + (g.IsCollet ? "" : $", açıklık Ø{g.OpeningMm:0} mm (ayna anahtarı gerekli)");
     }
 
+    /// <summary>Text about the jaws only without physical handling.</summary>
+    private static bool JawHints => !Workshop.WorkshopSettings.PhysicalHandling;
+
     /// <summary>What the key does now.</summary>
     private string KeyPrompt
     {
         get
         {
             var g = Grip;
+            if (!JawHints && !g.IsCollet && !g.AtContact)
+                return "[Tekerlek] Anahtarı çevir";
             if (g.IsCollet)
                 return g.HasBar ? $"[Tekerlek] Pensi sık / gevşet   sıkma {g.Torque}/{ChuckGrip.FullTorque}" : "Pens aynası: önce çubuğu sür";
             if (!g.Jaws.Complete)

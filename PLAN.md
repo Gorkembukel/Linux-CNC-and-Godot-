@@ -305,6 +305,15 @@ door on enclosed machines.
    dropped in, 35 deg crooked one stayed out, 2 and 3 caught by the key in
    turn, complete chuck meets at the centre with the watch off, opened past
    the end the jaws slid out and slept. Not tried by hand in the editor.
+   Physical mode is deliberately silent about jaws (stand and on-machine
+   prompts/notices hidden): `ChuckVisual.ShowScroll` moves each groove's
+   ridge pool with the key (a new ridge at the outer end when the start
+   passes), `ChuckStand.Guide` draws a near-square jaw into line (felt in
+   the hand), `SynthSounds` Clink (jaw knocks, `JawItem` contact monitor),
+   Clunk (drops in), Clack (caught), Ratchet (key), Scrape (slides out).
+   Carrying: gravity always held, swing limited by `weight_feel` x mass.
+   The cabinet is in Main.tscn at (-5.6, -1.1, -1) facing +X (that file
+   also holds the user's own uncommitted edits).
    Spindle: sim_spindle's limit_speed gets `SpindleAccelRpmPerSec` (0 =
    lathe 400, mill 2500 rpm/s) via INI [SPINDLE_0]GODOT_ACCEL_RPM_PER_SEC;
    the bridge reports limit_speed.out (signed). Live: 0->1500 in 3.8 s,

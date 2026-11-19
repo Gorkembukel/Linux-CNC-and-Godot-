@@ -221,10 +221,13 @@ public partial class PlayerController : CharacterBody3D
             Notify(this, "Elinden kaydı: çok ağır ya da bir yere takıldı");
             return;
         }
-        float strength = WorkshopSettings.HandStrengthN;
+        float strength = WorkshopSettings.HandStrengthN, feel = WorkshopSettings.WeightFeel;
         var gravity = Vector3.Down * (float)ProjectSettings.GetSetting("physics/3d/default_gravity").AsDouble();
-        var accel = error * HoldStiffness - body.LinearVelocity * HoldDamping;
-        body.ApplyCentralForce((body.Mass * (accel - gravity)).LimitLength(strength));
+        // Its weight is always held up; only the swinging about is limited,
+        // by as much of its mass as the hands are set to feel.
+        float felt = Mathf.Max(body.Mass * feel, 0.05f);
+        var accel = (error * HoldStiffness - body.LinearVelocity * HoldDamping).LimitLength(strength / felt);
+        body.ApplyCentralForce(body.Mass * (accel - gravity));
 
         var turn = (target.Basis.GetRotationQuaternion() * body.GlobalBasis.Orthonormalized().GetRotationQuaternion().Inverse()).Normalized();
         if (turn.W < 0f)
@@ -234,11 +237,12 @@ public partial class PlayerController : CharacterBody3D
         var angular = axis * angle * TurnStiffness - body.AngularVelocity * TurnDamping;
         var state = PhysicsServer3D.BodyGetDirectState(body.GetRid());
         var torque = state != null ? state.InverseInertiaTensor.Inverse() * angular : angular * body.Mass * 0.01f;
-        body.ApplyTorque(torque.LimitLength(strength * GripLeverM));
+        body.ApplyTorque(torque.LimitLength(strength * GripLeverM / Mathf.Max(feel, 0.05f)));
     }
 
     /// <summary>Walking slows under a heavy load.</summary>
-    private float LoadSpeedFactor => _heldPart == null ? 1f : Mathf.Clamp(1f - _heldPart.Mass / 40f, 0.35f, 1f);
+    private float LoadSpeedFactor => _heldPart == null || !_carriedByForce ? 1f
+        : Mathf.Clamp(1f - _heldPart.Mass * WorkshopSettings.WeightFeel / 40f, 0.6f, 1f);
 
     public override void _Ready()
     {

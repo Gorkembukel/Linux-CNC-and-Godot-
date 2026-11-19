@@ -16,6 +16,19 @@ public partial class JawItem : Carryable
     /// <summary>Its length along the groove (m), for laying it into one.</summary>
     public float LengthM { get; private set; }
 
+    private AudioStreamPlayer3D _knock;
+
+    /// <summary>Steel on steel: louder the harder it hit.</summary>
+    private void Knocked()
+    {
+        float speed = LinearVelocity.Length();
+        if (speed < 0.05f || _knock.Playing && _knock.GetPlaybackPosition() < 0.04f)
+            return;
+        _knock.VolumeDb = Mathf.LinearToDb(Mathf.Clamp(speed / 0.8f, 0.08f, 1f)) - 4f;
+        _knock.PitchScale = (float)GD.RandRange(0.92, 1.08);
+        _knock.Play();
+    }
+
     public bool Fits(ChuckModel model) => model.Kind == MadeFor && (Family == "" || Family == model.JawFamily);
 
     public static string NameOf(JawKind kind) => kind switch
@@ -53,6 +66,11 @@ public partial class JawItem : Carryable
         };
         JawMesh.Build(item, kind, number, length, height, width);
         item.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = new Vector3(length, height + 0.004f, width) }, Position = new Vector3(length / 2f, height / 2f - 0.002f, 0f) });
+        item._knock = new AudioStreamPlayer3D { Stream = Audio.SynthSounds.Clink, UnitSize = 1.2f, MaxDistance = 12f };
+        item.AddChild(item._knock);
+        item.ContactMonitor = true;
+        item.MaxContactsReported = 2;
+        item.BodyEntered += _ => item.Knocked();
         return item;
     }
 }

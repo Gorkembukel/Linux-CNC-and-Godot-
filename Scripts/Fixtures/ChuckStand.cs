@@ -17,6 +17,9 @@ namespace CncTrainer.Fixtures;
 /// scroll slide out of the groove onto the bench. Nothing here is simulated
 /// once the chuck is complete: the seated chuck is frozen, fitted jaws are
 /// part of its drawing, and the groove watch switches off.
+/// With physical handling on it says nothing about how the jaws went in:
+/// the operator reads the scroll's ridges down the grooves, feels a jaw
+/// being drawn into its groove, and hears it drop and the scroll catch it.
 /// </summary>
 public partial class ChuckStand : StaticBody3D, IInteractable
 {
@@ -26,6 +29,36 @@ public partial class ChuckStand : StaticBody3D, IInteractable
     private const float AlignDeg = 15f;
     /// <summary>How close above the face a jaw's underside must come (m).</summary>
     private const float DropInHeightM = 0.015f;
+    /// <summary>Within this many degrees and a groove's width or so, a
+    /// jaw is drawn toward the groove: the hand feels it want to go in.</summary>
+    private const float GuideDeg = 35f;
+    /// <summary>Spring of that draw (per second squared per metre / per radian).</summary>
+    private const float GuidePull = 160f, GuideTurn = 40f;
+
+    /// <summary>Text about the jaws only without physical handling; with it,
+    /// the chuck itself has to be read.</summary>
+    private static bool Hints => !WorkshopSettings.PhysicalHandling;
+
+    private AudioStreamPlayer3D _clunk, _clack, _ratchet, _scrape;
+
+    private static AudioStreamPlayer3D Sound(Node3D parent, AudioStream stream, float db)
+    {
+        var player = new AudioStreamPlayer3D { Stream = stream, VolumeDb = db, UnitSize = 1.5f, MaxDistance = 14f };
+        parent.AddChild(player);
+        return player;
+    }
+
+    private static void Play(AudioStreamPlayer3D player)
+    {
+        player.PitchScale = (float)GD.RandRange(0.93, 1.07);
+        player.Play();
+    }
+
+    private void Say(string text)
+    {
+        if (Hints)
+            PlayerController.Notify(this, text);
+    }
 
     public ChuckItem Chuck { get; private set; }
 
@@ -48,6 +81,10 @@ public partial class ChuckStand : StaticBody3D, IInteractable
         stand._watch = new Area3D { Name = "GrooveWatch", Monitoring = false, CollisionLayer = 0, CollisionMask = 1 };
         stand._watch.AddChild(new CollisionShape3D { Shape = new CylinderShape3D { Radius = 0.25f, Height = 0.25f }, Position = new Vector3(0f, 0.15f, 0f) });
         stand.AddChild(stand._watch);
+        stand._clunk = Sound(stand, Audio.SynthSounds.Clunk, -2f);
+        stand._clack = Sound(stand, Audio.SynthSounds.Clack, 0f);
+        stand._ratchet = Sound(stand, Audio.SynthSounds.Ratchet, -8f);
+        stand._scrape = Sound(stand, Audio.SynthSounds.Scrape, -6f);
         stand._watch.BodyEntered += body => { if (body is JawItem jaw) stand._near.Add(jaw); };
         stand._watch.BodyExited += body =>
         {
@@ -118,6 +155,42 @@ public partial class ChuckStand : StaticBody3D, IInteractable
             }
             if (GrooveFor(jaw) is int slot)
                 DropIn(jaw, slot);
+            else
+                Guide(jaw);
+        }
+    }
+
+    /// <summary>A jaw nearly square over a groove is drawn into line with it
+    /// and down onto the face, a little: in the hand that feels like the
+    /// groove taking it.</summary>
+    private void Guide(JawItem jaw)
+    {
+        var frame = Visual.GlobalTransform;
+        var up = frame.Basis.Y.Normalized();
+        var jawBasis = jaw.GlobalBasis.Orthonormalized();
+        var local = frame.AffineInverse() * jaw.GlobalPosition;
+        if (local.Y > Visual.FaceM + 0.04f || jawBasis.Y.Dot(up) < Mathf.Cos(Mathf.DegToRad(GuideDeg)))
+            return;
+        var flat = new Vector3(local.X, 0f, local.Z);
+        for (int slot = 0; slot < Visual.Slots; slot++)
+        {
+            if (Grip.Jaws.Slot(slot) != null || Grip.Jaws.Waiting(slot) != null)
+                continue;
+            var along = Visual.SlotDirection(slot);
+            var dir = (frame.Basis * along).Normalized();
+            if (jawBasis.X.Dot(dir) < Mathf.Cos(Mathf.DegToRad(GuideDeg)))
+                continue;
+            float radial = flat.Dot(along);
+            var off = flat - along * radial;
+            if (off.Length() > Visual.RadiusM * 0.3f || radial < Visual.RadiusM * 0.2f || radial > Visual.RadiusM * 1.1f)
+                continue;
+            float m = jaw.Mass;
+            var sideways = frame.Basis * off;
+            float height = local.Y - Visual.FaceM;
+            jaw.ApplyCentralForce(m * (-sideways * GuidePull - up * Mathf.Max(0f, height) * GuidePull * 0.5f - jaw.LinearVelocity * 4f));
+            var square = jawBasis.X.Cross(dir) + jawBasis.Y.Cross(up);
+            jaw.ApplyTorque(m * 0.002f * (square * GuideTurn - jaw.AngularVelocity * 2f));
+            return;
         }
     }
 
@@ -154,23 +227,32 @@ public partial class ChuckStand : StaticBody3D, IInteractable
     {
         if (Grip.Jaws.WhyNotJaw(slot, jaw.Kind, jaw.Number, jaw.MadeFor, jaw.Family) is string why)
         {
+            // It just will not go in: the tongue does not fit, or the
+            // groove is taken. Said in words only without physical handling.
             if (why != _lastRefusal)
-                PlayerController.Notify(this, why);
+                Say(why);
             _lastRefusal = why;
             return;
         }
         _lastRefusal = null;
         if (GetTree().GetFirstNodeInGroup("player") is PlayerController player && player.Held == jaw)
             player.ReleaseHeld();
+        int seatedBefore = Grip.Jaws.Seated;
         Grip.Jaws.Place(slot, jaw.Kind, jaw.Number, jaw.MadeFor, jaw.Family);
         _near.Remove(jaw);
         jaw.QueueFree();
+        Play(_clunk);
+        if (Grip.Jaws.Seated > seatedBefore)
+            Play(_clack);
         AfterJawChange($"{jaw.DisplayName} {slot + 1}. kanala oturdu");
     }
 
     private void AfterJawChange(string what)
     {
         Chuck.Refresh();
+        UpdateWatch();
+        if (!Hints)
+            return;
         var jaws = Grip.Jaws;
         string next = jaws.Complete ? "Ayna tamam: anahtarla kapatıp çenelerin ortada buluştuğuna bak"
             : jaws.Independent ? "Sıradaki çeneyi kanalına yatır"
@@ -178,7 +260,6 @@ public partial class ChuckStand : StaticBody3D, IInteractable
                 ? "Çene spirale dayalı bekliyor: anahtarı çevir, spiralin başı kanala gelince yakalar"
                 : "Sıradaki numaralı çeneyi kanalına yatır";
         PlayerController.Notify(this, $"{what}. {next}");
-        UpdateWatch();
     }
 
     /// <summary>A jaw the scroll let go of slides out of its groove onto the bench.</summary>
@@ -192,7 +273,8 @@ public partial class ChuckStand : StaticBody3D, IInteractable
         item.GlobalTransform = new Transform3D(new Basis(dir, up, dir.Cross(up)), frame * Visual.GrooveEntry(slot) + up * 0.004f);
         item.LinearVelocity = dir * 0.35f;
         _ejected.Add(item);
-        PlayerController.Notify(this, $"{jaw.Number} numaralı çene spiralden kurtulup kanaldan çıktı");
+        Play(_scrape);
+        Say($"{jaw.Number} numaralı çene spiralden kurtulup kanaldan çıktı");
     }
 
     public string Prompt(PlayerController player)
@@ -204,16 +286,18 @@ public partial class ChuckStand : StaticBody3D, IInteractable
             return _keyIn ? null : "[Tık] Anahtarı aynaya tak";
         if (player.Held is JawItem jaw)
         {
+            if (!Hints)
+                return null;
             if (!jaw.Fits(Chuck.Model))
                 return "Bu çene bu aynanın değil";
-            return WorkshopSettings.PhysicalHandling
-                ? "Çeneyi kanalına dik ve yüzüne düz tutup kanalın dış ucuna indir (numarası kanal numarasıyla aynı)"
-                : NearestSlot(player) is int slot ? $"[Tık] {jaw.DisplayName} → {slot + 1}. kanala yatır" : null;
+            return NearestSlot(player) is int slot ? $"[Tık] {jaw.DisplayName} → {slot + 1}. kanala yatır" : null;
         }
         if (player.Held is ColletItem collet)
             return g.IsCollet ? $"[Tık] {collet.DisplayName} tak" : "Bu ayna pens almaz";
         if (player.Held != null)
             return null;
+        if (_keyIn && !Hints)
+            return g.IsCollet ? "Pens aynası: anahtarın burada işi yok" : "[Tekerlek] Anahtarı çevir   [Tık] Anahtarı çıkar";
         if (_keyIn)
             return (g.IsCollet ? "Pens aynası: anahtarın burada işi yok" : g.Jaws.Complete
                 ? $"[Tekerlek] Çeneleri aç / kapat   Ø{g.OpeningMm:0} mm" + (g.FullyOpen ? " (tam açık: geri çevirmek çeneleri söker)" : "")
@@ -221,10 +305,11 @@ public partial class ChuckStand : StaticBody3D, IInteractable
                 + (g.Jaws.Complete && !g.HasBar && g.OpeningMm <= ChuckGrip.JawStepMm && !g.Jaws.MeetAtCentre ? "   ÇENELER ORTADA BULUŞMUYOR" : "")
                 + "   [Tık] Anahtarı çıkar";
         if (WaitingSlot() is int waiting)
-            return $"[Tık] {waiting + 1}. kanalda bekleyen çeneyi geri al";
+            return Hints ? $"[Tık] {waiting + 1}. kanalda bekleyen çeneyi geri al" : "[Tık] Bekleyen çeneyi kanaldan geri al";
         if (g.IsCollet && g.Jaws.ColletMm != null)
             return "[Tık] Pensi çıkar";
-        return $"{Chuck.Model.DisplayName}: {g.Jaws.Seated}/{g.Jaws.SlotCount} çene   [Tık] Aynayı kaldır ({Chuck.Mass:0.#} kg)";
+        return (Hints ? $"{Chuck.Model.DisplayName}: {g.Jaws.Seated}/{g.Jaws.SlotCount} çene   " : $"{Chuck.Model.DisplayName}   ")
+            + $"[Tık] Aynayı kaldır ({Chuck.Mass:0.#} kg)";
     }
 
     public void Use(PlayerController player)
@@ -294,11 +379,15 @@ public partial class ChuckStand : StaticBody3D, IInteractable
         var g = Grip;
         int before = g.Jaws.Seated;
         var released = g.TurnKey(steps, canTakeJaw: true);
+        Play(_ratchet);
         if (released is SeatedJaw jaw)
             Eject(jaw, g.Jaws.LastReleasedSlot);
         Chuck.Refresh();
         if (g.Jaws.Seated > before)
+        {
+            Play(_clack);
             AfterJawChange($"Spiral {g.Jaws.StartSlot + 1}. kanaldaki çeneyi yakaladı");
+        }
         else if (released != null)
             UpdateWatch();
     }

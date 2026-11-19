@@ -250,10 +250,16 @@ the end and the jaws slide out of their grooves one by one; to fit them, lay
 each jaw square in its groove and flat on the face (it drops in), then turn
 the key: the scroll's thread start catches each one as it comes round.
 With **physical handling** on (Project Settings, cnc_trainer/workshop), what
-you carry is pulled along by your hands with limited strength
-(`hand_strength_n`): a 25 kg chuck lags and sways, and walking slows under
-it. Off: things follow the view and jaws are clicked into the groove you
-look at.
+you carry is held up whatever it weighs but swings with some of its mass
+(`weight_feel`, 0-1, default 0.35; `hand_strength_n`): heavy chucks lag a
+little. On the stand it is also a test of hand and eye: nothing on screen
+says which slot the scroll is at or whether a jaw went in right. Watch the
+scroll's ridges down the grooves (a fresh ridge appears at a groove's outer
+end as the thread start passes that slot), feel a jaw being drawn into the
+groove as it comes square, and listen: a dull knock as it drops in, a clack
+when the scroll catches it, the key ratcheting, a scrape as one slides out.
+Off: things follow the view, jaws are clicked into the groove you look at,
+and the stand says what happened.
 
 ### Fanuc-style tool calls
 

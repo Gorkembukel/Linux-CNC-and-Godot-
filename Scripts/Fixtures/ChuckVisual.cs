@@ -20,6 +20,10 @@ public partial class ChuckVisual : Node3D
     public ChuckModel Model { get; private set; }
     private float _r, _body, _grooveWidth, _jawHeight;
     private readonly List<Node3D> _jawHolders = new();
+    /// <summary>Each groove's visible scroll thread: a pool of ridges moved
+    /// as the scroll turns.</summary>
+    private readonly List<MeshInstance3D[]> _threads = new();
+    private float _grooveInner, _grooveOuter, _pitch;
     private readonly List<JawKind?> _jawKinds = new();
     private Node3D _collet;
 
@@ -60,6 +64,7 @@ public partial class ChuckVisual : Node3D
         }
         _jawHolders.Clear();
         _jawKinds.Clear();
+        _threads.Clear();
         _r = model.DiameterMm / 2f * M;
         _jawHeight = model.JawDepthMm * 0.7f * M;
         _body = model.BodyLengthMm * M;
@@ -80,7 +85,8 @@ public partial class ChuckVisual : Node3D
 
         var steel = ChuckSteel;
         var dark = BodyParts.Mat(new Color(0.08f, 0.08f, 0.09f), 0.5f, 0.6f);
-        var scroll = BodyParts.Mat(new Color(0.55f, 0.53f, 0.5f), 0.8f, 0.35f);
+        // Bright ground thread, so its ridges read against the dark groove.
+        var scroll = BodyParts.Mat(new Color(0.85f, 0.83f, 0.78f), 0.9f, 0.22f);
         BodyParts.Cylinder(this, "Body", _r, _body - back, new Vector3(0f, back + (_body - back) / 2f, 0f), Vector3.Up, steel);
         // A chamfer ring round the front edge and the bore through the middle.
         BodyParts.Cylinder(this, "Chamfer", _r * 0.985f, 0.002f, new Vector3(0f, _body + 0.001f, 0f), Vector3.Up, BodyParts.Mat(new Color(0.75f, 0.76f, 0.78f), 0.9f, 0.25f));
@@ -90,6 +96,9 @@ public partial class ChuckVisual : Node3D
         _grooveWidth = _r * 0.24f;
         float inner = model.BoreMm / 2f * M + 0.004f, outer = _r - 0.002f, length = outer - inner;
         float pitch = model.ScrollPitchMm * M;
+        _grooveInner = inner;
+        _grooveOuter = outer;
+        _pitch = pitch;
         for (int i = 0; i < slots; i++)
         {
             float a = Mathf.Tau * i / slots;
@@ -102,8 +111,12 @@ public partial class ChuckVisual : Node3D
                 BodyParts.Box(groove, "Lip", new Vector3(length, 0.0015f, _r * 0.03f),
                     new Vector3(inner + length / 2f, 0.0025f, side * (_grooveWidth / 2f + _r * 0.015f)), steel);
             if (model.Kind == ChuckKind.ThreeJaw)
-                for (float t = inner + pitch * ((float)i / slots + 0.5f); t < outer; t += pitch)
-                    BodyParts.Box(groove, "Thread", new Vector3(pitch * 0.35f, 0.001f, _grooveWidth * 0.9f), new Vector3(t, 0.0025f, 0f), scroll);
+            {
+                var ridges = new MeshInstance3D[Mathf.CeilToInt(length / pitch) + 1];
+                for (int k = 0; k < ridges.Length; k++)
+                    ridges[k] = BodyParts.Box(groove, "Thread", new Vector3(pitch * 0.45f, 0.0016f, _grooveWidth * 0.9f), Vector3.Zero, scroll);
+                _threads.Add(ridges);
+            }
             else
                 BodyParts.Cylinder(groove, "Screw", _grooveWidth * 0.2f, length * 0.9f, new Vector3(inner + length / 2f, 0.002f, 0f), Vector3.Right, scroll);
             groove.AddChild(new Label3D
@@ -148,6 +161,7 @@ public partial class ChuckVisual : Node3D
             BodyParts.Box(this, "SpannerHole", new Vector3(0.006f, 0.006f, 0.006f), new Vector3(side * _r * 0.5f, _body + noseLength * 0.75f, 0f),
                 BodyParts.Mat(new Color(0.05f, 0.05f, 0.05f)));
         _collet = new Node3D { Name = "Collet", Visible = false };
+        _threads.Clear();
         AddChild(_collet);
         BodyParts.Cylinder(_collet, "Collet", Model.MaxOpeningMm / 2f * M + 0.004f, 0.004f, new Vector3(0f, _body + noseLength + 0.001f, 0f), Vector3.Up,
             BodyParts.Mat(new Color(0.7f, 0.66f, 0.45f), 0.8f, 0.3f));
@@ -160,10 +174,30 @@ public partial class ChuckVisual : Node3D
         return new Basis(x, Vector3.Up, x.Cross(Vector3.Up));
     }
 
+    /// <summary>The scroll seen down each groove: its ridges march in as
+    /// the key closes it, and a fresh ridge appears at a groove's outer end
+    /// the moment the thread's start passes that slot: the sign to lay
+    /// that slot's jaw in.</summary>
+    public void ShowScroll(float scrollTurns)
+    {
+        for (int i = 0; i < _threads.Count; i++)
+        {
+            float phase = Mathf.PosMod(scrollTurns - (float)i / _threads.Count, 1f);
+            var ridges = _threads[i];
+            for (int k = 0; k < ridges.Length; k++)
+            {
+                float r = _grooveOuter - _pitch * (phase + k) - _pitch * 0.2f;
+                ridges[k].Visible = r > _grooveInner;
+                ridges[k].Position = new Vector3(r, 0.0025f, 0f);
+            }
+        }
+    }
+
     /// <summary>Puts the jaws where the grip has them: in their slots at
     /// the opening (a jaw caught out of turn further out), or out.</summary>
     public void ShowGrip(ChuckGrip grip)
     {
+        ShowScroll(grip.Jaws.ScrollTurns);
         if (_collet != null)
         {
             _collet.Visible = grip.Jaws.ColletMm != null;
@@ -185,7 +219,10 @@ public partial class ChuckVisual : Node3D
                 _jawKinds[i] = jaw.Kind;
             }
             bool waiting = grip.Jaws.Slot(i) == null;
+            // Caught while the others are still going in, a jaw comes in
+            // with the scroll from where it was caught.
             float r = waiting ? _r - jawLength
+                : !grip.Jaws.Complete ? _r - jawLength - _pitch * (grip.Jaws.Notch - jaw.CaughtNotch) / (float)(_jawHolders.Count * ChuckJaws.NotchesPerSlot)
                 : (grip.Inside ? grip.OpeningMm / 2f * M - jawLength : grip.OpeningMm / 2f * M) + grip.Jaws.ErrorMm(i) * M;
             r = Mathf.Clamp(r, Model.BoreMm / 2f * M, _r - jawLength);
             holder.Position = SlotDirection(i) * r + Vector3.Up * _body;

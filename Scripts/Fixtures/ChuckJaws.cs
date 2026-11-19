@@ -14,7 +14,9 @@ public readonly record struct ChuckDims(ChuckKind Kind, int JawCount, float MaxO
 
 /// <summary>A jaw as it sits in a slot: which set and number it is, and on
 /// which turn of the scroll it caught.</summary>
-public readonly record struct SeatedJaw(JawKind Kind, int Number, int Turn);
+/// <param name="CaughtNotch">Where the key was when the scroll caught it:
+/// the jaw has come in with the scroll since.</param>
+public readonly record struct SeatedJaw(JawKind Kind, int Number, int Turn, int CaughtNotch = 0);
 
 /// <summary>
 /// What a chuck grips with, and how it gets there. A scroll chuck's jaws go
@@ -57,6 +59,9 @@ public sealed class ChuckJaws
     public bool Ready => IsCollet ? ColletMm != null : Complete;
     /// <summary>The set the jaws belong to (the first one's, they cannot mix).</summary>
     public JawKind? Set => _slots.FirstOrDefault(s => s != null)?.Kind;
+    /// <summary>Turns of the scroll from where it started (fraction included).</summary>
+    public float ScrollTurns => Notch / (float)(Math.Max(1, _slots.Length) * NotchesPerSlot);
+
     /// <summary>The slot the scroll's thread starts at now (0-based).</summary>
     public int StartSlot => FloorMod(Notch, _slots.Length * NotchesPerSlot) / NotchesPerSlot;
     private int ScrollTurn => FloorDiv(Notch, _slots.Length * NotchesPerSlot);
@@ -84,7 +89,7 @@ public sealed class ChuckJaws
         if (_waiting[slot] is not SeatedJaw jaw || _slots[slot] != null)
             return null;
         _waiting[slot] = null;
-        _slots[slot] = jaw with { Turn = ScrollTurn };
+        _slots[slot] = jaw with { Turn = ScrollTurn, CaughtNotch = Notch };
         return slot;
     }
 
@@ -119,7 +124,7 @@ public sealed class ChuckJaws
         if (Independent)
             _slots[slot] = new SeatedJaw(kind, number, 0);
         else if (StartSlot == slot)
-            _slots[slot] = new SeatedJaw(kind, number, ScrollTurn);
+            _slots[slot] = new SeatedJaw(kind, number, ScrollTurn, Notch);
         else
             _waiting[slot] = new SeatedJaw(kind, number, 0);
         return null;
@@ -148,7 +153,7 @@ public sealed class ChuckJaws
         int slot = OpenSlot ?? -1;
         if (WhyNotJaw(slot, kind, number, madeFor, family) is string why)
             return why;
-        _slots[slot] = new SeatedJaw(kind, number, ScrollTurn);
+        _slots[slot] = new SeatedJaw(kind, number, ScrollTurn, Notch);
         return null;
     }
 
