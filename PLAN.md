@@ -202,10 +202,12 @@ door on enclosed machines.
    (blank caps); F1-F7 are unassigned builder keys. PRG RESTART uses
    LinuxCNC run-from-line, so tool / spindle set before that line are not
    replayed.
-8. Console bug: FEED HOLD in MDI mode cannot be resumed. `CycleStart` only
+8. Lathe X wear is entered in the tool table's own X units (G10 L1 X);
+   whether that is radius or diameter under G7 was not checked live.
+9. Console bug: FEED HOLD in MDI mode cannot be resumed. `CycleStart` only
    resumes a paused interpreter in AUTO; in MDI it re-sends the typed blocks
    (nothing, if none are pending). It should resume when paused, as in AUTO.
-9. **Idea: a Godot-side config mechanism** for rules that are a choice, not
+10. **Idea: a Godot-side config mechanism** for rules that are a choice, not
    physics. Today one setting exists: `cnc_trainer/workshop/saw_requires_clamping`
    in Project Settings (`WorkshopSettings`, default off). Candidates to move
    there: door interlock default, safety records (glasses / chip hand),
@@ -240,6 +242,14 @@ door on enclosed machines.
   ignores tool length offsets.
 - Mill/lathe cutting do NOT share `IMaterialModel` (lathe 1D radius profile
   vs. voxel field; forcing one interface broke LSP).
+- OFS/SET TOOL is a Fanuc-style table of every tool (GEOM / WEAR, DIA or
+  R / T): the bridge sends LinuxCNC's tool table (TOOL_TABLE packet, type 4),
+  `BridgeClient.Offsets` (`ToolOffsetTable`) keeps the wear and shows
+  geometry = LinuxCNC offset - wear. INPUT / +INPUT write geometry or wear
+  (`OffsetCommands.SetToolGeometry` / `SetToolWear`), MEASURE only on the
+  tool in the spindle and keeps its wear. Wear lives for the session, like
+  LinuxCNC's table. Harness: `TmpConsole` scenarios `ofs`, `ofslathe`
+  (`CNC_CONSOLE_PRESET=lathe`).
 - STATE packet is 210 bytes, hand-mirrored in `bridge/protocol.py` and
   `Scripts/Bridge/BridgeProtocol.cs`; change both + the cross-language
   fixture + the size test together.

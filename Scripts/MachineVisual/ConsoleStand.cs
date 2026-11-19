@@ -104,7 +104,7 @@ public partial class ConsoleStand : Node3D
     private readonly List<string> _mdiBlocks = new();
     private readonly List<string> _programLines = new();
     private bool _programEdited;
-    private int _progCursor, _dirCursor, _offsetCursor;
+    private int _progCursor, _dirCursor, _offsetCursor, _offsetColumn;
     private string[] _dirFiles = Array.Empty<string>();
     private readonly List<string> _alarms = new();
     private readonly List<string> _messages = new();
@@ -332,10 +332,10 @@ public partial class ConsoleStand : Node3D
 
         AddKey(face, At(791, 822, top), PxSize(30, 28), 0.006f, keyMat, "PAGE\n^", 0.0024f, () => CursorKey(-10));
         AddKey(face, At(791, 857, top), PxSize(30, 28), 0.006f, keyMat, "PAGE\nv", 0.0024f, () => CursorKey(10));
-        AddKey(face, At(826, 840, top), PxSize(28, 26), 0.006f, keyMat, "<", 0.005f, () => CursorKey(-1));
+        AddKey(face, At(826, 840, top), PxSize(28, 26), 0.006f, keyMat, "<", 0.005f, () => SideKey(-1));
         AddKey(face, At(860, 822, top), PxSize(28, 26), 0.006f, keyMat, "^", 0.005f, () => CursorKey(-1));
         AddKey(face, At(860, 857, top), PxSize(28, 26), 0.006f, keyMat, "v", 0.005f, () => CursorKey(1));
-        AddKey(face, At(895, 840, top), PxSize(28, 26), 0.006f, keyMat, ">", 0.005f, () => CursorKey(1));
+        AddKey(face, At(895, 840, top), PxSize(28, 26), 0.006f, keyMat, ">", 0.005f, () => SideKey(1));
         AddKey(face, At(946, 822, top), PxSize(30, 28), 0.006f, keyMat, "HELP", 0.0026f, () => OpenPage(Page.Help));
         AddKey(face, At(946, 857, top), PxSize(30, 28), 0.006f, Mat(KeyLight, 0.1f, 0.5f), "RESET", 0.0024f, ResetKey, legendColor: Hex("303030"));
     }
@@ -1050,7 +1050,7 @@ public partial class ConsoleStand : Node3D
     private void InputKey()
     {
         if (_page == Page.Offset)
-            OffsetEntry(measure: false);
+            OffsetEntry(OffsetInput.Set);
         else if (_page == Page.Prog && _subPage == 1)
             SelectProgram();
         else
@@ -1133,16 +1133,27 @@ public partial class ConsoleStand : Node3D
                 _dirCursor = Mathf.Clamp(_dirCursor + amount, 0, Mathf.Max(_dirFiles.Length - 1, 0));
                 break;
             case Page.Offset:
-                _offsetCursor = Mathf.Clamp(_offsetCursor + Math.Sign(amount), 0, OffsetAxes().Length - 1);
+                int count = _subPage == 0 ? _bridge.Offsets.Rows.Count : WorkAxes().Length;
+                _offsetCursor = Mathf.Clamp(_offsetCursor + amount, 0, Mathf.Max(count - 1, 0));
                 break;
         }
+    }
+
+    /// <summary>Left / right: the column on the tool offset table, the
+    /// cursor everywhere else.</summary>
+    private void SideKey(int direction)
+    {
+        if (_page == Page.Offset && _subPage == 0)
+            _offsetColumn = Mathf.Clamp(_offsetColumn + direction, 0, ToolColumns().Length - 1);
+        else
+            CursorKey(direction);
     }
 
     private void OpenPage(Page page)
     {
         _page = page;
         _subPage = page == Page.Prog && _mode == Mode.Mdi ? 2 : 0;
-        _offsetCursor = 0;
+        _offsetCursor = page == Page.Offset ? ActiveToolRow() : 0;
     }
 
     private int ViewCount() => _page switch { Page.Pos or Page.Prog => 3, Page.Offset or Page.Message or Page.Custom => 2, _ => 1 };
@@ -1160,8 +1171,9 @@ public partial class ConsoleStand : Node3D
             },
             Page.Offset => new (string, Action)[]
             {
-                ("TOOL", View(0)), ("WORK", View(1)), ("", null), ("", null),
-                ("MEASURE", () => OffsetEntry(measure: true)), ("INPUT", () => OffsetEntry(measure: false)),
+                ("TOOL", () => { _subPage = 0; _offsetCursor = ActiveToolRow(); }), ("WORK", () => { _subPage = 1; _offsetCursor = 0; }),
+                ("", null), (_subPage == 0 ? "+INPUT" : "", _subPage == 0 ? () => OffsetEntry(OffsetInput.Add) : null),
+                ("MEASURE", () => OffsetEntry(OffsetInput.Measure)), ("INPUT", () => OffsetEntry(OffsetInput.Set)),
             },
             Page.Message => new (string, Action)[] { ("ALARM", View(0)), ("MSG", View(1)) },
             Page.System => new (string, Action)[] { ("LINK", null) },
@@ -1238,47 +1250,143 @@ public partial class ConsoleStand : Node3D
 
     // ------------------------------------------------------------------ offsets
 
-    private AxisId[] OffsetAxes() => _subPage == 0
-        ? (IsLathe ? new[] { AxisId.X, AxisId.Z } : new[] { AxisId.Z })
-        : _axes.Select(a => a.Axis).ToArray();
+    private enum OffsetInput { Set, Add, Measure }
 
-    /// <summary>MEASURE: the key-in is the known value at the current
-    /// position (a diameter for lathe X). INPUT: the key-in is the offset
-    /// itself. A leading axis letter in the key-in picks the row.</summary>
-    private void OffsetEntry(bool measure)
+    private AxisId[] WorkAxes() => _axes.Select(a => a.Axis).ToArray();
+
+    /// <summary>Columns of the tool offset table the cursor moves over.</summary>
+    private (AxisId Axis, bool Wear, string Label)[] ToolColumns() => IsLathe
+        ? new[] { (AxisId.X, false, "X GEOM"), (AxisId.X, true, "X WEAR"), (AxisId.Z, false, "Z GEOM"), (AxisId.Z, true, "Z WEAR") }
+        : new[] { (AxisId.Z, false, "GEOM(H)"), (AxisId.Z, true, "WEAR(H)") };
+
+    private int ActiveToolRow()
     {
-        var axes = OffsetAxes();
+        if (_bridge == null)
+            return 0;
+        int tool = S.ToolNumber;
+        var rows = _bridge.Offsets.Rows;
+        for (int i = 0; i < rows.Count; i++)
+            if (rows[i].Number == tool)
+                return i;
+        return 0;
+    }
+
+    /// <summary>The key-in as a value; a leading axis letter first moves the
+    /// cursor to that axis (work view: its row; tool view: the same kind of
+    /// column on that axis).</summary>
+    private bool KeyInValue(string action, out float value)
+    {
+        value = 0f;
         string text = _keyIn.Trim().TrimEnd(';');
         if (text.Length > 0 && char.IsLetter(text[0]))
         {
-            int row = Array.FindIndex(axes, a => a.ToString() == text[..1].ToUpperInvariant());
-            if (row < 0)
-                return;
-            _offsetCursor = row;
+            string letter = text[..1].ToUpperInvariant();
+            if (_subPage == 1)
+            {
+                int row = Array.FindIndex(WorkAxes(), a => a.ToString() == letter);
+                if (row < 0)
+                    return false;
+                _offsetCursor = row;
+            }
+            else
+            {
+                var columns = ToolColumns();
+                bool wear = columns[Mathf.Clamp(_offsetColumn, 0, columns.Length - 1)].Wear;
+                int column = Array.FindIndex(columns, c => c.Axis.ToString() == letter && c.Wear == wear);
+                if (column < 0)
+                    return false;
+                _offsetColumn = column;
+            }
             text = text[1..];
         }
-        if (!OffsetCommands.TryParse(text, out float value))
-        {
-            PlayerController.Notify(this, "Önce değeri yaz (ör. 48 veya X48), sonra " + (measure ? "MEASURE" : "INPUT"));
+        if (OffsetCommands.TryParse(text, out value))
+            return true;
+        PlayerController.Notify(this, $"Önce değeri yaz (ör. 48 veya X48), sonra {action}");
+        return false;
+    }
+
+    /// <summary>INPUT: the key-in replaces the value under the cursor.
+    /// +INPUT: it is added to it (how wear is corrected after measuring a
+    /// part). MEASURE: the key-in is the known value at the current position
+    /// (a diameter for lathe X); it sets the geometry and keeps the wear.</summary>
+    private void OffsetEntry(OffsetInput input)
+    {
+        string action = input switch { OffsetInput.Add => "+INPUT", OffsetInput.Measure => "MEASURE", _ => "INPUT" };
+        if (!KeyInValue(action, out float value) || S.InCycle)
             return;
-        }
-        if (S.InCycle)
-            return;
-        var axis = axes[Mathf.Clamp(_offsetCursor, 0, axes.Length - 1)];
         if (_subPage == 1)
-        {
-            if (measure) OffsetCommands.SetWorkZero(_bridge, axis, value);
-            else OffsetCommands.SetWorkOffset(_bridge, axis, value);
-        }
-        else if (!measure)
-            OffsetCommands.SetToolOffset(this, _bridge, axis, value);
-        else if (!IsLathe)
-            OffsetCommands.TouchOffToolLength(this, _bridge, value);
-        else if (axis == AxisId.X)
-            OffsetCommands.TouchOffDiameter(this, _bridge, value);
-        else
-            OffsetCommands.TouchOffLatheZ(this, _bridge, value);
+            WorkEntry(input, value);
+        else if (!ToolEntry(input, value))
+            return;
         _keyIn = "";
+    }
+
+    private void WorkEntry(OffsetInput input, float value)
+    {
+        var axes = WorkAxes();
+        var axis = axes[Mathf.Clamp(_offsetCursor, 0, axes.Length - 1)];
+        if (input == OffsetInput.Measure)
+            OffsetCommands.SetWorkZero(_bridge, axis, value);
+        else
+            OffsetCommands.SetWorkOffset(_bridge, axis, value);
+    }
+
+    private bool ToolEntry(OffsetInput input, float value)
+    {
+        var rows = _bridge.Offsets.Rows;
+        if (rows.Count == 0)
+        {
+            PlayerController.Notify(this, "Takım tablosu henüz kontrolden gelmedi");
+            return false;
+        }
+        var row = rows[Mathf.Clamp(_offsetCursor, 0, rows.Count - 1)];
+        var columns = ToolColumns();
+        var (axis, wear, _) = columns[Mathf.Clamp(_offsetColumn, 0, columns.Length - 1)];
+        if (input == OffsetInput.Measure)
+        {
+            if (row.Number != S.ToolNumber)
+            {
+                PlayerController.Notify(this, S.ToolNumber > 0
+                    ? $"MEASURE iş milindeki takımı ölçer: imleci T{S.ToolNumber} satırına getir"
+                    : "MEASURE için önce takımı iş miline tak");
+                return false;
+            }
+            if (!IsLathe)
+                OffsetCommands.TouchOffToolLength(this, _bridge, value);
+            else if (axis == AxisId.X)
+                OffsetCommands.TouchOffDiameter(this, _bridge, value);
+            else
+                OffsetCommands.TouchOffLatheZ(this, _bridge, value);
+            return true;
+        }
+        if (input == OffsetInput.Add)
+            value += row.Get(axis, wear);
+        if (wear)
+            OffsetCommands.SetToolWear(this, _bridge, row.Number, axis, value);
+        else
+            OffsetCommands.SetToolGeometry(this, _bridge, row.Number, axis, value);
+        return true;
+    }
+
+    private string ToolOffsetText()
+    {
+        var rows = _bridge.Offsets.Rows;
+        if (rows.Count == 0)
+            return "(waiting for the tool table from the control)";
+        var columns = ToolColumns();
+        int column = Mathf.Clamp(_offsetColumn, 0, columns.Length - 1);
+        int cursor = Mathf.Clamp(_offsetCursor, 0, rows.Count - 1);
+        int width = IsLathe ? 9 : 11;
+        string header = " NO.  " + string.Concat(columns.Select((c, i) => (i == column ? $"[{c.Label}]" : c.Label).PadLeft(width)))
+            + (IsLathe ? "      R  T" : "      DIA");
+        int first = Mathf.Clamp(cursor - 4, 0, Mathf.Max(rows.Count - 9, 0));
+        var lines = rows.Skip(first).Take(9).Select((r, i) =>
+            $"{(first + i == cursor ? ">" : " ")}{r.Number:000} {(r.Number == S.ToolNumber ? "*" : " ")}"
+            + string.Concat(columns.Select(c => r.Get(c.Axis, c.Wear).ToString("F3", System.Globalization.CultureInfo.InvariantCulture).PadLeft(width)))
+            + (IsLathe ? $"{r.Diameter,7:F2}{r.Orientation,3}" : $"{r.Diameter,9:F3}"));
+        string measure = IsLathe ? "MEASURE: X = measured dia, Z = face Z" : "MEASURE: key-in = Z of the touched surface";
+        return header + "\n" + string.Join("\n", lines)
+            + $"\n\nINPUT: set value   +INPUT: add to it\n{measure}\n< > column   ^ v tool   * = in the spindle";
     }
 
     // ------------------------------------------------------------------ per frame
@@ -1445,21 +1553,16 @@ public partial class ConsoleStand : Node3D
                     : $"{_program}  {_programLines.Count} lines{(_programEdited ? "  *EDITED*" : "")}";
                 return ("PROGRAM", "", header + "\n" + string.Join("\n", rows) + "\n" + footer);
             }
-            case Page.Offset:
+            case Page.Offset when _subPage == 1:
             {
-                var axes = OffsetAxes();
-                bool work = _subPage == 1;
+                var axes = WorkAxes();
                 string rows = string.Join("\n", axes.Select((axis, i) =>
                     $"{(i == _offsetCursor ? ">" : " ")} {axis}   POS {s.WorkPosition.Get(axis),10:F3}   OFS {s.WorkOffset.Get(axis),10:F3}"));
-                string help = work
-                    ? "MEASURE: current spot = key-in  (G10 L20)\nINPUT  : G54 offset = key-in    (G10 L2)"
-                    : IsLathe
-                        ? "MEASURE X: key-in = measured DIAMETER\nMEASURE Z: key-in = Z of the touched face\nINPUT  : tool offset = key-in   (G10 L1)"
-                        : "MEASURE Z: key-in = Z of the touched surface\nINPUT  : tool length offset = key-in";
-                string title = work ? "OFFSET (WORK G54)" : $"OFFSET (TOOL T{s.ToolNumber:00})";
-                string extra = work ? "" : $"{(IsLathe ? "NOSE R" : "TOOL DIA")} {s.ToolNoseRadius:F3}{monitor}\n";
-                return (title, "", extra + rows + "\n\n" + help + "\nCursor picks the axis (or type X48).");
-            }            case Page.Message when _subPage == 1:
+                return ("OFFSET (WORK G54)", "", rows + "\n\nMEASURE: current spot = key-in  (G10 L20)\nINPUT  : G54 offset = key-in    (G10 L2)\nCursor picks the axis (or type X48).");
+            }
+            case Page.Offset:
+                return ($"OFFSET (TOOL)   ACTIVE T{s.ToolNumber:00}", "", ToolOffsetText() + monitor);
+            case Page.Message when _subPage == 1:
                 return ("MESSAGE", "", _messages.Count == 0 ? "NO MESSAGE" : string.Join("\n", _messages));
             case Page.Message:
             {
@@ -1484,7 +1587,7 @@ public partial class ConsoleStand : Node3D
                 return ("LOAD METER", "", $"SPINDLE LOAD {load * 100f,4:F0}%\n[{new string('|', bars)}{new string(' ', 30 - bars)}]\n         100%^" + monitor);
             }
             default:
-                return ("HELP", "", "POWER ON -> REF RETURN + ALL REF (or +axis)\nJOG: hold an axis key   INC JOG: x1..x1000\nHANDLE: pick AXIS, turn the wheel (x1..x100)\nMDI: type, INSERT, CYCLE START\nPROG > DIR: cursor + SELECT picks the program\nEDIT: cursor + INSERT / ALTER / DELETE lines\nAUTO: CYCLE START runs it (edited = a copy)\nOFS/SET: type value, MEASURE or INPUT\nRESET stops,  FEED HOLD pauses");
+                return ("HELP", "", "POWER ON -> REF RETURN + ALL REF (or +axis)\nJOG: hold an axis key   INC JOG: x1..x1000\nHANDLE: pick AXIS, turn the wheel (x1..x100)\nMDI: type, INSERT, CYCLE START\nPROG > DIR: cursor + SELECT picks the program\nEDIT: cursor + INSERT / ALTER / DELETE lines\nAUTO: CYCLE START runs it (edited = a copy)\nOFS/SET: TOOL table (GEOM/WEAR) or WORK G54,\n  type value, INPUT / +INPUT / MEASURE\nRESET stops,  FEED HOLD pauses");
         }
     }
 }

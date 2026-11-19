@@ -7,7 +7,8 @@ from __future__ import annotations
 import socket
 import time
 
-from protocol import AXIS_CAPACITY, AXIS_X, AXIS_Z, EventKind, StateSample, TaskMode, InterpState, pack_event
+from protocol import (AXIS_CAPACITY, AXIS_X, AXIS_Z, EventKind, StateSample, TaskMode, InterpState, ToolTableEntry,
+                      pack_event, pack_tool_table)
 
 # stat.actual_position is ALWAYS axis-letter indexed (a 9-tuple X,Y,Z,A,B,C,
 # U,V,W) regardless of kinematics -- same order as protocol.py's AXIS_*
@@ -38,6 +39,10 @@ class StatePublisher:
             self.active_axis_mask |= 1 << axis
         self._prev_pos: tuple[float, ...] | None = None
         self._prev_t: float | None = None
+        self._tool_table: list[ToolTableEntry] | None = None
+        self._tool_table_checked = 0.0
+        self._tool_table_sent = 0.0
+        self._tool_table_seq = 0
 
     def _tool_nose_radius(self) -> float:
         tool_no = self.stat.tool_in_spindle
@@ -45,6 +50,31 @@ class StatePublisher:
             if entry.id == tool_no:
                 return float(entry.diameter)  # lathe tool table reuses this field for nose radius
         return 0.0
+
+    def tool_table(self) -> list[ToolTableEntry]:
+        """Every real tool in LinuxCNC's table, once each (entry 0 is the
+        spindle's copy of the loaded tool, empty slots have id -1)."""
+        entries = {}
+        for entry in self.stat.tool_table:
+            if entry.id > 0 and entry.id not in entries:
+                entries[entry.id] = ToolTableEntry(entry.id, float(entry.xoffset), float(entry.zoffset),
+                                                   float(entry.diameter), int(entry.orientation))
+        return [entries[number] for number in sorted(entries)]
+
+    def _publish_tool_table(self) -> None:
+        """On every change, and every few seconds anyway so a packet lost or
+        a Godot that subscribed late still gets it."""
+        now = time.monotonic()
+        if now - self._tool_table_checked < 0.25:
+            return
+        self._tool_table_checked = now
+        table = self.tool_table()
+        if table == self._tool_table and now - self._tool_table_sent < 2.0:
+            return
+        self._tool_table = table
+        self._tool_table_sent = now
+        self.sock.sendto(pack_tool_table(self._tool_table_seq, table), self.dest_addr)
+        self._tool_table_seq += 1
 
     def sample_once(self) -> StateSample:
         self.stat.poll()
@@ -95,6 +125,7 @@ class StatePublisher:
         packet = sample.pack(seq=self.seq)
         self.seq += 1
         self.sock.sendto(packet, self.dest_addr)
+        self._publish_tool_table()
 
         # LinuxCNC's own operator messages ("tool not found", "would exceed
         # limit"...) are the only explanation a rejected command ever gets.

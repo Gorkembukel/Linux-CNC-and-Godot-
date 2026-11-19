@@ -38,6 +38,8 @@ public partial class BridgeClient : Node
 
     public MachineState State { get; private set; } = new();
     public PredictionModel Prediction { get; private set; } = new();
+    /// <summary>The control's tool offset page: LinuxCNC's tool table split into geometry and wear.</summary>
+    public ToolOffsetTable Offsets { get; } = new();
     public bool IsBridgeConnected { get; private set; }
     public double LastPacketAgeSeconds { get; private set; }
 
@@ -191,6 +193,9 @@ public partial class BridgeClient : Node
                 break;
             case PacketType.Preview:
                 HandlePreviewChunk(r);
+                break;
+            case PacketType.ToolTable:
+                Offsets.Update(ToolTableEntry.ReadAll(r));
                 break;
             case PacketType.Ack:
                 ulong ackedClientSeq = r.ReadUInt64();

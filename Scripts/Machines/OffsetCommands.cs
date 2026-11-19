@@ -37,11 +37,23 @@ public static class OffsetCommands
         ApplyToolOffsetSoon(owner, bridge);
     }
 
-    /// <summary>The active tool's offset on one axis typed in directly.</summary>
-    public static void SetToolOffset(Node owner, BridgeClient bridge, AxisId axis, float value)
+    /// <summary>A tool's offset on one axis (geometry + wear, what G43
+    /// applies) written into LinuxCNC's table.</summary>
+    public static void SetToolOffset(Node owner, BridgeClient bridge, int tool, AxisId axis, float total)
     {
-        bridge.SendMdi(Invariant($"G10 L1 P{bridge.State.ToolNumber} {axis}{value:F4}"));
+        bridge.SendMdi(Invariant($"G10 L1 P{tool} {axis}{total:F4}"));
         ApplyToolOffsetSoon(owner, bridge);
+    }
+
+    /// <summary>Geometry typed into the offset page; the tool's wear stays.</summary>
+    public static void SetToolGeometry(Node owner, BridgeClient bridge, int tool, AxisId axis, float geometry) =>
+        SetToolOffset(owner, bridge, tool, axis, bridge.Offsets.TotalForGeometry(tool, axis, geometry));
+
+    /// <summary>Wear typed into the offset page; the tool's geometry stays.</summary>
+    public static void SetToolWear(Node owner, BridgeClient bridge, int tool, AxisId axis, float wear)
+    {
+        if (bridge.Offsets.SetWear(tool, axis, wear) is float total)
+            SetToolOffset(owner, bridge, tool, axis, total);
     }
 
     /// <summary>G54 so that the current position reads as `value`.</summary>

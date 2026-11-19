@@ -140,9 +140,13 @@ leaves.
   original file is not changed.
 - **Tool changes:** every M6 waits until you put the tool in by hand and press
   **TOOL CHG END**.
-- **Offsets:** **OFS/SET**. TOOL view: type the known value and **MEASURE** —
-  on a lathe the measured diameter for X and the face position for Z, on a
-  mill the Z of the surface under the tool. WORK view: type the coordinate of
+- **Offsets:** **OFS/SET**. TOOL view is the tool offset table (every tool,
+  GEOM and WEAR, diameter / nose radius): ^ v pick the tool, < > the column.
+  **INPUT** sets the value under the cursor, **+INPUT** adds to it (type
+  `-0.02`, +INPUT on WEAR after a part measures 0.02 big). **MEASURE** works
+  on the tool in the spindle: on a lathe the measured diameter for X and the
+  face position for Z, on a mill the Z of the surface under the tool; it sets
+  the geometry and keeps the wear. WORK view: type the coordinate of
   the spot the tool is at and **MEASURE** sets G54 (or **INPUT** to type the
   offset itself). The cursor or a leading axis letter (`X48`) picks the axis.
 - **Alarms:** **MESSAGE** lists them (`OT0500` overtravel, `PS0224` not
