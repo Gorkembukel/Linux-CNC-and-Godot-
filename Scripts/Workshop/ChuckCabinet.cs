@@ -27,6 +27,10 @@ public partial class ChuckCabinet : StaticBody3D
     [Export] public float BoreDepthMm = 300f;
 
     private const float Width = 1.3f, Depth = 0.6f, DrawerHeight = 0.9f, Top = 0.04f;
+    /// <summary>The worktop reaches past the drawer unit to the front and the
+    /// sides, so a chuck stand and the parts around it have room.</summary>
+    private const float TopWidth = 1.7f, TopDepth = 0.95f;
+    private const float TopFrontZ = Depth / 2f + 0.3f;
     private const float CaseBottom = 1.25f, CaseHeight = 0.8f, CaseDepth = 0.4f;
 
     public override void _Ready()
@@ -39,7 +43,8 @@ public partial class ChuckCabinet : StaticBody3D
         BuildCarcass();
         var stand = ChuckStand.Create();
         AddChild(stand);
-        stand.Position = new Vector3(-Width * 0.28f, DrawerHeight + Top, 0.06f);
+        stand.Position = new Vector3(-TopWidth * 0.25f, DrawerHeight + Top, TopFrontZ - 0.3f);
+        stand.FixInPlace();
         BuildCase(models);
         BuildDrawers(models);
     }
@@ -53,7 +58,10 @@ public partial class ChuckCabinet : StaticBody3D
             BodyParts.SolidBox(this, "Side", new Vector3(0.02f, DrawerHeight, Depth), new Vector3(side * (Width / 2f - 0.01f), DrawerHeight / 2f, 0f), body);
         BodyParts.SolidBox(this, "Back", new Vector3(Width, DrawerHeight, 0.02f), new Vector3(0f, DrawerHeight / 2f, -Depth / 2f + 0.01f), body);
         BodyParts.SolidBox(this, "Divider", new Vector3(0.02f, DrawerHeight, Depth), new Vector3(0f, DrawerHeight / 2f, 0f), body);
-        BodyParts.SolidBox(this, "Worktop", new Vector3(Width + 0.04f, Top, Depth + 0.04f), new Vector3(0f, DrawerHeight + Top / 2f, 0f), top);
+        BodyParts.SolidBox(this, "Worktop", new Vector3(TopWidth, Top, TopDepth), new Vector3(0f, DrawerHeight + Top / 2f, TopFrontZ - TopDepth / 2f), top);
+        // Legs under the overhanging front corners.
+        foreach (float side in new[] { -1f, 1f })
+            BodyParts.SolidBox(this, "Leg", new Vector3(0.04f, DrawerHeight, 0.04f), new Vector3(side * (TopWidth / 2f - 0.03f), DrawerHeight / 2f, TopFrontZ - 0.03f), body);
         // Uprights carrying the glass case at the back of the worktop.
         foreach (float side in new[] { -1f, 1f })
             BodyParts.SolidBox(this, "Upright", new Vector3(0.04f, CaseBottom - DrawerHeight - Top, 0.04f),
@@ -109,8 +117,9 @@ public partial class ChuckCabinet : StaticBody3D
             float x = (column == 0 ? -1f : 1f) * Width / 4f;
             float y = DrawerHeight - 0.02f - h * (row + 0.5f);
             var drawer = CabinetDrawer.Create(Width / 2f - 0.04f, h - 0.012f, Depth - 0.06f, Label(model));
-            AddChild(drawer);
+            // Placed before it enters the tree: it slides out from here.
             drawer.Position = new Vector3(x, y, 0.02f);
+            AddChild(drawer);
             Fill(drawer, model);
         }
     }

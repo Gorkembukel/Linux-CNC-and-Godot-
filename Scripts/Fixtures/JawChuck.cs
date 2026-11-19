@@ -407,6 +407,7 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
             _ratchet.Play();
         }
         var released = Grip.TurnKey(steps, canTakeJaw: player != null && player.Held == null);
+        _key.RotateObjectLocal(Vector3.Up, steps * Mathf.Pi / 6f);
         if (released is SeatedJaw jaw)
         {
             var item = JawItem.Create(jaw.Kind, jaw.Number, Model);

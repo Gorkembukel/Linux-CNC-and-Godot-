@@ -312,6 +312,12 @@ door on enclosed machines.
    the hand), `SynthSounds` Clink (jaw knocks, `JawItem` contact monitor),
    Clunk (drops in), Clack (caught), Ratchet (key), Scrape (slides out).
    Carrying: gravity always held, swing limited by `weight_feel` x mass.
+   Holding: wheel = hold distance (0.25-1.4 m, Shift 1 cm), T/middle +
+   mouse = turn (Shift fine), hand tools spin about `HandTool.TurnAxis` per
+   wheel notch, inserted chuck keys wind too. `ChuckStand` is a Carryable:
+   fixed with a click (frozen, upright), freed when empty; turntable (wheel,
+   key out, 15 deg). Cabinet: wider worktop with legs; drawers get their
+   position before entering the tree (they used to slide from the origin).
    The cabinet is in Main.tscn at (-5.6, -1.1, -1) facing +X (that file
    also holds the user's own uncommitted edits).
    Spindle: sim_spindle's limit_speed gets `SpindleAccelRpmPerSec` (0 =

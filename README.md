@@ -239,6 +239,14 @@ control waits for it before feeding. M4 turns it the other way.
 
 ### Chuck cabinet and stand
 
+Carrying: the wheel brings what you hold nearer or further without moving
+you (Shift: by the centimetre), T (or the middle button) held turns it with
+the mouse (Shift: finely), Z / X turn it a quarter. Keys and handles in the
+hand turn as the wheel turns them. Right mouse zooms the view.
+The chuck stand can be carried (F) to any bench: set it down and click to
+fix it there; click it again, empty, to free it. Its top is a turntable:
+with the key out the wheel turns the chuck to a handy angle.
+
 `Scenes/Workshop/ChuckCabinet.tscn`: behind its glass doors (click to open)
 stand chucks of every size, Ø80 to Ø250 three-jaw, four-jaw independents and
 ER collet chucks, each with its own sizes and spindle nose (D1-3 ... D1-6);

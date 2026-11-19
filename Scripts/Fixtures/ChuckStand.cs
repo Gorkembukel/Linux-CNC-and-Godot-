@@ -9,8 +9,10 @@ using CncTrainer.Workshop;
 namespace CncTrainer.Fixtures;
 
 /// <summary>
-/// A round stand on a bench where a chuck lies face up to have its jaws
-/// changed off the machine, as in a real shop. With physical handling on,
+/// A round stand where a chuck lies face up to have its jaws changed off
+/// the machine, as in a real shop. It is carried (F) to any bench, set
+/// down and fixed there with a click; its top is a turntable, so the
+/// chuck can be turned (wheel, key out) to a comfortable angle. With physical handling on,
 /// a jaw is laid into its groove by hand: brought in square to the groove
 /// and flat on the face, it drops into it; the scroll catches it when the
 /// key brings the thread start round to that slot. Jaws let go by the
@@ -21,7 +23,7 @@ namespace CncTrainer.Fixtures;
 /// the operator reads the scroll's ridges down the grooves, feels a jaw
 /// being drawn into its groove, and hears it drop and the scroll catch it.
 /// </summary>
-public partial class ChuckStand : StaticBody3D, IInteractable
+public partial class ChuckStand : Carryable, IInteractable
 {
     private const float M = WorldScale.MmToM;
     /// <summary>A jaw within this many degrees of square to a groove, and
@@ -71,13 +73,32 @@ public partial class ChuckStand : StaticBody3D, IInteractable
     private bool _keyIn;
     private string _lastRefusal;
 
+    /// <summary>Fixed to the bench where it stands: a chuck can be set on it
+    /// (and it is not picked up).</summary>
+    public bool Fixed { get; private set; }
+    public override bool CanPickUp => !Fixed && Chuck == null;
+    /// <summary>How far one wheel notch turns the turntable.</summary>
+    private const float TurntableStepDeg = 15f;
+    private Node3D _turntable;
+
     public static ChuckStand Create(float radiusM = 0.14f)
     {
-        var stand = new ChuckStand { Name = "ChuckStand", CollisionLayer = Fastener.InteractionLayer | 1, CollisionMask = 0 };
-        BodyParts.Cylinder(stand, "Pedestal", radiusM, 0.03f, new Vector3(0f, 0.015f, 0f), Vector3.Up, BodyParts.DarkSteel);
-        BodyParts.Cylinder(stand, "Rubber", radiusM * 0.9f, 0.004f, new Vector3(0f, 0.032f, 0f), Vector3.Up,
+        var stand = new ChuckStand
+        {
+            Name = "ChuckStand", DisplayName = "Ayna altlığı (döner tablalı)", Mass = 8f,
+            CollisionLayer = Fastener.InteractionLayer | 1, CollisionMask = 1,
+        };
+        BodyParts.Cylinder(stand, "Base", radiusM, 0.02f, new Vector3(0f, 0.01f, 0f), Vector3.Up, BodyParts.DarkSteel);
+        // Clamp lugs that fix it to the bench.
+        foreach (float side in new[] { -1f, 1f })
+            BodyParts.Box(stand, "Lug", new Vector3(0.05f, 0.012f, 0.03f), new Vector3(side * (radiusM + 0.02f), 0.006f, 0f), BodyParts.DarkSteel);
+        stand._turntable = new Node3D { Name = "Turntable" };
+        stand.AddChild(stand._turntable);
+        BodyParts.Cylinder(stand._turntable, "Plate", radiusM * 0.95f, 0.012f, new Vector3(0f, 0.026f, 0f), Vector3.Up, BodyParts.Steel);
+        BodyParts.Cylinder(stand._turntable, "Rubber", radiusM * 0.9f, 0.004f, new Vector3(0f, 0.034f, 0f), Vector3.Up,
             BodyParts.Mat(new Color(0.12f, 0.12f, 0.12f), 0f, 0.9f));
-        stand.AddChild(new CollisionShape3D { Shape = new CylinderShape3D { Radius = radiusM, Height = 0.034f }, Position = new Vector3(0f, 0.017f, 0f) });
+        BodyParts.Box(stand._turntable, "Mark", new Vector3(0.02f, 0.002f, 0.006f), new Vector3(radiusM * 0.85f, 0.033f, 0f), BodyParts.Mat(new Color(0.9f, 0.7f, 0.1f)));
+        stand.AddChild(new CollisionShape3D { Shape = new CylinderShape3D { Radius = radiusM, Height = 0.036f }, Position = new Vector3(0f, 0.018f, 0f) });
         stand._watch = new Area3D { Name = "GrooveWatch", Monitoring = false, CollisionLayer = 0, CollisionMask = 1 };
         stand._watch.AddChild(new CollisionShape3D { Shape = new CylinderShape3D { Radius = 0.25f, Height = 0.25f }, Position = new Vector3(0f, 0.15f, 0f) });
         stand.AddChild(stand._watch);
@@ -98,12 +119,29 @@ public partial class ChuckStand : StaticBody3D, IInteractable
 
     private ChuckGrip Grip => Chuck?.Grip;
     private ChuckVisual Visual => Chuck?.Visual;
-    private static Vector3 SeatOffset => new(0f, 0.034f, 0f);
+    private static Vector3 SeatOffset => new(0f, 0.036f, 0f);
+
+    /// <summary>Fixes the stand where it lies, stood upright; or lets it go
+    /// to be carried elsewhere.</summary>
+    private void SetFixed(bool on)
+    {
+        Fixed = on;
+        Freeze = on;
+        if (on)
+        {
+            var yaw = GlobalBasis.GetEuler().Y;
+            GlobalBasis = new Basis(Vector3.Up, yaw);
+            LinearVelocity = AngularVelocity = Vector3.Zero;
+        }
+    }
+
+    /// <summary>Starts fixed where it was put (on the cabinet's worktop).</summary>
+    public void FixInPlace() => SetFixed(true);
 
     private void Seat(PlayerController player, ChuckItem chuck)
     {
         player.ReleaseHeld();
-        chuck.Reparent(this, false);
+        chuck.Reparent(_turntable, false);
         chuck.Transform = new Transform3D(Basis.Identity, SeatOffset);
         chuck.Freeze = true;
         chuck.Seated = true;
@@ -279,8 +317,11 @@ public partial class ChuckStand : StaticBody3D, IInteractable
 
     public string Prompt(PlayerController player)
     {
+        if (!Fixed)
+            return player.Held == null ? "Ayna altlığı   [Tık] Buraya sabitle   [F] Al" : null;
         if (Chuck == null)
-            return player.Held is ChuckItem held ? $"[Tık] {held.DisplayName} altlığa yüzü yukarı koy" : "Ayna altlığı: aynayı buraya yüzü yukarı koy, çenelerini burada değiştir";
+            return player.Held is ChuckItem held ? $"[Tık] {held.DisplayName} altlığa yüzü yukarı koy"
+                : player.Held == null ? "Ayna altlığı: aynayı buraya yüzü yukarı koy   [Tık] Sabitlemeyi çöz (taşımak için)" : null;
         var g = Grip;
         if (player.HeldTool?.Kind == HandToolKind.ChuckKey)
             return _keyIn ? null : "[Tık] Anahtarı aynaya tak";
@@ -309,15 +350,23 @@ public partial class ChuckStand : StaticBody3D, IInteractable
         if (g.IsCollet && g.Jaws.ColletMm != null)
             return "[Tık] Pensi çıkar";
         return (Hints ? $"{Chuck.Model.DisplayName}: {g.Jaws.Seated}/{g.Jaws.SlotCount} çene   " : $"{Chuck.Model.DisplayName}   ")
-            + $"[Tık] Aynayı kaldır ({Chuck.Mass:0.#} kg)";
+            + $"[Tekerlek] Tablayı çevir   [Tık] Aynayı kaldır ({Chuck.Mass:0.#} kg)";
     }
 
     public void Use(PlayerController player)
     {
+        if (!Fixed)
+        {
+            if (player.Held == null)
+                SetFixed(true);
+            return;
+        }
         if (Chuck == null)
         {
             if (player.Held is ChuckItem chuck)
                 Seat(player, chuck);
+            else if (player.Held == null)
+                SetFixed(false);
             return;
         }
         var g = Grip;
@@ -374,11 +423,20 @@ public partial class ChuckStand : StaticBody3D, IInteractable
 
     public void Turn(PlayerController player, int steps)
     {
-        if (Chuck == null || !_keyIn || player.Held != null || Grip.IsCollet)
+        if (Chuck == null || player.Held != null)
+            return;
+        if (!_keyIn)
+        {
+            // Key out: the wheel turns the turntable, chuck and all.
+            _turntable.RotateY(Mathf.DegToRad(TurntableStepDeg) * steps);
+            return;
+        }
+        if (Grip.IsCollet)
             return;
         var g = Grip;
         int before = g.Jaws.Seated;
         var released = g.TurnKey(steps, canTakeJaw: true);
+        _key.RotateObjectLocal(Vector3.Back, steps * Mathf.Pi / 6f);
         Play(_ratchet);
         if (released is SeatedJaw jaw)
             Eject(jaw, g.Jaws.LastReleasedSlot);
@@ -399,7 +457,7 @@ public partial class ChuckStand : StaticBody3D, IInteractable
         if (_key == null)
         {
             _key = new Node3D { Name = "Key" };
-            AddChild(_key);
+            _turntable.AddChild(_key);
             BodyParts.Cylinder(_key, "Shaft", 0.007f, 0.1f, new Vector3(0f, 0f, 0.05f), Vector3.Back, BodyParts.Steel);
             BodyParts.Cylinder(_key, "Handle", 0.006f, 0.14f, new Vector3(0f, 0f, 0.1f), Vector3.Right, BodyParts.Steel);
         }

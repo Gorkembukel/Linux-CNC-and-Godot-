@@ -51,6 +51,14 @@ public partial class PlayerController : CharacterBody3D
     [Export] public Key CrouchToggleKey = Key.C;
     /// <summary>Key that opens the close-up of a nearby console.</summary>
     [Export] public Key FocusKey = Key.Tab;
+    /// <summary>Held down, the mouse turns what is carried instead of the
+    /// view (Shift: finely). The middle button does the same.</summary>
+    [Export] public Key RotateHeldKey = Key.T;
+    /// <summary>How far in front of the eyes a carried thing is held by
+    /// default, and how near / far the wheel can bring it (m).</summary>
+    [Export] public float HoldDistance = 0.6f;
+    [Export] public float HoldDistanceMin = 0.25f;
+    [Export] public float HoldDistanceMax = 1.4f;
 
     private const float CapsuleRadius = 0.3f;
     private const float CapsuleHeight = 1.8f;
@@ -146,6 +154,8 @@ public partial class PlayerController : CharacterBody3D
         // Hand tools stay steady in the hand; anything else, with physical
         // handling on, is carried by force and feels its weight.
         _carriedByForce = WorkshopSettings.PhysicalHandling && body is not HandTool;
+        _toolSpin = 0f;
+        SetHoldDistance(HoldDistance);
         // Carried by force it moves on its own: off a shelf or out of a
         // drawer that would carry it along.
         if (_carriedByForce && body.GetParent() != GetTree().CurrentScene)
@@ -197,6 +207,17 @@ public partial class PlayerController : CharacterBody3D
     }
 
     private bool _carriedByForce;
+    private float _holdDistance;
+    /// <summary>How far a turned hand tool has been wound round its own axis.</summary>
+    private float _toolSpin;
+
+    /// <summary>Moves what is carried nearer or further without moving the
+    /// player; a hand tool stays where the hand is.</summary>
+    private void SetHoldDistance(float metres)
+    {
+        _holdDistance = Mathf.Clamp(metres, HoldDistanceMin, HoldDistanceMax);
+        _carryPoint.Position = new Vector3(0f, -0.1f, -_holdDistance);
+    }
 
     /// <summary>Spring and damping of the hands toward where the carried
     /// thing should be (per second squared, per second): critically damped.</summary>
@@ -239,6 +260,9 @@ public partial class PlayerController : CharacterBody3D
         var torque = state != null ? state.InverseInertiaTensor.Inverse() * angular : angular * body.Mass * 0.01f;
         body.ApplyTorque(torque.LimitLength(strength * GripLeverM / Mathf.Max(feel, 0.05f)));
     }
+
+    /// <summary>How far a hand tool turns per wheel notch (rad).</summary>
+    private const float ToolSpinPerNotch = Mathf.Pi / 6f;
 
     /// <summary>Walking slows under a heavy load.</summary>
     private float LoadSpeedFactor => _heldPart == null || !_carriedByForce ? 1f
@@ -386,9 +410,11 @@ public partial class PlayerController : CharacterBody3D
                 _headOffset = Vector3.Zero; // a tap on Alt brings the head back
             _altMovedHead = false;
         }
-        else if (@event is InputEventMouseMotion spin && _heldPart != null && Input.IsMouseButtonPressed(MouseButton.Middle))
+        else if (@event is InputEventMouseMotion spin && _heldPart != null
+                 && (Input.IsMouseButtonPressed(MouseButton.Middle) || Input.IsKeyPressed(RotateHeldKey)))
         {
-            _heldTurn = (new Basis(Vector3.Up, spin.Relative.X * 0.01f) * new Basis(Vector3.Right, spin.Relative.Y * 0.01f) * _heldTurn).Orthonormalized();
+            float rate = Input.IsKeyPressed(Key.Shift) ? 0.0025f : 0.01f;
+            _heldTurn = (new Basis(Vector3.Up, spin.Relative.X * rate) * new Basis(Vector3.Right, spin.Relative.Y * rate) * _heldTurn).Orthonormalized();
         }
         else if (@event is InputEventMouseMotion mm && Input.MouseMode == Input.MouseModeEnum.Captured)
         {
@@ -465,8 +491,15 @@ public partial class PlayerController : CharacterBody3D
                 _headOffset = (_headOffset + new Vector3(0f, 0f, -0.04f * notch)).Clamp(HeadOffsetMin, HeadOffsetMax);
                 _altMovedHead = true;
             }
-            else
-                LookedAtInteractable()?.Turn(this, notch);
+            else if (_heldPart != null && _heldPart is not HandTool)
+                SetHoldDistance(_holdDistance + notch * (Input.IsKeyPressed(Key.Shift) ? 0.01f : 0.05f));
+            else if (LookedAtInteractable() is IInteractable target)
+            {
+                target.Turn(this, notch);
+                // A key or a handle in the hand turns with the notch.
+                if (HeldTool is HandTool tool && tool.TurnAxis != Vector3.Zero)
+                    _toolSpin += notch * ToolSpinPerNotch;
+            }
         }
         else if (@event is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left } mb)
         {
@@ -822,7 +855,11 @@ public partial class PlayerController : CharacterBody3D
         if (_carriedByForce && _saw.HeldTransform == null && _ring.HeldTransform == null)
             DriveCarried();
         else
-            _heldPart.GlobalTransform = _saw.HeldTransform ?? _ring.HeldTransform ?? new Transform3D(GlobalBasis.Orthonormalized() * _heldTurn, _carryPoint.GlobalPosition);
+        {
+            var spin = HeldTool is HandTool tool && tool.TurnAxis != Vector3.Zero ? new Basis(tool.TurnAxis, _toolSpin) : Basis.Identity;
+            _heldPart.GlobalTransform = _saw.HeldTransform ?? _ring.HeldTransform
+                ?? new Transform3D(GlobalBasis.Orthonormalized() * _heldTurn * spin, _carryPoint.GlobalPosition);
+        }
     }
 
     /// <summary>Console prompt takes priority (it's the proven, primary
@@ -855,7 +892,10 @@ public partial class PlayerController : CharacterBody3D
         _noticeTime -= GetPhysicsProcessDeltaTime();
         if (_noticeTime <= 0.0)
             _noticeLabel.Text = "";
-        _heldLabel.Text = _heldPart == null ? "" : "Elde: " + ((_heldPart as Carryable)?.DisplayName ?? "parça") + "   [Z] yatay çevir  [X] dik çevir  [Orta tuş sürükle] serbest çevir";
+        _heldLabel.Text = _heldPart == null ? "" : "Elde: " + ((_heldPart as Carryable)?.DisplayName ?? "parça")
+            + (_heldPart is HandTool
+                ? "   [Z] yatay çevir  [X] dik çevir  [T + fare] serbest çevir"
+                : "   [Tekerlek] yaklaştır / uzaklaştır  [T + fare] döndür  [Shift] hassas  [Z/X] çeyrek tur");
 
         _crosshair.Visible = !_focus.Active;
         if (_focus.Active)
