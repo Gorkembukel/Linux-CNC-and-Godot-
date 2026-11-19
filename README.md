@@ -201,6 +201,11 @@ on small ones; **soft** jaws only hold a part once bored for it (click the
 chuck with the part in hand), and then it runs nearly true. A bar sticking
 out more than four diameters chatters; the setup sheet warns.
 
+A bored part can be held **from inside** (ID gripping) on the hard jaws:
+close them smaller than the bore, slide the part over them bore first, then
+the key **opens** the jaws out against the bore and tightens. The whole
+outside is free to turn; the bore must be at least 15 mm deep.
+
 ### Work orders
 
 The work order board (**İŞ EMİRLERİ**): the wheel leafs through the orders,

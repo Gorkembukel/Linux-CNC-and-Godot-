@@ -250,7 +250,13 @@ door on enclosed machines.
    name, saw rate and "needs coolant"); interchangeable lathe jaws (hard,
    hard reversed for big parts, soft bored to the part for near-zero runout;
    `ChuckGrip.Jaws`, `JawSetItem`, a jaw rack left of the lathe control).
-   FEED HOLD in MDI now resumes with CYCLE START. Not done: ID gripping,
+   FEED HOLD in MDI now resumes with CYCLE START. ID gripping on the hard
+   jaws (`ChuckGrip.Inside` / `InsertInside`, the key opens out then
+   tightens; `JawChuck.BoreAt` finds the bore at the end that goes in).
+   Live (TmpLathe `idgrip`): a Ø70 part held by a Ø40 x 25 bore turned to
+   Ø66.4 on its outside, no incident. Not done: a boring bar running into
+   the jaws inside the bore is not checked; soft jaws for ID; the lathe's
+   workpiece profile assumes a turned part's StepMm is its own 0.1 mm;
    reversed jaws' larger reach in the turret collision, changing the chuck
    itself (3/4-jaw / collet), gauge blocks.
    Touch probe (T8 on the bench and VMC mills, `ToolKind.TouchProbe`): the
