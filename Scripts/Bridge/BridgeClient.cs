@@ -301,6 +301,9 @@ public partial class BridgeClient : Node
     public void SetBlockDelete(bool on) => SendCommand(CommandKind.SetBlockDelete, CommandPacket.ArgsU8((byte)(on ? 1 : 0)));
     public void SetOptionalStop(bool on) => SendCommand(CommandKind.SetOptionalStop, CommandPacket.ArgsU8((byte)(on ? 1 : 0)));
     public void SetCoolant(bool on) => SendCommand(CommandKind.CoolantFlood, CommandPacket.ArgsU8((byte)(on ? 1 : 0)));
+    /// <summary>The touch probe's signal to the control (motion.probe-input):
+    /// on while its stylus touches the work. G38.x stops on it.</summary>
+    public void SetProbeInput(bool touching) => SendCommand(CommandKind.ProbeInput, CommandPacket.ArgsU8((byte)(touching ? 1 : 0)));
     public void SpindleOn(float rpm) => SendCommand(CommandKind.SpindleOn, CommandPacket.ArgsF32(rpm));
     public void SpindleOff() => SendCommand(CommandKind.SpindleOff);
     public void ConfirmToolChange() => SendCommand(CommandKind.ToolChangeConfirm);

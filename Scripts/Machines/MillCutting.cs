@@ -1,3 +1,4 @@
+using System.Linq;
 using Godot;
 using CncTrainer.Bridge;
 using CncTrainer.Chips;
@@ -23,9 +24,10 @@ public sealed class MillCutting : CuttingProcess
     public double RemovedMm3 { get; private set; }
     public bool HasStock => _stock != null;
 
-    /// <summary>How far the edge finder has gone into the stock: negative =
-    /// clear of it, 0 = just touching, positive = pushed in (mm).</summary>
-    public float EdgeFinderOvertravelMm { get; private set; } = -1f;
+    /// <summary>How far the measuring tool in the spindle (edge finder ring,
+    /// touch probe ball) has gone into the stock: negative = clear of it,
+    /// 0 = just touching, positive = pushed in (mm).</summary>
+    public float MeasuringOvertravelMm { get; private set; } = -1f;
 
     public MillCutting(MachineSpec spec, BridgeClient bridge, ProceduralMillBody body, ChipSpawner chips) : base(spec, bridge, chips)
     {
@@ -61,6 +63,7 @@ public sealed class MillCutting : CuttingProcess
     public void ClearStock()
     {
         _stock = null;
+        MeasuringOvertravelMm = -1f;
         _lastPose = null;
     }
 
@@ -75,6 +78,26 @@ public sealed class MillCutting : CuttingProcess
 
         SetCollision(mounted.Present ? BodyInStock(pose, tool.LengthMm + mounted.ErrorMm.Y) : null);
 
+        if (tool?.Kind == ToolKind.TouchProbe)
+        {
+            // Points on the ball, also where they will be after the signal's
+            // trip to the control (ProbeSignalLeadSec), so G38 stops on the
+            // surface. The deepest of them is how far the stylus has given.
+            float ball = tool.DiameterMm / 2f;
+            var centre = pose * new Vector3(0f, ball, 0f);
+            var lead = _lastPose is Transform3D last && seconds > 1e-4f
+                ? (pose.Origin - last.Origin) * (Spec.Mill.ProbeSignalLeadSec / seconds)
+                : Vector3.Zero;
+            float deepest = -1f;
+            foreach (var direction in BallDirections)
+            {
+                var point = centre + direction * ball;
+                deepest = Mathf.Max(deepest, Mathf.Max(_stock.Stock.SampleDistance(point), _stock.Stock.SampleDistance(point + lead)));
+            }
+            MeasuringOvertravelMm = deepest;
+            _lastPose = pose;
+            return;
+        }
         if (tool?.Kind == ToolKind.EdgeFinder)
         {
             // A ring around the tip, 2 mm up: the deepest point of it inside the stock.
@@ -85,11 +108,11 @@ public sealed class MillCutting : CuttingProcess
                 var local = new Vector3(Mathf.Cos(angle) * radius, 2f, Mathf.Sin(angle) * radius);
                 deepest = Mathf.Max(deepest, _stock.Stock.SampleDistance(pose * local));
             }
-            EdgeFinderOvertravelMm = deepest;
+            MeasuringOvertravelMm = deepest;
             _lastPose = pose;
             return;
         }
-        EdgeFinderOvertravelMm = -1f;
+        MeasuringOvertravelMm = -1f;
 
         // A broken tool cuts nothing; a worn one cuts undersize.
         if (_lastPose is Transform3D previous && mounted.Cuts)
@@ -118,6 +141,12 @@ public sealed class MillCutting : CuttingProcess
     }
 
     private const float HolderRadiusMm = 26f;
+
+    /// <summary>26 directions round a ball (faces, edges and corners of a
+    /// cube), where the probe's ball is sampled.</summary>
+    private static readonly Vector3[] BallDirections =
+        (from x in new[] { -1, 0, 1 } from y in new[] { -1, 0, 1 } from z in new[] { -1, 0, 1 }
+         where x != 0 || y != 0 || z != 0 select new Vector3(x, y, z).Normalized()).ToArray();
 
     /// <summary>Why the tool holder or the spindle nose is inside the stock,
     /// or null. Pose: tool tip in the stock's frame (mm), Y along the tool.</summary>

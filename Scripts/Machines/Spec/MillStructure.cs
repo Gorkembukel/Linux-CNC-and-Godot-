@@ -77,6 +77,16 @@ public partial class MillStructure : Resource
     /// measured before G43 is safe. Only matters with SpindleGaugeLine.</summary>
     [Export] public bool PresetToolLengths = true;
 
+    /// <summary>How far the touch probe's stylus gives before it breaks
+    /// (mm). A G38 move stops well inside it; a G0/G1 into the work does not.</summary>
+    [ExportGroup("Touch Probe")]
+    [Export(PropertyHint.Range, "0.5,10,0.1")] public float ProbeOvertravelMm = 3f;
+    /// <summary>How early the probe signals the control (seconds of travel
+    /// ahead), making up for the trip from the simulation to LinuxCNC so
+    /// G38 stops on the surface rather than a little past it. 0 = signal
+    /// only on real contact.</summary>
+    [Export(PropertyHint.Range, "0,0.2,0.005")] public float ProbeSignalLeadSec = 0f;
+
     /// <summary>Table length along X.</summary>
     [ExportGroup("Table")]
     [Export] public float TableSizeXMm = 500f;

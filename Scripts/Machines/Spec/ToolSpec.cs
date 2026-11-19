@@ -25,6 +25,10 @@ public enum ToolKind
     Threading,
     /// <summary>Mill: edge finder for picking up the work zero; does not cut.</summary>
     EdgeFinder,
+    /// <summary>Mill: 3D touch probe. DiameterMm is its stylus ball; it
+    /// signals the control on contact, so G38.2 finds edges and surfaces.
+    /// Does not cut.</summary>
+    TouchProbe,
 }
 
 /// <summary>One tool of a machine: its number, kind and size, the LinuxCNC tool table values, and optionally its real cutting shape (Geometry).</summary>
@@ -77,6 +81,9 @@ public partial class ToolSpec : Resource
 
     public bool IsLatheTool => Kind is ToolKind.Turning or ToolKind.Parting or ToolKind.Boring or ToolKind.Threading;
     public bool HasPoint => Kind is ToolKind.Drill or ToolKind.ChamferMill;
+    /// <summary>A measuring tool (edge finder, touch probe): never cuts,
+    /// breaks when pushed into the work.</summary>
+    public bool Measures => Kind is ToolKind.EdgeFinder or ToolKind.TouchProbe;
 
     public CutterShape Cutter() => !IsLatheTool && Geometry is { MillProfileMm.Length: >= 2 } g
         ? CutterShape.Form(g.MillProfileMm, LengthMm)

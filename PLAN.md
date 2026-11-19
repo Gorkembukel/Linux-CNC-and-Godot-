@@ -252,8 +252,17 @@ door on enclosed machines.
    `ChuckGrip.Jaws`, `JawSetItem`, a jaw rack left of the lathe control).
    FEED HOLD in MDI now resumes with CYCLE START. Not done: ID gripping,
    reversed jaws' larger reach in the turret collision, changing the chuck
-   itself (3/4-jaw / collet), a touch probe (G38 needs a probe HAL pin
-   driven from Godot), gauge blocks.
+   itself (3/4-jaw / collet), gauge blocks.
+   Touch probe (T8 on the bench and VMC mills, `ToolKind.TouchProbe`): the
+   bridge nets its own `probe` pin to `motion.probe-input` (basic_sim leaves
+   it free) and PROBE_INPUT (24) drives it; `MillCutting` samples 26 points
+   on the ball against the stock, `MillWorkholding.CheckMeasuringTool` sends
+   the signal and breaks the stylus past `MillStructure.ProbeOvertravelMm`.
+   Live: G38.2 onto the top face read Z -0.012 at F100; onto a side, -41.987
+   at F100 and -41.994 at F25 for -42.000 (signal latency + voxel SDF);
+   `ProbeSignalLeadSec` can lead it, default 0. A G1 into the work with the
+   probe in is stopped by LinuxCNC itself ("Probe tripped during non-probe
+   move"). The probe only sees the stock, not the vise or table.
 10. **Idea: a Godot-side config mechanism** for rules that are a choice, not
    physics. Today one setting exists: `cnc_trainer/workshop/saw_requires_clamping`
    in Project Settings (`WorkshopSettings`, default off). Candidates to move

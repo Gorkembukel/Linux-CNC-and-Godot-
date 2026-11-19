@@ -219,7 +219,7 @@ public partial class MachineSpec : Resource
         {
             if (t.Number < 1)
                 problems.Add("Tool numbers start at 1.");
-            bool millOnly = t.Kind is ToolKind.EndMill or ToolKind.FaceMill or ToolKind.ChamferMill or ToolKind.EdgeFinder;
+            bool millOnly = t.Kind is ToolKind.EndMill or ToolKind.FaceMill or ToolKind.ChamferMill || t.Measures;
             if (Kind == MachineKind.Lathe ? millOnly : t.IsLatheTool)
                 problems.Add($"T{t.Number} ({t.Kind}) is not a {Kind.ToString().ToLowerInvariant()} tool.");
             if (t.LengthMm <= 0f || (!t.IsLatheTool && t.DiameterMm <= 0f))

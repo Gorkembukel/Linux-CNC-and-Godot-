@@ -81,7 +81,15 @@ def main() -> int:
         subprocess.run(["halcmd", "unlinkp", "iocontrol.0.tool-changed"], check=True)
         # hal.get_value only works in a process that owns a HAL component.
         hal_component = hal.component(f"godot-bridge-{args.command_port}")
+        hal_component.newpin("probe", hal.HAL_BIT, hal.HAL_OUT)
         hal_component.ready()
+        # basic_sim.tcl leaves motion.probe-input unconnected: Godot's touch
+        # probe drives it, so G38.x runs on the real control.
+        subprocess.run(["halcmd", "net", "godot-probe", f"godot-bridge-{args.command_port}.probe",
+                        "motion.probe-input"], check=True)
+
+        def set_probe(on: bool) -> None:
+            hal_component["probe"] = on
         stat = linuxcnc.stat()
         cmd = linuxcnc.command()
         stat.poll()
@@ -127,7 +135,8 @@ def main() -> int:
 
         server = CommandServer(stat, cmd, command_sock, on_subscribe=retarget,
                                before_program_open=lambda: sync_nc_files(str(REPO_CONFIG_DIR)),
-                               joint_axis_map=joint_axis_map, after_program_open=send_preview)
+                               joint_axis_map=joint_axis_map, after_program_open=send_preview,
+                               set_probe=set_probe)
 
         command_thread = threading.Thread(target=server.run_forever, args=(stop_event.is_set,), daemon=True)
         command_thread.start()

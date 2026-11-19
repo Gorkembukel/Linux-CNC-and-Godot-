@@ -86,6 +86,7 @@ class CommandKind(IntEnum):
     SET_BLOCK_DELETE = 21  # u8 on/off: skip blocks starting with /
     SET_OPTIONAL_STOP = 22  # u8 on/off: M1 stops
     COOLANT_FLOOD = 23  # u8 on/off, works mid-program unlike M8/M9 over MDI
+    PROBE_INPUT = 24  # u8 on/off: the touch probe touches the work (motion.probe-input)
 
 
 # position velocity (f64 x AXIS_CAPACITY*2) | feed_rate spindle_rpm (f64 x2)

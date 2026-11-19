@@ -122,7 +122,9 @@ u64 client_seq     (bridge drops any client_seq <= highest already applied, so a
 ... command-specific payload (see protocol.py CommandKind for the full list: JOG_START,
     JOG_STOP, JOG_INCREMENTAL, SET_MODE, MDI, PROGRAM_OPEN, PROGRAM_RUN, PROGRAM_PAUSE,
     PROGRAM_STOP, PROGRAM_STEP, SET_FEED_OVERRIDE, SET_SPINDLE_OVERRIDE, SPINDLE_ON,
-    SPINDLE_OFF, TOOL_CHANGE_CONFIRM, HOME_AXIS, ESTOP_RESET, MACHINE_ON, MACHINE_OFF)
+    SPINDLE_OFF, TOOL_CHANGE_CONFIRM, HOME_AXIS, ESTOP_RESET, MACHINE_ON, MACHINE_OFF,
+    UNHOME, SET_RAPID_OVERRIDE, SET_BLOCK_DELETE, SET_OPTIONAL_STOP, COOLANT_FLOOD,
+    PROBE_INPUT = 24 u8 on/off: drives motion.probe-input, so G38.x works)
 ```
 
 ## ACK packet (bridge -> Godot), packet_type = 17

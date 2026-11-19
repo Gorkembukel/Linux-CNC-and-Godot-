@@ -49,6 +49,7 @@ public enum CommandKind : byte
     SetBlockDelete = 21,
     SetOptionalStop = 22,
     CoolantFlood = 23,
+    ProbeInput = 24,
 }
 
 public readonly struct PacketHeader

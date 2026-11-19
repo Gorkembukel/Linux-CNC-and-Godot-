@@ -178,7 +178,12 @@ A setup sheet on the right of the screen ticks each step off.
    load the first into the spindle. On the gauge the wheel slides a cutter in
    its collet: shorter chatters less but reaches less deep; measure it again
    after.
-8. Work zero at the control: MDI `T9 M6` (edge finder, then TOOL CHG END),
+8. Work zero at the control, by touch probe: MDI `T8 M6`, `G43`, above the
+   part `G38.2 Z-10 F100`, then **OFS/SET > WORK**, `Z0`, **MEASURE**. A
+   side: `G38.2 Y-30 F50` from outside it, then the edge's coordinate less
+   the 2 mm ball radius (`Y-42` for an edge at Y-40), **MEASURE**. Driving the probe in with G0/G1 stops the
+   control (or breaks the stylus).
+   Or by hand: MDI `T9 M6` (edge finder, then TOOL CHG END),
    **HANDLE**, creep up to the left edge until the finder kicks; **OFS/SET >
    WORK**, type `X-5`, **MEASURE**. Same for Y. Then the cutter, hold the
    paper gauge under it, step down until the paper drags, type `Z0.05`,

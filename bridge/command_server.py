@@ -21,7 +21,7 @@ _JOG_STOP = linuxcnc.JOG_STOP
 
 class CommandServer:
     def __init__(self, stat, cmd, sock: socket.socket, on_subscribe=None, before_program_open=None,
-                 joint_axis_map=(), after_program_open=None):
+                 joint_axis_map=(), after_program_open=None, set_probe=None):
         self.stat = stat
         self.joint_to_axis = dict(joint_axis_map)
         self.cmd = cmd
@@ -29,6 +29,7 @@ class CommandServer:
         self.on_subscribe = on_subscribe
         self.before_program_open = before_program_open
         self.after_program_open = after_program_open
+        self.set_probe = set_probe
         self._highest_client_seq: dict[int, int] = {}
         self._ack_seq = 0
         self._lock = threading.Lock()
@@ -135,6 +136,11 @@ class CommandServer:
         elif kind == CommandKind.COOLANT_FLOOD:
             (on,) = struct.unpack("<B", args)
             self.cmd.flood(linuxcnc.FLOOD_ON if on else linuxcnc.FLOOD_OFF)
+        elif kind == CommandKind.PROBE_INPUT:
+            (on,) = struct.unpack("<B", args)
+            if self.set_probe is None:
+                raise ValueError("no probe input on this bridge")
+            self.set_probe(bool(on))
         elif kind == CommandKind.UNHOME:
             # Motion only lets go of the reference once the drives are off.
             # (The MACHINE_OFF sent just before this needs a moment to land.)

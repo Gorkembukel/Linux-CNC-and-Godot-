@@ -37,7 +37,7 @@ public partial class MillWorkholding : MachineSetup, ISawable, IPathObstacle
     private Workshop.StockItem _mountedStock;
     private double _removedAtMount;
     private bool _crashed;
-    private bool _edgeTouching, _edgeBroken;
+    private bool _edgeTouching, _edgeBroken, _probeSignal;
     private AxisVector _offsetAtPlacement;
 
     public void Setup(MachineSpec spec, ProceduralMillBody body, MillCutting cutting, BridgeClient bridge, MachineSafety safety)
@@ -210,7 +210,7 @@ public partial class MillWorkholding : MachineSetup, ISawable, IPathObstacle
         CheckFixtureCrash();
         if (Chuck != null)
             CheckKeyLeftIn(Chuck, Mathf.Abs(Bridge.State.Velocity.A) > 0.01f, "ÇARPMA: ayna anahtarı aynada unutuldu, döner eksen çalıştı");
-        CheckEdgeFinder();
+        CheckMeasuringTool();
         ShowPaperGap();
     }
 
@@ -247,26 +247,42 @@ public partial class MillWorkholding : MachineSetup, ISawable, IPathObstacle
         }
     }
 
-    /// <summary>The edge finder kicks sideways the moment it reaches the
-    /// stock; pushed half a millimetre further it snaps.</summary>
-    private void CheckEdgeFinder()
+    /// <summary>The measuring tool in the spindle meeting the stock. The
+    /// edge finder kicks sideways and snaps half a millimetre further; the
+    /// touch probe signals the control (G38 stops on it) and breaks once
+    /// its stylus has given all it can.</summary>
+    private void CheckMeasuringTool()
     {
-        float overtravel = _cutting.EdgeFinderOvertravelMm;
+        var tool = InSpindle.Spec;
+        float overtravel = tool?.Measures == true ? _cutting.MeasuringOvertravelMm : -1f;
         bool touching = overtravel >= 0f;
-        _body.SetToolKick(touching);
-        if (touching && !_edgeTouching && InSpindle.Spec is ToolSpec finder)
+        bool probe = tool?.Kind == ToolKind.TouchProbe;
+        _body.SetToolKick(touching && !probe);
+        if (touching && !_edgeTouching && !probe)
             Safety.Warn(System.FormattableString.Invariant(
-                $"Kenar bulucu attı: uç kenarda. İş mili ekseni kenardan {finder.DiameterMm / 2f:0.###} mm uzakta"));
+                $"Kenar bulucu attı: uç kenarda. İş mili ekseni kenardan {tool.DiameterMm / 2f:0.###} mm uzakta"));
+        if (probe != _probeSignal || (probe && touching != _edgeTouching))
+        {
+            _probeSignal = probe;
+            Bridge.SetProbeInput(probe && touching);
+        }
         _edgeTouching = touching;
 
-        if (overtravel > 0.5f && !_edgeBroken)
+        float limit = probe ? Spec.Mill.ProbeOvertravelMm : EdgeFinderOvertravelMm;
+        if (overtravel > limit && !_edgeBroken)
         {
             _edgeBroken = true;
-            Safety.Trip(IncidentKind.ToolBroken, "KENAR BULUCU KIRILDI: kenara fazla bastırıldı (ince adımla yanaş)");
+            Safety.Trip(IncidentKind.ToolBroken, probe
+                ? "PROB KIRILDI: uç parçaya fazla itildi (yanaşmayı G38.2 ile yap, G0/G1 ile değil)"
+                : "KENAR BULUCU KIRILDI: kenara fazla bastırıldı (ince adımla yanaş)");
         }
         else if (!touching)
             _edgeBroken = false;
     }
+
+    /// <summary>How far the edge finder's tip can be pushed past the edge
+    /// before it snaps (mm).</summary>
+    private const float EdgeFinderOvertravelMm = 0.5f;
 
     /// <summary>Z touch-off by feel: with the paper gauge in hand, the HUD
     /// says whether the paper still slides under the tool.</summary>
@@ -276,7 +292,7 @@ public partial class MillWorkholding : MachineSetup, ISawable, IPathObstacle
             || player.HeldTool?.Kind != HandToolKind.PaperGauge || player.GlobalPosition.DistanceTo(GlobalPosition) > 4f)
             return;
         var tool = InSpindle.Spec;
-        if (tool == null || tool.Kind == ToolKind.EdgeFinder)
+        if (tool == null || tool.Measures)
             player.ToolStatus = "Kağıt mastar: iş milinde kesici takım yok";
         else if (_cutting.TipGapMm() is not float gap)
             player.ToolStatus = "Kağıt mastar: takım yüzeyden uzak";
