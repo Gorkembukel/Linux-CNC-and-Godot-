@@ -7,8 +7,10 @@ namespace CncTrainer.Fixtures;
 /// <see cref="ChuckModel"/> is the editable resource behind it.</summary>
 /// <param name="ScrollPitchMm">Scroll chucks: how far a jaw moves per turn
 /// of the scroll, so how far off a jaw engaged a turn late sits.</param>
+/// <param name="JawFamily">Which jaws fit (they are made for one chuck
+/// kind and size); empty = any jaws of the right kind.</param>
 public readonly record struct ChuckDims(ChuckKind Kind, int JawCount, float MaxOpeningMm, float JawDepthMm,
-    float BoreMm, float BoreDepthMm, float ScrollPitchMm = 6f);
+    float BoreMm, float BoreDepthMm, float ScrollPitchMm = 6f, string JawFamily = "");
 
 /// <summary>A jaw as it sits in a slot: which set and number it is, and on
 /// which turn of the scroll it caught.</summary>
@@ -35,7 +37,12 @@ public sealed class ChuckJaws
 
     public readonly ChuckDims Dims;
     private readonly SeatedJaw?[] _slots;
+    /// <summary>Jaws pushed into a slot on the bench, resting on the scroll
+    /// until its thread start comes round and catches them.</summary>
+    private readonly SeatedJaw?[] _waiting;
     public int Notch { get; private set; }
+    /// <summary>The slot the last jaw let go of came out of.</summary>
+    public int LastReleasedSlot { get; private set; } = -1;
     /// <summary>The collet in a collet chuck (its size), null when empty.</summary>
     public float? ColletMm { get; private set; }
 
@@ -59,13 +66,72 @@ public sealed class ChuckJaws
     {
         Dims = dims;
         _slots = new SeatedJaw?[dims.Kind == ChuckKind.Collet ? 0 : Math.Max(2, dims.JawCount)];
+        _waiting = new SeatedJaw?[_slots.Length];
         if (fitted is JawKind kind)
             for (int i = 0; i < _slots.Length; i++)
                 _slots[i] = new SeatedJaw(kind, i + 1, 0);
     }
 
-    /// <summary>The key turns the scroll (independent: nothing to turn).</summary>
-    public void Advance(int notches) => Notch += notches;
+    /// <summary>The key turns the scroll (independent: nothing to turn).
+    /// A jaw waiting in a slot is caught when the thread start reaches it
+    /// going in; returns the slot that caught one, or null.</summary>
+    public int? Advance(int notches)
+    {
+        Notch += notches;
+        if (notches <= 0 || Independent || _slots.Length == 0)
+            return null;
+        int slot = StartSlot;
+        if (_waiting[slot] is not SeatedJaw jaw || _slots[slot] != null)
+            return null;
+        _waiting[slot] = null;
+        _slots[slot] = jaw with { Turn = ScrollTurn };
+        return slot;
+    }
+
+    /// <summary>The jaw lying in a slot waiting for the scroll, if any.</summary>
+    public SeatedJaw? Waiting(int slot) => _waiting[slot];
+
+    /// <summary>Why a jaw cannot go into this slot (the wrong chuck, another
+    /// set, the number already in, the slot taken), or null.</summary>
+    public string WhyNotJaw(int slot, JawKind kind, int number, ChuckKind madeFor, string family)
+    {
+        if (IsCollet)
+            return "Pens aynasına çene takılmaz";
+        if (madeFor != Dims.Kind || (!string.IsNullOrEmpty(family) && !string.IsNullOrEmpty(Dims.JawFamily) && family != Dims.JawFamily))
+            return "Bu çene bu aynanın değil";
+        if (Set is JawKind set && set != kind || _waiting.FirstOrDefault(w => w != null)?.Kind is JawKind w2 && w2 != kind)
+            return "Farklı takım çeneler karıştırılmaz: önce takılı olanları sök";
+        if (_slots.Any(s => s?.Number == number) || _waiting.Any(w => w?.Number == number))
+            return $"{number} numaralı çene zaten takılı";
+        if (slot < 0 || slot >= _slots.Length || _slots[slot] != null || _waiting[slot] != null)
+            return "Bu kanal dolu";
+        return null;
+    }
+
+    /// <summary>Lays a jaw into a slot's groove on the bench: an
+    /// independent chuck's jaw is in at once (its own screw), a scroll
+    /// chuck's waits for the thread start (see <see cref="Advance"/>).
+    /// Returns why not, or null.</summary>
+    public string Place(int slot, JawKind kind, int number, ChuckKind madeFor, string family)
+    {
+        if (WhyNotJaw(slot, kind, number, madeFor, family) is string why)
+            return why;
+        if (Independent)
+            _slots[slot] = new SeatedJaw(kind, number, 0);
+        else if (StartSlot == slot)
+            _slots[slot] = new SeatedJaw(kind, number, ScrollTurn);
+        else
+            _waiting[slot] = new SeatedJaw(kind, number, 0);
+        return null;
+    }
+
+    /// <summary>Lifts a waiting jaw back out of its groove.</summary>
+    public SeatedJaw? TakeWaiting(int slot)
+    {
+        var jaw = _waiting[slot];
+        _waiting[slot] = null;
+        return jaw;
+    }
 
     /// <summary>The slot the next jaw goes into: on a scroll chuck the one
     /// the thread starts at, on an independent one the first empty one;
@@ -75,18 +141,13 @@ public sealed class ChuckJaws
         : _slots[StartSlot] == null ? StartSlot : null;
 
     /// <summary>Puts a jaw in. Returns why not, or null when it went in.</summary>
-    public string Install(JawKind kind, int number, ChuckKind madeFor)
+    public string Install(JawKind kind, int number, ChuckKind madeFor, string family = "")
     {
-        if (IsCollet)
-            return "Pens aynasına çene takılmaz";
-        if (madeFor != Dims.Kind)
-            return "Bu çene bu aynanın değil";
-        if (Set is JawKind set && set != kind)
-            return "Farklı takım çeneler karıştırılmaz: önce takılı olanları sök";
-        if (_slots.Any(s => s?.Number == number))
-            return $"{number} numaralı çene zaten takılı";
-        if (OpenSlot is not int slot)
+        if (!IsCollet && OpenSlot is not int)
             return Independent ? "Bütün yuvalar dolu" : $"Spiralin başı {StartSlot + 1}. yuvada ve orası dolu: anahtarı çevir";
+        int slot = OpenSlot ?? -1;
+        if (WhyNotJaw(slot, kind, number, madeFor, family) is string why)
+            return why;
         _slots[slot] = new SeatedJaw(kind, number, ScrollTurn);
         return null;
     }
@@ -99,6 +160,7 @@ public sealed class ChuckJaws
         if (slot < 0 || _slots[slot] is not SeatedJaw jaw)
             return null;
         _slots[slot] = null;
+        LastReleasedSlot = slot;
         return jaw;
     }
 

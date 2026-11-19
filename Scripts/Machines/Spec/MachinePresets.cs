@@ -245,7 +245,7 @@ public static class MachinePresets
         Lathe = new LatheStructure
         {
             BedLengthMm = 1500f, BedDepthMm = 450f, CrossSlideAngleDeg = -90f, HeadstockLengthMm = 450f, HeadstockHeightMm = 400f,
-            Tailstock = true, ChuckDiameterMm = 200f, Turret = TurretKind.ToolPost, ToolReachMm = 70f,
+            Tailstock = true, ChuckDiameterMm = 200f, SpindleNose = Fixtures.SpindleNose.D1_6, Turret = TurretKind.ToolPost, ToolReachMm = 70f,
             StockDiameterMm = 60f, StockLengthMm = 250f, GripLengthMm = 50f,
         },
     };
@@ -274,7 +274,7 @@ public static class MachinePresets
         Lathe = new LatheStructure
         {
             BedLengthMm = 1300f, BedDepthMm = 600f, CrossSlideAngleDeg = 45f, HeadstockLengthMm = 500f, HeadstockHeightMm = 450f,
-            ChuckDiameterMm = 210f, Turret = TurretKind.Disc, TurretStations = 8, TurretDiameterMm = 260f, ToolReachMm = 190f,
+            ChuckDiameterMm = 210f, SpindleNose = Fixtures.SpindleNose.D1_6, Turret = TurretKind.Disc, TurretStations = 8, TurretDiameterMm = 260f, ToolReachMm = 190f,
             StockDiameterMm = 65f, StockLengthMm = 160f, GripLengthMm = 40f,
         },
     };

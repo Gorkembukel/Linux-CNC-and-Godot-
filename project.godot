@@ -18,6 +18,8 @@ config/icon="res://icon.svg"
 [cnc_trainer]
 
 workshop/saw_requires_clamping=false
+workshop/physical_handling=true
+workshop/hand_strength_n=260.0
 
 [display]
 

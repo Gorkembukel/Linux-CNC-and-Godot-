@@ -330,4 +330,39 @@ public class ChuckGripTests
             Assert.Null(grip.InstallJaw(JawKind.Hard, n, ChuckKind.FourJawIndependent));
         Assert.True(grip.Jaws.Complete);
     }
+
+    [Fact]
+    public void BenchJaw_WaitsInItsGroove_UntilTheScrollStartComesRound()
+    {
+        var jaws = new ChuckJaws(ThreeJaw, fitted: null);
+        Assert.Null(jaws.Place(1, JawKind.Hard, 2, ChuckKind.ThreeJaw, ""));
+        Assert.Equal(0, jaws.Seated);
+        Assert.Equal(2, jaws.Waiting(1)?.Number);
+        for (int i = 0; i < ChuckJaws.NotchesPerSlot; i++)
+            jaws.Advance(1);
+        Assert.Equal(1, jaws.Seated);
+        Assert.Null(jaws.Waiting(1));
+    }
+
+    [Fact]
+    public void BenchJaws_LaidInAndCaughtInOrder_MeetAtTheCentre()
+    {
+        var jaws = new ChuckJaws(ThreeJaw, fitted: null);
+        Assert.Null(jaws.Place(0, JawKind.Hard, 1, ChuckKind.ThreeJaw, ""));
+        Assert.Null(jaws.Place(1, JawKind.Hard, 2, ChuckKind.ThreeJaw, ""));
+        Assert.Null(jaws.Place(2, JawKind.Hard, 3, ChuckKind.ThreeJaw, ""));
+        for (int i = 0; i < 9 && !jaws.Complete; i++)
+            jaws.Advance(1);
+        Assert.True(jaws.Complete);
+        Assert.True(jaws.MeetAtCentre);
+    }
+
+    [Fact]
+    public void JawsFitOnlyTheirOwnChuckSize()
+    {
+        var dims = ThreeJaw with { JawFamily = "ThreeJaw-125" };
+        var jaws = new ChuckJaws(dims, fitted: null);
+        Assert.NotNull(jaws.WhyNotJaw(0, JawKind.Hard, 1, ChuckKind.ThreeJaw, "ThreeJaw-160"));
+        Assert.Null(jaws.WhyNotJaw(0, JawKind.Hard, 1, ChuckKind.ThreeJaw, "ThreeJaw-125"));
+    }
 }

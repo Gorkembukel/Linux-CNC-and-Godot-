@@ -98,7 +98,7 @@ public partial class LatheWorkholding : MachineSetup, ISawable, IThreaded
         int jaws = Chuck.Grip.Jaws.SlotCount;
         foreach (var (kind, z) in new[] { (JawKind.HardReversed, -0.1f), (JawKind.Soft, 0.0f) })
             for (int n = 1; n <= jaws; n++)
-                Put(JawItem.Create(kind, n, Chuck.Model.Kind), new Vector3(-0.2f + n * 0.05f, 0.85f, z));
+                Put(JawItem.Create(kind, n, Chuck.Model), new Vector3(-0.2f + n * 0.05f, 0.85f, z));
         Put(HandTool.Create(HandToolKind.CamKey), new Vector3(0.12f, 0.87f, -0.1f));
 
         var spares = lathe.Spares();
@@ -114,7 +114,9 @@ public partial class LatheWorkholding : MachineSetup, ISawable, IThreaded
 
     /// <summary>Why the lathe will not take this chuck, or null.</summary>
     private string WhyNotMount(ChuckModel model) =>
-        model.DiameterMm > _body.MaxChuckDiameterMm
+        model.Mount != Spec.Lathe.SpindleNose
+            ? $"{model.DisplayName} {SpindleNoses.NameOf(model.Mount)} burun için: bu tezgahın fener mili {SpindleNoses.NameOf(Spec.Lathe.SpindleNose)}"
+        : model.DiameterMm > _body.MaxChuckDiameterMm
             ? System.FormattableString.Invariant($"{model.DisplayName} (Ø{model.DiameterMm:0}) bu tezgaha büyük: yatağa çarpar (en fazla Ø{_body.MaxChuckDiameterMm:0})")
             : null;
 
@@ -296,7 +298,7 @@ public partial class LatheWorkholding : MachineSetup, ISawable, IThreaded
         if (turning && !Chuck.CamsDone && !_camsTripped)
         {
             _camsTripped = true;
-            Safety.Trip(IncidentKind.Crash, $"AYNA FENER MİLİNDEN BOŞALDI: kam kilitleri kilitlenmeden iş mili çalıştırıldı ({Chuck.CamsLocked}/{JawChuck.CamCount})");
+            Safety.Trip(IncidentKind.Crash, $"AYNA FENER MİLİNDEN BOŞALDI: kam kilitleri kilitlenmeden iş mili çalıştırıldı ({Chuck.CamsLocked}/{Chuck.CamCount})");
         }
         else if (!turning)
             _camsTripped = false;

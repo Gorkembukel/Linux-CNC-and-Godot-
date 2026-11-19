@@ -231,6 +231,28 @@ takes one collet at a time from the box on the rack (each holds its size to
 1 mm under): collet in, bar in, key to tighten; loosened, the bar slides.
 Each chuck has its own speed limit; going faster is warned.
 
+The spindle takes time to get up to speed and to stop (a lathe's heavy
+chuck: 400 rpm/s by default, `MachineSpec.SpindleAccelRpmPerSec`); the
+control waits for it before feeding. M4 turns it the other way.
+
+### Chuck cabinet and stand
+
+`Scenes/Workshop/ChuckCabinet.tscn`: behind its glass doors (click to open)
+stand chucks of every size, Ø80 to Ø250 three-jaw, four-jaw independents and
+ER collet chucks, each with its own sizes and spindle nose (D1-3 ... D1-6);
+a lathe takes only one made for its nose that clears its bed. Each drawer
+holds one chuck's spare jaws (hard, reversed, soft, all numbered) or its
+collets. On the worktop, the chuck stand: set a chuck on it face up and
+change its jaws off the machine, as in a real shop. Chuck key in, open past
+the end and the jaws slide out of their grooves one by one; to fit them, lay
+each jaw square in its groove and flat on the face (it drops in), then turn
+the key: the scroll's thread start catches each one as it comes round.
+With **physical handling** on (Project Settings, cnc_trainer/workshop), what
+you carry is pulled along by your hands with limited strength
+(`hand_strength_n`): a 25 kg chuck lags and sways, and walking slows under
+it. Off: things follow the view and jaws are clicked into the groove you
+look at.
+
 ### Fanuc-style tool calls
 
 A lathe with a disc turret can take Fanuc calls: set `ToolCalls` to

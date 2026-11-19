@@ -87,14 +87,3 @@ public partial class StockItem : ISawable
         QueueFree();
     }
 }
-
-/// <summary>Workshop rules that are a choice, not physics: Project Settings,
-/// section cnc_trainer/workshop.</summary>
-public static class WorkshopSettings
-{
-    public const string SawRequiresClampingKey = "cnc_trainer/workshop/saw_requires_clamping";
-
-    /// <summary>Only stock held in a vise, chuck or fixture can be sawn (off: loose stock too).</summary>
-    public static bool SawRequiresClamping =>
-        ProjectSettings.HasSetting(SawRequiresClampingKey) && ProjectSettings.GetSetting(SawRequiresClampingKey).AsBool();
-}

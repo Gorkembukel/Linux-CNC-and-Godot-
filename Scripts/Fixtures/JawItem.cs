@@ -1,17 +1,22 @@
 using Godot;
 using CncTrainer.Interaction;
-using CncTrainer.Procedural;
 
 namespace CncTrainer.Fixtures;
 
-/// <summary>One chuck jaw, stamped with its number: on a scroll chuck jaw 1
-/// goes in slot 1, and so on, each as the scroll's thread start reaches
-/// its slot. Made for one kind of chuck.</summary>
+/// <summary>One chuck jaw, stamped with its number, made for one kind and
+/// size of chuck: on a scroll chuck jaw 1 goes in slot 1, and so on, each
+/// as the scroll's thread start reaches its slot.</summary>
 public partial class JawItem : Carryable
 {
     public JawKind Kind { get; private set; }
     public int Number { get; private set; }
     public ChuckKind MadeFor { get; private set; }
+    /// <summary>The chuck size and kind it fits (<see cref="ChuckModel.JawFamily"/>).</summary>
+    public string Family { get; private set; } = "";
+    /// <summary>Its length along the groove (m), for laying it into one.</summary>
+    public float LengthM { get; private set; }
+
+    public bool Fits(ChuckModel model) => model.Kind == MadeFor && (Family == "" || Family == model.JawFamily);
 
     public static string NameOf(JawKind kind) => kind switch
     {
@@ -27,25 +32,27 @@ public partial class JawItem : Carryable
         _ => "Yumuşak çeneler",
     };
 
-    public static Color ColorOf(JawKind kind) => kind == JawKind.Soft ? new Color(0.78f, 0.79f, 0.82f) : new Color(0.2f, 0.2f, 0.22f);
+    /// <summary>Soft jaws bright aluminium-grey, hardened ones blued steel.</summary>
+    public static Color ColorOf(JawKind kind) => kind == JawKind.Soft ? new Color(0.82f, 0.83f, 0.85f) : new Color(0.3f, 0.32f, 0.36f);
 
-    public static JawItem Create(JawKind kind, int number, ChuckKind madeFor)
+    /// <summary>A jaw for this chuck, sized to it.</summary>
+    public static JawItem Create(JawKind kind, int number, ChuckModel model) =>
+        Create(kind, number, model.Kind, model.JawFamily, model.DiameterMm, model.JawDepthMm, model.DisplayName);
+
+    public static JawItem Create(JawKind kind, int number, ChuckKind madeFor, string family = "", float chuckDiameterMm = 100f,
+        float jawDepthMm = 25f, string chuckName = "")
     {
+        float r = chuckDiameterMm / 2f * WorldScale.MmToM;
+        float length = r * 0.45f, height = jawDepthMm * 0.7f * WorldScale.MmToM, width = r * 0.24f;
         var item = new JawItem
         {
-            Kind = kind, Number = number, MadeFor = madeFor, Name = $"Jaw{number}",
-            DisplayName = $"{NameOf(kind)} {number}" + (madeFor == ChuckKind.FourJawIndependent ? " (4 ayaklı ayna)" : ""),
-            Mass = 0.5f,
+            Kind = kind, Number = number, MadeFor = madeFor, Family = family, LengthM = length, Name = $"Jaw{number}",
+            DisplayName = $"{NameOf(kind)} {number}" + (chuckName != "" ? $" ({chuckName})" : ""),
+            // Steel, a little under the solid block it fills.
+            Mass = Mathf.Max(0.1f, length * height * width * (kind == JawKind.Soft ? 2700f : 7850f) * 0.8f),
         };
-        BodyParts.Box(item, "Jaw", new Vector3(0.025f, 0.03f, 0.05f), new Vector3(0f, 0.015f, 0f),
-            BodyParts.Mat(ColorOf(kind), kind == JawKind.Soft ? 0.5f : 0.7f, 0.4f));
-        item.AddChild(new Label3D
-        {
-            Text = number.ToString(), FontSize = 48, PixelSize = 0.0004f,
-            Position = new Vector3(0f, 0.031f, 0f), RotationDegrees = new Vector3(-90f, 0f, 0f),
-            Modulate = kind == JawKind.Soft ? Colors.Black : Colors.White,
-        });
-        item.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = new Vector3(0.025f, 0.03f, 0.05f) }, Position = new Vector3(0f, 0.015f, 0f) });
+        JawMesh.Build(item, kind, number, length, height, width);
+        item.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = new Vector3(length, height + 0.004f, width) }, Position = new Vector3(length / 2f, height / 2f - 0.002f, 0f) });
         return item;
     }
 }

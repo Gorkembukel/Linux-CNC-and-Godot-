@@ -280,6 +280,30 @@ door on enclosed machines.
    reversed set in order meets, out of order 4 mm off (TIR ~8 mm), cams
    3->0, ER32 fitted (jaw face -150 -> -155), Ø20 collet 0.005 mm, loosened
    bar slid, turned with no incident; cams left undone -> Crash.
+   Chuck stand and cabinet: `ChuckVisual` draws every chuck from its model
+   (back plate + cam studs, grooves with lips and the scroll thread,
+   key sockets, slot numbers; collet taper + hex nut) and its jaws
+   (`JawMesh`: stepped hard / reversed, plain soft, tongue and teeth);
+   used on the lathe, in the hand and on the stand. `ChuckModel.Mount`
+   (`SpindleNose` D1-3..D1-8, cams 3 or 6) must match
+   `LatheStructure.SpindleNose`; jaws carry `JawFamily` (kind + size).
+   `ChuckStand`: a chuck face up; a jaw within 15 deg of square and flat,
+   resting on the face near its groove, drops in (`ChuckJaws.Place`) and
+   waits until the scroll's thread start reaches it (`Advance`); jaws let
+   go slide out and stay out until picked up. Its Area3D and physics tick
+   run only while a slot is empty; fitted jaws are drawn, not simulated.
+   `ChuckCabinet` (glass doors, a drawer per chuck, `ChuckModel.Catalogue`)
+   still has to be placed in Main.tscn. Physical handling
+   (`WorkshopSettings.PhysicalHandling`, `HandStrengthN`): carried bodies
+   other than hand tools stay dynamic, driven by a force- and
+   torque-limited spring to the hands. Checked in TmpCabinet: square jaw
+   dropped in, 35 deg crooked one stayed out, 2 and 3 caught by the key in
+   turn, complete chuck meets at the centre with the watch off, opened past
+   the end the jaws slid out and slept. Not tried by hand in the editor.
+   Spindle: sim_spindle's limit_speed gets `SpindleAccelRpmPerSec` (0 =
+   lathe 400, mill 2500 rpm/s) via INI [SPINDLE_0]GODOT_ACCEL_RPM_PER_SEC;
+   the bridge reports limit_speed.out (signed). Live: 0->1500 in 3.8 s,
+   M4 -800.
    Gauge block: `HandToolKind.GaugeBlock` (50.000 mm Z setting block) on the
    tool bench, felt like the paper (`Interaction.FeelerGauge`, fit ±0.01 mm
    against the paper's ±0.03); `MillCutting.TipGapMm` searches coarse then

@@ -172,13 +172,13 @@ public sealed class ChuckGrip
     /// <summary>Puts a jaw into the slot the scroll is at (independent
     /// chuck: the next empty slot). Only with the key in and nothing in the
     /// chuck. Returns why not, or null when it went in.</summary>
-    public string InstallJaw(JawKind kind, int number, ChuckKind madeFor)
+    public string InstallJaw(JawKind kind, int number, ChuckKind madeFor, string family = "")
     {
         if (HasBar)
             return "Çene takmak için önce parçayı çıkar";
         if (!KeyIn)
             return "Çeneler ayna anahtarıyla takılır: önce anahtarı tak";
-        if (Jaws.Install(kind, number, madeFor) is string why)
+        if (Jaws.Install(kind, number, madeFor, family) is string why)
             return why;
         SoftBoredForMm = null;
         if (Jaws.Complete)
@@ -387,6 +387,11 @@ public sealed class ChuckGrip
         if (steps > 0)
         {
             Jaws.Advance(1);
+            if (Jaws.Complete)
+            {
+                SoftBoredForMm = null;
+                OpeningMm = MaxGripDiameterMm;
+            }
             return null;
         }
         // Backing the scroll off: the jaw at the slot it now lets go of comes out.

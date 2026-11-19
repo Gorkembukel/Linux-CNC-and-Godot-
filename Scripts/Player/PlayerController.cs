@@ -138,7 +138,14 @@ public partial class PlayerController : CharacterBody3D
     {
         _heldPart = body;
         _heldTurn = (GlobalBasis.Orthonormalized().Inverse() * body.GlobalBasis.Orthonormalized()).Orthonormalized();
-        body.Freeze = true;
+        // Hand tools stay steady in the hand; anything else, with physical
+        // handling on, is carried by force and feels its weight.
+        _carriedByForce = WorkshopSettings.PhysicalHandling && body is not HandTool;
+        // Carried by force it moves on its own: off a shelf or out of a
+        // drawer that would carry it along.
+        if (_carriedByForce && body.GetParent() != GetTree().CurrentScene)
+            body.Reparent(GetTree().CurrentScene, true);
+        body.Freeze = !_carriedByForce;
         body.LinearVelocity = Vector3.Zero;
         body.AngularVelocity = Vector3.Zero;
         AddCollisionExceptionWith(body);
@@ -174,8 +181,59 @@ public partial class PlayerController : CharacterBody3D
     /// dropping it (it has just been fitted somewhere).</summary>
     public RigidBody3D ReleaseHeld()
     {
-        return LetGo();
+        var body = LetGo();
+        if (body != null)
+        {
+            body.Freeze = true;
+            body.LinearVelocity = Vector3.Zero;
+            body.AngularVelocity = Vector3.Zero;
+        }
+        return body;
     }
+
+    private bool _carriedByForce;
+
+    /// <summary>Spring and damping of the hands toward where the carried
+    /// thing should be (per second squared, per second): critically damped.</summary>
+    private const float HoldStiffness = 120f, HoldDamping = 22f;
+    private const float TurnStiffness = 90f, TurnDamping = 19f;
+    /// <summary>Lever of the grip (m): how much the hands can twist, against how hard they can pull.</summary>
+    private const float GripLeverM = 0.12f;
+    /// <summary>Pulled further than this from the hands, it slips out of them.</summary>
+    private const float LoseGripM = 0.9f;
+
+    /// <summary>Pulls the carried thing toward the hands with limited
+    /// strength: light things follow at once, heavy ones lag, swing and,
+    /// past what the hands can lift, sag.</summary>
+    private void DriveCarried()
+    {
+        var body = _heldPart;
+        var target = new Transform3D(GlobalBasis.Orthonormalized() * _heldTurn, _carryPoint.GlobalPosition);
+        var error = target.Origin - body.GlobalPosition;
+        if (error.Length() > LoseGripM)
+        {
+            LetGo();
+            Notify(this, "Elinden kaydı: çok ağır ya da bir yere takıldı");
+            return;
+        }
+        float strength = WorkshopSettings.HandStrengthN;
+        var gravity = Vector3.Down * (float)ProjectSettings.GetSetting("physics/3d/default_gravity").AsDouble();
+        var accel = error * HoldStiffness - body.LinearVelocity * HoldDamping;
+        body.ApplyCentralForce((body.Mass * (accel - gravity)).LimitLength(strength));
+
+        var turn = (target.Basis.GetRotationQuaternion() * body.GlobalBasis.Orthonormalized().GetRotationQuaternion().Inverse()).Normalized();
+        if (turn.W < 0f)
+            turn = -turn;
+        float angle = 2f * Mathf.Acos(Mathf.Clamp(turn.W, -1f, 1f));
+        var axis = angle > 1e-4f ? new Vector3(turn.X, turn.Y, turn.Z).Normalized() : Vector3.Zero;
+        var angular = axis * angle * TurnStiffness - body.AngularVelocity * TurnDamping;
+        var state = PhysicsServer3D.BodyGetDirectState(body.GetRid());
+        var torque = state != null ? state.InverseInertiaTensor.Inverse() * angular : angular * body.Mass * 0.01f;
+        body.ApplyTorque(torque.LimitLength(strength * GripLeverM));
+    }
+
+    /// <summary>Walking slows under a heavy load.</summary>
+    private float LoadSpeedFactor => _heldPart == null ? 1f : Mathf.Clamp(1f - _heldPart.Mass / 40f, 0.35f, 1f);
 
     public override void _Ready()
     {
@@ -695,7 +753,7 @@ public partial class PlayerController : CharacterBody3D
         if (inputDir != Vector2.Zero)
             _headOffset = Vector3.Zero;
         UpdateCrouch((float)delta);
-        float speed = WalkSpeed * (Input.IsKeyPressed(Key.Shift) && _crouch < 0.5f ? RunSpeedMultiplier : 1f) * (1f - 0.5f * _crouch);
+        float speed = WalkSpeed * (Input.IsKeyPressed(Key.Shift) && _crouch < 0.5f ? RunSpeedMultiplier : 1f) * (1f - 0.5f * _crouch) * LoadSpeedFactor;
         var moveDir = (Transform.Basis * new Vector3(inputDir.X, 0f, inputDir.Y)).Normalized();
         velocity.X = moveDir.X * speed;
         velocity.Z = moveDir.Z * speed;
@@ -750,7 +808,11 @@ public partial class PlayerController : CharacterBody3D
 
     private void UpdateCarriedPart()
     {
-        if (_heldPart != null)
+        if (_heldPart == null)
+            return;
+        if (_carriedByForce && _saw.HeldTransform == null && _ring.HeldTransform == null)
+            DriveCarried();
+        else
             _heldPart.GlobalTransform = _saw.HeldTransform ?? _ring.HeldTransform ?? new Transform3D(GlobalBasis.Orthonormalized() * _heldTurn, _carryPoint.GlobalPosition);
     }
 
