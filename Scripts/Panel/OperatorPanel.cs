@@ -18,8 +18,7 @@ namespace CncTrainer.Panel;
 public partial class OperatorPanel : Control
 {
     private BridgeClient _bridge;
-    // Placeholder until Configure() runs; matches a lathe's real axes, same
-    // as LatheMachine's own.
+    // Placeholder until Configure() runs: a lathe's axes.
     private (AxisId Axis, byte Joint)[] _axes = { (AxisId.X, (byte)0), (AxisId.Z, (byte)1) };
 
     public event System.Action<IMachine> MachineSelected;

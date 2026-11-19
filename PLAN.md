@@ -181,10 +181,10 @@ door on enclosed machines.
    bolts/screw, loading tools from the cart, length gauge, gauge readings
    under the crosshair, door, COOLANT buttons, prompts, the new console
    (hold-to-jog, dials) and the new posture / zoom / console close-up.
-2. **User decision**: delete the legacy hand-written path (`LatheMachine`,
-   `MillMachine`, `MachineBody`, `MillBody`, `MillHeightmap`,
-   `MillStockVisual`, `Lathe.tscn`, `Mill.tscn`)? No scene in `Main.tscn`
-   uses it; nothing new is built on it.
+2. The legacy hand-written path (`LatheMachine`, `MillMachine`,
+   `MachineBody`, `MillBody`, `MillHeightmap`, `MillStockVisual`,
+   `Lathe.tscn`, `Mill.tscn`) is deleted; its turret angle math lives on in
+   `TurretIndex`. Git history has it if it is ever wanted.
 3. **Scenario mode v1** is in (`Scripts/Inspection`): `WorkOrder` /
    `PartFeature` resources under `res://Machines/WorkOrders/` (the board
    finds every .tres there), `JobBoard` (wheel browses, click takes / hands
@@ -264,8 +264,7 @@ door on enclosed machines.
   `bridge/run_isolated.sh` (private mount/`/tmp`, IPC, PID namespace,
   per-run `RTAPI_FIFO_PATH`). Each machine needs its own port pair; all
   share one WSL address.
-- `ProceduralMachine` origin is ON THE FLOOR (y = `WorldScale.FloorY`); the
-  legacy hand-written machines are not.
+- `ProceduralMachine` origin is ON THE FLOOR (y = `WorldScale.FloorY`).
 - Tool error belongs to the physical `ToolItem`, not to the tool number.
 - Mill tool length reference is per machine (`MillStructure.ToolLengthReference`,
   `ToolLengthModel`). Default `SpindleGaugeLine`: LinuxCNC Z is the spindle
