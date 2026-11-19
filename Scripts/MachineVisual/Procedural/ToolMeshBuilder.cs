@@ -16,6 +16,9 @@ public static class ToolMeshBuilder
         float radius = tool.DiameterMm / 2f * WorldScale.MmToM;
         float length = tool.LengthMm * WorldScale.MmToM;
 
+        if (tool.Kind == ToolKind.TouchProbe)
+            return TouchProbe(root, radius, length);
+
         float tipHeight = 0f;
         bool formed = tool.Geometry is { MillProfileMm.Length: >= 2 } && !tool.IsLatheTool;
         if (formed)
@@ -66,6 +69,27 @@ public static class ToolMeshBuilder
                 BodyParts.Cylinder(root, "Shank", radius * 0.97f, length - fluteTop, new Vector3(0f, (length + fluteTop) / 2f, 0f), Vector3.Up, cutterMaterial);
         }
 
+        BodyParts.Cylinder(root, "Holder", 0.02f, HolderLength, new Vector3(0f, length + HolderLength / 2f, 0f), Vector3.Up,
+            BodyParts.DarkSteel, topRadius: 0.032f);
+        return root;
+    }
+
+    /// <summary>Ruby ball on a thin stylus under the probe's body; the
+    /// holder on top as on any tool.</summary>
+    private static Node3D TouchProbe(Node3D root, float ballRadius, float length)
+    {
+        var ruby = BodyParts.Mat(new Color(0.85f, 0.1f, 0.15f), 0.1f, 0.15f);
+        root.AddChild(new MeshInstance3D
+        {
+            Name = "Ball",
+            Mesh = new SphereMesh { Radius = ballRadius, Height = ballRadius * 2f, RadialSegments = 20, Rings = 10 },
+            MaterialOverride = ruby,
+            Position = new Vector3(0f, ballRadius, 0f),
+        });
+        float stylus = Mathf.Min(length * 0.45f, 0.035f);
+        BodyParts.Cylinder(root, "Stylus", ballRadius * 0.4f, stylus, new Vector3(0f, ballRadius + stylus / 2f, 0f), Vector3.Up, BodyParts.Steel);
+        float body = length - ballRadius - stylus;
+        BodyParts.Cylinder(root, "Body", 0.012f, body, new Vector3(0f, length - body / 2f, 0f), Vector3.Up, BodyParts.Steel, topRadius: 0.02f);
         BodyParts.Cylinder(root, "Holder", 0.02f, HolderLength, new Vector3(0f, length + HolderLength / 2f, 0f), Vector3.Up,
             BodyParts.DarkSteel, topRadius: 0.032f);
         return root;

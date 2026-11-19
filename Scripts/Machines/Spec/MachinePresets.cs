@@ -35,6 +35,9 @@ public static class MachinePresets
     private static ToolSpec EdgeFinder(int number) =>
         new(number, ToolKind.EdgeFinder, "10mm edge finder", 10f, lengthMm: 40f, color: new Color(0.8f, 0.8f, 0.85f));
 
+    private static ToolSpec TouchProbe(int number) =>
+        new(number, ToolKind.TouchProbe, "3D touch probe, 4mm ball", 4f, lengthMm: 70f, color: new Color(0.85f, 0.15f, 0.2f));
+
     private static ToolSpec Drill(int number, float diameter, float length = 80f) =>
         new(number, ToolKind.Drill, Invariant($"{diameter:0.#}mm drill"), diameter, lengthMm: length, tipAngleDeg: 118f, color: new Color(0.6f, 0.6f, 0.65f));
 
@@ -64,7 +67,7 @@ public static class MachinePresets
             new AxisSpec(AxisId.X, Tool, -150f, 150f),
             // Z reaches the table top, for stock clamped straight onto it.
             new AxisSpec(AxisId.Z, Tool, -85f, 120f, home: 50f, homeSequence: 0)),
-        Tools = List(EndMill(1, 10f), EndMill(2, 6f), EdgeFinder(9)),
+        Tools = List(EndMill(1, 10f), EndMill(2, 6f), TouchProbe(8), EdgeFinder(9)),
         Mill = new MillStructure
         {
             Frame = MillFrame.Gantry, BaseWidthMm = 600f, BaseDepthMm = 500f,
@@ -117,7 +120,7 @@ public static class MachinePresets
             new AxisSpec(AxisId.Y, Workpiece, -203f, 203f, maxVelocity: 400f, maxAcceleration: 2000f),
             new AxisSpec(AxisId.X, Workpiece, -381f, 381f, maxVelocity: 400f, maxAcceleration: 2000f),
             new AxisSpec(AxisId.Z, Tool, -60f, 448f, home: 400f, homeSequence: 0, maxVelocity: 400f, maxAcceleration: 2000f)),
-        Tools = List(EndMill(1, 12f, length: 60f), EndMill(2, 6f), EndMill(3, 10f, 5f), Drill(4, 8.5f), FaceMill(5, 50f), Chamfer(6, 10f), EdgeFinder(9)),
+        Tools = List(EndMill(1, 12f, length: 60f), EndMill(2, 6f), EndMill(3, 10f, 5f), Drill(4, 8.5f), FaceMill(5, 50f), Chamfer(6, 10f), TouchProbe(8), EdgeFinder(9)),
         Mill = new MillStructure
         {
             Frame = MillFrame.CFrame, BaseWidthMm = 1500f, BaseDepthMm = 1300f, ColumnWidthMm = 450f,
