@@ -7,6 +7,7 @@ Usage (inside WSL2 Ubuntu, with linuxcnc-uspace installed):
 from __future__ import annotations
 
 import argparse
+import os
 import signal
 import socket
 import subprocess
@@ -49,6 +50,11 @@ def main() -> int:
     print(f"[bridge] syncing config from {REPO_CONFIG_DIR} to native WSL filesystem...")
     ini_path = sync_linuxcnc_config(str(REPO_CONFIG_DIR), args.ini)
     print(f"[bridge] native ini: {ini_path}")
+    # The preview's own interpreter finds the INI (and with it any REMAP, such
+    # as the Fanuc T0101 call) through INI_FILE_NAME, as under the linuxcnc
+    # launcher; its relative paths (SUBROUTINE_PATH = ./) are the config dir's.
+    os.environ["INI_FILE_NAME"] = ini_path
+    os.chdir(Path(ini_path).parent)
 
     # trivkins assigns joints in the order the axis letters are listed.
     coordinates = linuxcnc.ini(ini_path).find("TRAJ", "COORDINATES").split()

@@ -3,7 +3,7 @@ using CncTrainer.Procedural;
 
 namespace CncTrainer.Interaction;
 
-public enum HandToolKind { HexKey, ViseHandle, ChuckKey, Mallet, Brush, Parallels, PaperGauge, Caliper, DialIndicator, Micrometer, DepthGauge, Hacksaw, SafetyGlasses, ChipHook, File, Deburrer, ThreadRing, PitchGauge }
+public enum HandToolKind { HexKey, ViseHandle, ChuckKey, Mallet, Brush, Parallels, PaperGauge, Caliper, DialIndicator, Micrometer, DepthGauge, Hacksaw, SafetyGlasses, ChipHook, File, Deburrer, ThreadRing, PitchGauge, GaugeBlock }
 
 /// <summary>A hand tool from the bench. What it does is decided by the thing
 /// it is used on (a fastener asks for a HexKey, a chuck for a ChuckKey...).</summary>
@@ -35,6 +35,7 @@ public partial class HandTool : Carryable
         HandToolKind.Deburrer => "Çapak alma bıçağı",
         HandToolKind.ThreadRing => "Diş bilezik mastarı M20x2 (geçer / geçmez)",
         HandToolKind.PitchGauge => "Diş tarağı (adım mastarı)",
+        HandToolKind.GaugeBlock => "Z ayar bloğu (50,000 mm)",
         _ => "Komparatör",
     };
 
@@ -82,6 +83,11 @@ public partial class HandTool : Carryable
                 BodyParts.Box(tool, "Slip", new Vector3(0.1f, 0.001f, 0.03f), Vector3.Zero, BodyParts.Mat(new Color(0.95f, 0.95f, 0.9f), 0f, 0.9f));
                 size = new Vector3(0.1f, 0.01f, 0.03f);
                 tool.Mass = 0.05f;
+                break;
+            case HandToolKind.GaugeBlock:
+                BodyParts.Cylinder(tool, "Block", 0.02f, 0.05f, Vector3.Zero, Vector3.Up, steel);
+                size = new Vector3(0.04f, 0.05f, 0.04f);
+                tool.Mass = 0.5f;
                 break;
             case HandToolKind.Caliper:
                 BodyParts.Box(tool, "Beam", new Vector3(0.22f, 0.004f, 0.016f), Vector3.Zero, steel);

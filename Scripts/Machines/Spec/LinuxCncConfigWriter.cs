@@ -12,10 +12,16 @@ namespace CncTrainer.Spec;
 /// </summary>
 /// <summary>Machine-wide INI settings beyond the axes. SpindleMaxRpm 0 =
 /// no spindle speed limit written.</summary>
-public readonly record struct IniExtras(float SpindleMaxRpm = 0f, float SpindleMinRpm = 0f, bool RandomToolChanger = false, string StartupCode = "");
+public readonly record struct IniExtras(float SpindleMaxRpm = 0f, float SpindleMinRpm = 0f, bool RandomToolChanger = false, string StartupCode = "",
+    bool FanucToolCalls = false);
 
 public static class LinuxCncConfigWriter
 {
+    /// <summary>T0101 calls, as LinuxCNC's lathe-fanucy sample does them:
+    /// the T word goes to linuxcnc-config/fanuc_t.ngc (M6 + G43).</summary>
+    private const string FanucRemap = "SUBROUTINE_PATH = ./\nREMAP = T prolog=get_T_number ngc=fanuc_t\n\n[PYTHON]\nPATH_PREPEND = ./\n"
+        + "PATH_APPEND = /usr/share/linuxcnc/ncfiles/remap_lib/python-stdglue/\nTOPLEVEL = toplevel.py\n";
+
     private const float WrappedLimit = 99999f;
 
     public static string Ini(string machineName, string fileStem, IReadOnlyList<AxisDef> axes, Vector3? toolChangePosition, IniExtras extras = default)
@@ -51,7 +57,7 @@ py = python3
 
 [RS274NGC]
 PARAMETER_FILE = {fileStem}.var
-{(string.IsNullOrWhiteSpace(extras.StartupCode) ? "" : "RS274NGC_STARTUP_CODE = " + extras.StartupCode.Trim() + "\n")}
+{(string.IsNullOrWhiteSpace(extras.StartupCode) ? "" : "RS274NGC_STARTUP_CODE = " + extras.StartupCode.Trim() + "\n")}{(extras.FanucToolCalls ? FanucRemap : "")}
 [EMCMOT]
 EMCMOT = motmod
 COMM_TIMEOUT = 1.0

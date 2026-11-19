@@ -9,4 +9,12 @@ public interface IJobCard
 
     /// <summary>Empty when there is no job.</summary>
     string CardText { get; }
+
+    /// <summary>The job's technical drawing, null when it has none.</summary>
+    JobDrawing CardDrawing => null;
 }
+
+/// <summary>A technical drawing: the sheet (lines, as imported from SVG) and
+/// the text written over it, in the sheet's own pixels.</summary>
+public sealed record JobDrawing(Godot.Texture2D Sheet,
+    System.Collections.Generic.IReadOnlyList<(Godot.Vector2 At, string Text, int SizePx)> Notes);

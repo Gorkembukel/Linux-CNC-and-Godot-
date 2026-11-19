@@ -36,6 +36,8 @@ public partial class JobBoard : Node3D, IInteractable, IJobCard
 
     public string CardText => LastReport?.Text() ?? Active?.DrawingText() ?? "";
 
+    public JobDrawing CardDrawing => LastReport == null ? Active?.Sheet : null;
+
     public override void _Ready()
     {
         BodyParts.Clear(this);

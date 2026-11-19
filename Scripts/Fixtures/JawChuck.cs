@@ -74,8 +74,10 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
         return Grip.HasBar ? Threads?.ThreadAt(globalPoint, out why) : null;
     }
 
-    private Node3D _rotor, _key;
+    private Node3D _rotor, _key, _collet;
     private readonly List<MeshInstance3D> _jaws = new();
+    private int _fittedJawCount;
+    private float _jawDepthM;
     private CollisionShape3D _barShape;
 
     public static JawChuck Create(float diameterMm, int jawCount, float jawDepthMm, float boreDepthMm)
@@ -94,12 +96,9 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
         chuck._rotor = new Node3D { Name = "Rotor" };
         chuck.AddChild(chuck._rotor);
         BodyParts.Cylinder(chuck._rotor, "Body", radius, bodyLength, new Vector3(bodyCenter, 0f, 0f), Vector3.Right, BodyParts.Steel);
-        for (int i = 0; i < jawCount; i++)
-        {
-            var arm = new Node3D { Name = "Jaw", RotationDegrees = new Vector3(i * 360f / jawCount, 0f, 0f) };
-            chuck._rotor.AddChild(arm);
-            chuck._jaws.Add(BodyParts.Box(arm, "JawBlock", new Vector3(depth * 0.7f, radius * 0.45f, JawHeight), Vector3.Zero, BodyParts.DarkSteel));
-        }
+        chuck._fittedJawCount = jawCount;
+        chuck._jawDepthM = depth;
+        chuck.BuildJaws();
 
         chuck._key = new Node3D { Name = "Key", Position = new Vector3(bodyCenter, radius, 0f), Visible = false };
         chuck._rotor.AddChild(chuck._key);
@@ -116,6 +115,53 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
         chuck.AddChild(chuck._barShape);
         chuck.Refresh();
         return chuck;
+    }
+
+    /// <summary>The jaws (or the collet nose) of the chuck now fitted.</summary>
+    private void BuildJaws()
+    {
+        foreach (var jaw in _jaws)
+            jaw.GetParent().QueueFree();
+        _jaws.Clear();
+        _collet?.QueueFree();
+        _collet = null;
+        int count = Grip.Kind switch { ChuckKind.FourJawIndependent => 4, ChuckKind.Collet => 0, _ => _fittedJawCount };
+        for (int i = 0; i < count; i++)
+        {
+            var arm = new Node3D { Name = "Jaw", RotationDegrees = new Vector3(i * 360f / count, 0f, 0f) };
+            _rotor.AddChild(arm);
+            _jaws.Add(BodyParts.Box(arm, "JawBlock", new Vector3(_jawDepthM * 0.7f, RadiusM * 0.45f, JawHeight), Vector3.Zero, BodyParts.DarkSteel));
+        }
+        if (Grip.Kind == ChuckKind.Collet)
+        {
+            _collet = new Node3D { Name = "ColletNose" };
+            _rotor.AddChild(_collet);
+            BodyParts.Cylinder(_collet, "Nose", RadiusM * 0.55f, _jawDepthM * 0.7f, new Vector3(-_jawDepthM * 0.35f, 0f, 0f), Vector3.Right,
+                BodyParts.DarkSteel, topRadius: RadiusM * 0.4f);
+        }
+    }
+
+    private void SwapChuck(PlayerController player, ChuckItem item)
+    {
+        var old = Grip.Kind;
+        if (Grip.ChangeChuck(item.Kind) is string why)
+        {
+            PlayerController.Notify(this, why);
+            return;
+        }
+        player.ReleaseHeld().QueueFree();
+        var removed = ChuckItem.Create(old);
+        GetTree().CurrentScene.AddChild(removed);
+        player.Give(removed);
+        BuildJaws();
+        Refresh();
+        Changed?.Invoke();
+        PlayerController.Notify(this, item.Kind switch
+        {
+            ChuckKind.FourJawIndependent => "4 ayaklı bağımsız ayna takıldı: parça merkezsiz oturur, komparatörle her çeneyi ayrı ayarla (tokmak = çene ayarı)",
+            ChuckKind.Collet => System.FormattableString.Invariant($"Pens aynası takıldı: en fazla Ø{Grip.MaxGripDiameterMm:0} mm, neredeyse salgısız"),
+            _ => "3 ayaklı ayna takıldı",
+        });
     }
 
     private void Refresh()
@@ -179,7 +225,8 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
             string jaws = g.Jaws == JawKind.Soft && g.SoftBoredForMm is float bored
                 ? System.FormattableString.Invariant($"{JawSetItem.NameOf(g.Jaws)} (Ø{bored:0.##} için tornalı)")
                 : JawSetItem.NameOf(g.Jaws);
-            string text = $"    Çeneler: {jaws}\n" + Sheet.Mark(g.HasBar) + "Kütük aynada"
+            string text = $"    Ayna: {ChuckItem.NameOf(g.Kind)}" + (g.Kind == ChuckKind.Collet ? "" : $", çeneler: {jaws}") + "\n"
+                + Sheet.Mark(g.HasBar) + "Kütük aynada"
                 + (g.HasBar ? System.FormattableString.Invariant($"  Ø{g.BarDiameterMm:0.#} x {g.BarLengthMm:0.#}") : "") + "\n";
             if (!g.HasBar)
                 return text + "    Ayna anahtarını tak, çeneleri aç,\n    yuvarlak çubuğu aynaya sür\n";
@@ -306,6 +353,10 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
                 ? "[Tık] Aynaya sür" + what
                 : $"Çeneler dar: {g.OpeningMm:0} mm, tutulan kısım {size:0.#} mm (ayna anahtarıyla aç)";
         }
+        if (player.Held is ChuckItem other)
+            return g.HasBar ? "Ayna değiştirmek için önce parçayı çıkar"
+                : g.KeyIn ? "Önce ayna anahtarını çıkar"
+                : $"[Tık] {other.DisplayName} tak ({ChuckItem.NameOf(g.Kind).ToLowerInvariant()} sök)";
         if (player.Held is JawSetItem set)
             return g.HasBar ? "Çene değiştirmek için önce parçayı çıkar"
                 : !g.KeyIn ? "Çeneler ayna anahtarıyla sökülür: önce anahtarı tak"
@@ -334,6 +385,8 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
         }
         else if (player.Held is JawSetItem set)
             SwapJaws(player, set);
+        else if (player.Held is ChuckItem chuck)
+            SwapChuck(player, chuck);
         else if (player.Held is StockItem bar && Grip.Jaws == JawKind.Soft && !Grip.HasBar && !MilledBefore(bar)
                  && Placement(player, bar) is var (barTurn, barReversed) && GripSizeMm(bar, barTurn, barReversed) is var size
                  && !Grip.SoftJawsFit(size) && Grip.BoreSoftJaws(size))

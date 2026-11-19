@@ -1,7 +1,99 @@
-[gd_resource type="Resource" script_class="WorkOrder" load_steps=7 format=3]
+[gd_resource type="Resource" script_class="WorkOrder" load_steps=24 format=3]
 
 [ext_resource type="Script" path="res://Scripts/Inspection/WorkOrder.cs" id="1_order"]
 [ext_resource type="Script" path="res://Scripts/Inspection/PartFeature.cs" id="2_feature"]
+[ext_resource type="Texture2D" path="res://Machines/WorkOrders/drawings/ie_0002_cepli_plaka.svg" id="3_drawing"]
+[ext_resource type="Script" path="res://Scripts/Inspection/DrawingNote.cs" id="4_note"]
+
+[sub_resource type="Resource" id="Note_0"]
+script = ExtResource("4_note")
+Position = Vector2(215, 340)
+Text = "120"
+FontSizePx = 14
+
+[sub_resource type="Resource" id="Note_1"]
+script = ExtResource("4_note")
+Position = Vector2(442, 205)
+Text = "80"
+FontSizePx = 14
+
+[sub_resource type="Resource" id="Note_2"]
+script = ExtResource("4_note")
+Position = Vector2(196, 146)
+Text = "50 ±0,1"
+FontSizePx = 14
+
+[sub_resource type="Resource" id="Note_3"]
+script = ExtResource("4_note")
+Position = Vector2(166, 204)
+Text = "30 ±0,1"
+FontSizePx = 14
+
+[sub_resource type="Resource" id="Note_4"]
+script = ExtResource("4_note")
+Position = Vector2(215, 366)
+Text = "100"
+FontSizePx = 14
+
+[sub_resource type="Resource" id="Note_5"]
+script = ExtResource("4_note")
+Position = Vector2(336, 74)
+Text = "Kanal R34, en 6, derinlik 3"
+FontSizePx = 14
+
+[sub_resource type="Resource" id="Note_6"]
+script = ExtResource("4_note")
+Position = Vector2(40, 404)
+Text = "4x Ø6 derinlik 8, aralık 100 x 60"
+FontSizePx = 14
+
+[sub_resource type="Resource" id="Note_7"]
+script = ExtResource("4_note")
+Position = Vector2(490, 268)
+Text = "Cep derinliği 6 ±0,1"
+FontSizePx = 14
+
+[sub_resource type="Resource" id="Note_8"]
+script = ExtResource("4_note")
+Position = Vector2(606, 290)
+Text = "29 ±0,1"
+FontSizePx = 14
+
+[sub_resource type="Resource" id="Note_9"]
+script = ExtResource("4_note")
+Position = Vector2(500, 130)
+Text = "Yan görünüş (kesit A-A)"
+FontSizePx = 14
+
+[sub_resource type="Resource" id="Note_10"]
+script = ExtResource("4_note")
+Position = Vector2(40, 44)
+Text = "Üst görünüş   X/Y sıfırı merkez, Z0 ham üst yüzey"
+FontSizePx = 14
+
+[sub_resource type="Resource" id="Note_11"]
+script = ExtResource("4_note")
+Position = Vector2(458, 444)
+Text = "İE-0002"
+FontSizePx = 12
+
+[sub_resource type="Resource" id="Note_12"]
+script = ExtResource("4_note")
+Position = Vector2(458, 459)
+Text = "Al  120x80x30"
+FontSizePx = 12
+
+[sub_resource type="Resource" id="Note_13"]
+script = ExtResource("4_note")
+Position = Vector2(566, 444)
+Text = "CEPLİ PLAKA"
+FontSizePx = 12
+
+[sub_resource type="Resource" id="Note_14"]
+script = ExtResource("4_note")
+Position = Vector2(566, 459)
+Text = "Ölçek 1:3  ölçüler mm"
+FontSizePx = 12
 
 [sub_resource type="Resource" id="Feature_thick"]
 script = ExtResource("2_feature")
@@ -48,4 +140,6 @@ StockSizeMm = Vector3(120, 80, 30)
 Program = "nc_files/demo_mill_pocket.ngc"
 Notes = "Bloğu mengeneye paralellerle bağla. X/Y sıfırı bloğun ortası, Z0 ham üst yüzey.
 Her takımın boyunu ölç (G43). Yüzey frezeleme 1 mm alır: kalınlık 29 mm."
+Drawing = ExtResource("3_drawing")
+DrawingNotes = [SubResource("Note_0"), SubResource("Note_1"), SubResource("Note_2"), SubResource("Note_3"), SubResource("Note_4"), SubResource("Note_5"), SubResource("Note_6"), SubResource("Note_7"), SubResource("Note_8"), SubResource("Note_9"), SubResource("Note_10"), SubResource("Note_11"), SubResource("Note_12"), SubResource("Note_13"), SubResource("Note_14")]
 Features = Array[ExtResource("2_feature")]([SubResource("Feature_thick"), SubResource("Feature_depth"), SubResource("Feature_len"), SubResource("Feature_width")])

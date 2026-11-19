@@ -197,8 +197,11 @@ door on enclosed machines.
    sub-voxel), `WithSurface` (adds Ra). Live-verified with the demo programs
    (`TmpLive` + `CNC_LIVE_ORDER`). Still to do: place `Scenes/Workshop/JobBoard.tscn`
    and `InspectionTable.tscn` in `Main.tscn` (left out on purpose while the
-   user edits that scene); a drawn 2D drawing instead of the text card; more
-   orders.
+   user edits that scene); more orders. Drawings: `WorkOrder.Drawing` (an
+   SVG under `Machines/WorkOrders/drawings/`) + `DrawingNotes` (text, since
+   Godot's SVG import drops `<text>` and markers: arrowheads are paths),
+   drawn bottom-left by `Player.DrawingView` while the order is open. Not
+   checked by eye in the running game (headless cannot render text).
 4. Not modelled: guards on open bench machines, RTCP, persistence of cut
    state across a restart, tool deflection, a
    locking rotary brake (LinuxCNC `LOCKING_INDEXER` needs an unlock handshake
@@ -257,8 +260,28 @@ door on enclosed machines.
    Ø66.4 on its outside, no incident. Not done: a boring bar running into
    the jaws inside the bore is not checked; soft jaws for ID; the lathe's
    workpiece profile assumes a turned part's StepMm is its own 0.1 mm;
-   reversed jaws' larger reach in the turret collision, changing the chuck
-   itself (3/4-jaw / collet), gauge blocks.
+   reversed jaws' larger reach in the turret collision.
+   Chucks (`ChuckGrip.Kind`, `ChuckItem`, two more on the floor by the jaw
+   rack): 3-jaw; 4-jaw independent (seats ~0.3 mm off, the mallet becomes
+   a per-jaw adjustment at any tightness, dials in to microns); collet (bars
+   up to 40 % of the jaw chuck's opening, ~0.002 mm runout, no jaws, no ID).
+   Each has its rated speed (`LatheStructure.ChuckMaxRpm` / `FourJawMaxRpm` /
+   `ColletMaxRpm`); the INI keeps the fitted chuck's, a slower chuck swapped
+   in is only warned about. Live (TmpLathe `collet`): swapped by the player,
+   Ø20 bar 0.0021 mm runout, turned with no incident.
+   Gauge block: `HandToolKind.GaugeBlock` (50.000 mm Z setting block) on the
+   tool bench, felt like the paper (`Interaction.FeelerGauge`, fit ±0.01 mm
+   against the paper's ±0.03); `MillCutting.TipGapMm` searches coarse then
+   fine. Live (TmpFix `block`): snug at Z50.000, free at 50.020.
+   Fanuc T0101 (`MachineSpec.ToolCalls = FanucTurret`, disc-turret lathes
+   only): the INI gets `REMAP = T prolog=get_T_number ngc=fanuc_t` + a
+   [PYTHON] section; `linuxcnc-config/fanuc_t.ngc` does M6 + G43 H<offset>
+   (`remap.py` / `toplevel.py` from LinuxCNC's lathe-fanucy sample); the
+   turret confirms its own index (`ProceduralMachine.IndexTurret`). The
+   bridge exports INI_FILE_NAME and runs from the config dir so the GRAPH
+   preview's interpreter sees the remap too. Live: `lathe_kademeli_mil_fanuc`
+   on preset 2 graded KABUL 100/100, preview clear. No preset uses it by
+   default. Wear stays Godot-side (PR #23), not T10001 rows.
    Touch probe (T8 on the bench and VMC mills, `ToolKind.TouchProbe`): the
    bridge nets its own `probe` pin to `motion.probe-input` (basic_sim leaves
    it free) and PROBE_INPUT (24) drives it; `MillCutting` samples 26 points

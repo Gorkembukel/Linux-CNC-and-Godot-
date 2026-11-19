@@ -45,6 +45,19 @@ public partial class LatheStructure : Resource
     [Export] public int ChuckJawCount = 3;
     /// <summary>Highest speed the chuck is rated for; the spindle is limited to it.</summary>
     [Export] public float ChuckMaxRpm = 4000f;
+    /// <summary>Highest speed for the four-jaw independent chuck on the rack
+    /// (heavier, unbalanced jaws); running faster with it fitted is warned.</summary>
+    [Export] public float FourJawMaxRpm = 1500f;
+    /// <summary>Highest speed for the collet chuck on the rack.</summary>
+    [Export] public float ColletMaxRpm = 5000f;
+
+    /// <summary>The rated speed of whichever chuck is fitted.</summary>
+    public float MaxRpmFor(Fixtures.ChuckKind kind) => kind switch
+    {
+        Fixtures.ChuckKind.FourJawIndependent => FourJawMaxRpm,
+        Fixtures.ChuckKind.Collet => ColletMaxRpm,
+        _ => ChuckMaxRpm,
+    };
 
     /// <summary>Disc: every tool sits on an indexing turret. ToolPost: one
     /// holder, the active tool is swapped in.</summary>

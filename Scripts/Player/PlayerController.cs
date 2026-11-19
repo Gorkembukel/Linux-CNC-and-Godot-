@@ -106,6 +106,9 @@ public partial class PlayerController : CharacterBody3D
     private Label _crosshair;
     private Label _statusLabel;
     private Label _sheetLabel, _jobLabel;
+    private DrawingView _jobDrawing;
+    /// <summary>Width of the job's drawing in the bottom-left corner (px).</summary>
+    private const float JobDrawingWidth = 420f;
 
     /// <summary>A live reading from whatever the player is measuring with;
     /// set every frame by its source, shown under the crosshair.</summary>
@@ -259,6 +262,16 @@ public partial class PlayerController : CharacterBody3D
         _jobLabel.AddThemeFontSizeOverride("font_size", 13);
         _jobLabel.AddThemeColorOverride("font_shadow_color", new Color(0f, 0f, 0f, 0.8f));
         ui.AddChild(_jobLabel);
+
+        _jobDrawing = new DrawingView
+        {
+            Visible = false,
+            AnchorTop = 1f, AnchorBottom = 1f,
+            OffsetLeft = 12f, OffsetRight = 12f + JobDrawingWidth,
+            OffsetTop = -12f - JobDrawingWidth * 2f / 3f, OffsetBottom = -12f,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        ui.AddChild(_jobDrawing);
 
         _glassesLabel = new Label { Text = "Koruyucu gözlük takılı   [G] çıkar", Visible = false };
         _glassesLabel.AddThemeColorOverride("font_color", new Color(0.6f, 0.85f, 1f));
@@ -765,7 +778,9 @@ public partial class PlayerController : CharacterBody3D
                 && (nearest == null || GlobalPosition.DistanceTo(sheet.SheetPosition) < GlobalPosition.DistanceTo(nearest.SheetPosition)))
                 nearest = sheet;
         _sheetLabel.Text = nearest?.SheetText ?? "";
-        _jobLabel.Text = (GetTree().GetFirstNodeInGroup(IJobCard.Group) as IJobCard)?.CardText ?? "";
+        var card = GetTree().GetFirstNodeInGroup(IJobCard.Group) as IJobCard;
+        _jobLabel.Text = card?.CardText ?? "";
+        _jobDrawing.Drawing = card?.CardDrawing;
         _noticeTime -= GetPhysicsProcessDeltaTime();
         if (_noticeTime <= 0.0)
             _noticeLabel.Text = "";

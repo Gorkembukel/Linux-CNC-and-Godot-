@@ -15,6 +15,20 @@ public enum JawKind
     Soft,
 }
 
+/// <summary>The chuck itself, as fitted to the spindle nose.</summary>
+public enum ChuckKind
+{
+    /// <summary>Three-jaw self-centring: quick, holds to a few hundredths.</summary>
+    ThreeJaw,
+    /// <summary>Four-jaw independent: each jaw on its own screw. Seats well
+    /// off centre, but can be dialled in to a few microns, also when
+    /// tightened.</summary>
+    FourJawIndependent,
+    /// <summary>Collet chuck: a collet for every size, small bars only, near
+    /// dead true; no jaws to change and nothing to tap.</summary>
+    Collet,
+}
+
 /// <summary>
 /// State of a jaw chuck and the round bar in it: jaw opening, how hard it is
 /// tightened, whether the key is still in it, and how far the bar sticks
@@ -43,6 +57,10 @@ public sealed class ChuckGrip
     public float BarLengthMm { get; private set; }
     public float StickOutMm { get; private set; }
     public JawKind Jaws { get; private set; } = JawKind.Hard;
+    public ChuckKind Kind { get; private set; } = ChuckKind.ThreeJaw;
+    /// <summary>Largest bar a collet chuck takes, as a share of the jaw
+    /// chuck's opening.</summary>
+    public const float ColletCapacityShare = 0.4f;
     /// <summary>The diameter the soft jaws were bored for; null until they are.</summary>
     public float? SoftBoredForMm { get; private set; }
     /// <summary>The part is held by its bore: the jaws open out against it
@@ -62,8 +80,9 @@ public sealed class ChuckGrip
     public bool AtContact => HasBar && (Inside ? OpeningMm >= _boreMm : OpeningMm <= BarDiameterMm);
 
     /// <summary>Smallest and largest diameter the mounted jaws close on.</summary>
-    public float MinGripDiameterMm => Jaws == JawKind.HardReversed ? MaxOpeningMm * 0.5f : 0f;
-    public float MaxGripDiameterMm => Jaws == JawKind.HardReversed ? MaxOpeningMm * 1.3f : MaxOpeningMm;
+    public float MinGripDiameterMm => Kind != ChuckKind.Collet && Jaws == JawKind.HardReversed ? MaxOpeningMm * 0.5f : 0f;
+    public float MaxGripDiameterMm => Kind == ChuckKind.Collet ? MaxOpeningMm * ColletCapacityShare
+        : Jaws == JawKind.HardReversed ? MaxOpeningMm * 1.3f : MaxOpeningMm;
 
     public bool SoftJawsFit(float diameterMm) => SoftBoredForMm is float bored && Math.Abs(bored - diameterMm) <= SoftJawFitMm;
 
@@ -85,14 +104,16 @@ public sealed class ChuckGrip
     public float Slenderness => HasBar && BarDiameterMm > 0f ? StickOutMm / BarDiameterMm : 0f;
 
     public bool CanInsert(float diameterMm) => !HasBar && diameterMm >= MinGripDiameterMm && diameterMm <= MaxGripDiameterMm
-        && OpeningMm >= diameterMm + 1f && (Jaws != JawKind.Soft || SoftJawsFit(diameterMm));
+        && OpeningMm >= diameterMm + 1f && (Kind == ChuckKind.Collet || Jaws != JawKind.Soft || SoftJawsFit(diameterMm));
 
     /// <summary>Why a bar of this diameter cannot go into the mounted jaws,
     /// or null when it can (opening the jaws aside).</summary>
     public string WhyNot(float diameterMm) =>
-        diameterMm > MaxGripDiameterMm ? $"Parça bu çenelere sığmaz (en fazla {MaxGripDiameterMm:0} mm)"
+        diameterMm > MaxGripDiameterMm ? (Kind == ChuckKind.Collet
+            ? $"Pens aynası en fazla Ø{MaxGripDiameterMm:0} mm alır: ayna değiştir"
+            : $"Parça bu çenelere sığmaz (en fazla {MaxGripDiameterMm:0} mm)")
         : diameterMm < MinGripDiameterMm ? $"Ters çeneler bu kadar küçüğe kapanmaz (en az {MinGripDiameterMm:0} mm): sert çeneleri tak"
-        : Jaws == JawKind.Soft && !SoftJawsFit(diameterMm) ? "Yumuşak çeneler bu çapa tornalanmadı"
+        : Kind != ChuckKind.Collet && Jaws == JawKind.Soft && !SoftJawsFit(diameterMm) ? "Yumuşak çeneler bu çapa tornalanmadı"
         : null;
 
     /// <summary>A part with this bore can be slid over the jaws to be held
@@ -102,7 +123,8 @@ public sealed class ChuckGrip
     /// <summary>Why a part cannot be held by a bore this size, or null when
     /// it can (closing the jaws aside).</summary>
     public string WhyNotInside(float boreMm) =>
-        Jaws != JawKind.Hard ? "İçten bağlama sert çenelerle olur (normal yönde takılı)"
+        Kind == ChuckKind.Collet ? "Pens aynası içten bağlamaz"
+        : Jaws != JawKind.Hard ? "İçten bağlama sert çenelerle olur (normal yönde takılı)"
         : boreMm < MinBoreGripMm ? $"Delik çenelerin içine girmeye çok dar (en az Ø{MinBoreGripMm:0} mm)"
         : boreMm > MaxBoreGripMm ? $"Delik çenelerin açılabildiğinden geniş (en fazla Ø{MaxBoreGripMm:0} mm)"
         : null;
@@ -133,7 +155,24 @@ public sealed class ChuckGrip
             return "Çene değiştirmek için önce parçayı çıkar";
         if (!KeyIn)
             return "Çeneler ayna anahtarıyla sökülür: önce anahtarı tak";
+        if (Kind == ChuckKind.Collet)
+            return "Pens aynasının çenesi yok: önce çeneli aynayı tak";
         Jaws = kind;
+        SoftBoredForMm = null;
+        OpeningMm = Math.Clamp(OpeningMm, MinGripDiameterMm, MaxGripDiameterMm);
+        return null;
+    }
+
+    /// <summary>Swaps the chuck on the spindle nose; only with nothing in
+    /// it. The new chuck comes with hard jaws. Returns why not, or null.</summary>
+    public string ChangeChuck(ChuckKind kind)
+    {
+        if (HasBar)
+            return "Ayna değiştirmek için önce parçayı çıkar";
+        if (KeyIn)
+            return "Önce ayna anahtarını çıkar";
+        Kind = kind;
+        Jaws = JawKind.Hard;
         SoftBoredForMm = null;
         OpeningMm = Math.Clamp(OpeningMm, MinGripDiameterMm, MaxGripDiameterMm);
         return null;
@@ -176,8 +215,14 @@ public sealed class ChuckGrip
     private void SeatRunout()
     {
         double a = _rng.NextDouble() * Math.Tau, b = _rng.NextDouble() * Math.Tau;
-        // Jaws bored in place for this very diameter hold it nearly true.
-        float scale = Jaws == JawKind.Soft ? 0.12f : 1f;
+        // Jaws bored in place for this very diameter hold it nearly true; a
+        // collet nearly so; four independent jaws seat it well off until dialled in.
+        float scale = Kind switch
+        {
+            ChuckKind.Collet => 0.05f,
+            ChuckKind.FourJawIndependent => 6f,
+            _ => Jaws == JawKind.Soft ? 0.12f : 1f,
+        };
         float e = scale * (0.015f + 0.045f * (float)_rng.NextDouble()), t = scale * 0.02f * (float)_rng.NextDouble();
         OffsetMm = (e * (float)Math.Cos(a), e * (float)Math.Sin(a));
         TiltPer100Mm = (t * (float)Math.Cos(b), t * (float)Math.Sin(b));
@@ -218,6 +263,10 @@ public sealed class ChuckGrip
     {
         if (!HasBar)
             return null;
+        if (Kind == ChuckKind.Collet)
+            return "Pens kendini merkezler: vurmakla oynamaz";
+        if (Kind == ChuckKind.FourJawIndependent)
+            return AdjustJaw(angle);
         if (Torque >= FullTorque)
             return "Ayna tam sıkı: vurmakla oynamaz, bir kademe gevşet";
         if (Torque < 2)
@@ -227,6 +276,20 @@ public sealed class ChuckGrip
         float push = high > 0f ? high * (0.5f + 0.2f * (float)_rng.NextDouble()) : 0.01f;
         OffsetMm = (OffsetMm.X - cos * push, OffsetMm.Y - sin * push);
         return high > 0f ? "Tık: parça merkeze yaklaştı" : "Tık: alçak taraftan vuruldu, salgı arttı";
+    }
+
+    /// <summary>Four-jaw chuck: the jaw on this side backed off and the
+    /// opposite one taken up, a turn of the key each, at any tightness.</summary>
+    private string AdjustJaw(float angle)
+    {
+        if (Torque < 1)
+            return "Bağımsız ayna: önce dört çeneyi de hafif sık";
+        float cos = (float)Math.Cos(angle), sin = (float)Math.Sin(angle);
+        float high = OffsetMm.X * cos + OffsetMm.Y * sin;
+        float push = high * (0.85f + 0.1f * (float)_rng.NextDouble());
+        OffsetMm = (OffsetMm.X - cos * push, OffsetMm.Y - sin * push);
+        return high > 0f ? "Bu taraftaki çene gevşetildi, karşısı sıkıldı: parça merkeze yaklaştı"
+            : "Alçak taraftaki çene ayarlandı: salgı arttı";
     }
 
     public void Remove()

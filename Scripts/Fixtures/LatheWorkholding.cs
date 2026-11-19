@@ -87,6 +87,14 @@ public partial class LatheWorkholding : MachineSetup, ISawable, IThreaded
             rack.AddChild(set);
             set.Position = new Vector3(x, 0.85f, 0f);
         }
+        // The other chucks stand on the floor beside the rack.
+        foreach (var (kind, z) in new[] { (ChuckKind.FourJawIndependent, -0.25f), (ChuckKind.Collet, 0.25f) })
+        {
+            var chuck = ChuckItem.Create(kind);
+            chuck.Freeze = true;
+            rack.AddChild(chuck);
+            chuck.Position = new Vector3(0f, 0.02f, z);
+        }
     }
 
     private float LiveLengthMm() => (_workpiece.Profile.LiveRadii().Length - 1) * _workpiece.Profile.StepMm;
@@ -252,7 +260,22 @@ public partial class LatheWorkholding : MachineSetup, ISawable, IThreaded
         _workpiece.RotateX(Mathf.DegToRad(spin));
         CheckDoorInterlock();
         CheckKeyLeftIn(Chuck, rpm > 1f, "AYNA ANAHTARI FIRLADI: anahtar aynada unutuldu, iş mili çalıştırıldı");
+        CheckChuckSpeed(rpm);
         UpdateIndicator(rpm > 1f);
+    }
+
+    private bool _overSpeedWarned;
+
+    /// <summary>The control only knows the chuck it was set up with; a
+    /// slower chuck fitted since is the operator's to respect.</summary>
+    private void CheckChuckSpeed(float rpm)
+    {
+        float limit = Spec.Lathe.MaxRpmFor(Chuck.Grip.Kind);
+        bool over = rpm > limit + 1f;
+        if (over && !_overSpeedWarned)
+            Safety.Warn(System.FormattableString.Invariant(
+                $"{ChuckItem.NameOf(Chuck.Grip.Kind)} en fazla {limit:0} dev/dk: iş mili {rpm:0} dev/dk dönüyor (S değerini düşür)"));
+        _overSpeedWarned = over;
     }
 
     // A dial indicator on the bar, read while the chuck is turned by hand.

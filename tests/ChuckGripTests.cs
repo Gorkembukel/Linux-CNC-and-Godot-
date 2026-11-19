@@ -198,4 +198,64 @@ public class ChuckGripTests
         grip.ChangeJaws(JawKind.Soft);
         Assert.NotNull(grip.WhyNotInside(40f));
     }
+
+    private static ChuckGrip Fitted(ChuckKind kind)
+    {
+        var grip = new ChuckGrip(80f, 30f, 30f, 250f);
+        Assert.Null(grip.ChangeChuck(kind));
+        grip.KeyIn = true;
+        return grip;
+    }
+
+    private static void Tighten(ChuckGrip grip, int torque)
+    {
+        for (int i = 0; i < 40 && grip.Torque < torque; i++)
+            grip.TurnKey(1);
+    }
+
+    [Fact]
+    public void Collet_TakesOnlySmallBars_AndHoldsThemNearlyTrue()
+    {
+        var grip = Fitted(ChuckKind.Collet);
+        Assert.Equal(32f, grip.MaxGripDiameterMm);
+        Assert.NotNull(grip.WhyNot(40f));
+        Assert.NotNull(grip.WhyNotInside(20f));
+        Assert.NotNull(grip.ChangeJaws(JawKind.Soft));
+        while (!grip.CanInsert(20f)) grip.TurnKey(-1);
+        Assert.True(grip.Insert(20f, 100f));
+        Assert.True(grip.RunoutMm(0f) < 0.007f, $"runout {grip.RunoutMm(0f)}");
+        Tighten(grip, 2);
+        Assert.Contains("Pens", grip.Tap(0f));
+    }
+
+    [Fact]
+    public void FourJaw_SeatsOffCentre_ButDialsInWhileTight()
+    {
+        var grip = Fitted(ChuckKind.FourJawIndependent);
+        while (!grip.CanInsert(50f)) grip.TurnKey(-1);
+        grip.Insert(50f, 120f);
+        Tighten(grip, ChuckGrip.FullTorque);
+        float before = grip.RunoutMm(0f);
+        Assert.True(before > 0.15f, $"runout {before}");
+        for (int i = 0; i < 6; i++)
+        {
+            var o = grip.OffsetMm;
+            grip.Tap(System.MathF.Atan2(o.Y, o.X));
+        }
+        Assert.True(grip.RunoutMm(0f) < 0.01f, $"after {grip.RunoutMm(0f)}");
+    }
+
+    [Fact]
+    public void ChuckChange_NeedsAnEmptyChuckAndTheKeyOut()
+    {
+        var grip = new ChuckGrip(80f, 30f, 30f, 250f);
+        grip.KeyIn = true;
+        Assert.NotNull(grip.ChangeChuck(ChuckKind.Collet));
+        grip.KeyIn = false;
+        grip.Insert(20f, 100f);
+        Assert.NotNull(grip.ChangeChuck(ChuckKind.Collet));
+        grip.Remove();
+        Assert.Null(grip.ChangeChuck(ChuckKind.Collet));
+        Assert.Equal(ChuckKind.Collet, grip.Kind);
+    }
 }

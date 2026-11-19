@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="480" viewBox="0 0 720 480" font-family="DejaVu Sans, Arial, sans-serif">
+  <rect width="720" height="480" fill="#ffffff"/>
+  <rect x="8" y="8" width="704" height="464" fill="none" stroke="#000" stroke-width="2"/>
+  <!-- scale 7 px/mm, axis at y=210, free end (Z0) at x=520, chuck side to the left -->
+  <line x1="120" y1="210" x2="560" y2="210" stroke="#000" stroke-width="0.8" stroke-dasharray="18 4 3 4"/>
+  <!-- profile: Ø20 0..15, Ø32 15..32, Ø36 32..52, C1 at the start of each -->
+  <path d="M156,84 L289,84 L296,91 L296,98 L408,98 L415,105 L415,140 L513,140 L520,147 L520,273 L513,280 L415,280 L415,315 L408,322 L296,322 L296,329 L289,336 L156,336 Z"
+        fill="#f4f4f4" stroke="#000" stroke-width="2.2"/>
+  <g stroke="#000" stroke-width="1.2">
+    <line x1="289" y1="84" x2="289" y2="336"/>
+    <line x1="408" y1="98" x2="408" y2="322"/>
+    <line x1="513" y1="140" x2="513" y2="280"/>
+  </g>
+  <g stroke="#000" stroke-width="1" fill="none">
+    <line x1="220" y1="84" x2="220" y2="336"/>
+    <line x1="355" y1="98" x2="355" y2="322"/>
+    <line x1="470" y1="140" x2="470" y2="280"/>
+  </g>
+  <g stroke="#000" stroke-width="1">
+    <line x1="520" y1="285" x2="520" y2="422"/>
+    <line x1="415" y1="320" x2="415" y2="387"/>
+    <line x1="296" y1="340" x2="296" y2="402"/>
+    <line x1="156" y1="340" x2="156" y2="422"/>
+    <line x1="415" y1="382" x2="520" y2="382"/>
+    <line x1="296" y1="397" x2="520" y2="397"/>
+    <line x1="156" y1="417" x2="520" y2="417"/>
+  </g>
+  <!-- title block -->
+  <g stroke="#000" stroke-width="1.5" fill="none">
+    <rect x="452" y="430" width="252" height="34"/>
+    <line x1="560" y1="430" x2="560" y2="464"/>
+  </g>
+  <path d="M220.0,336.0 L217.0,327.0 L223.0,327.0 Z" fill="#000"/>
+  <path d="M220.0,84.0 L223.0,93.0 L217.0,93.0 Z" fill="#000"/>
+  <path d="M355.0,322.0 L352.0,313.0 L358.0,313.0 Z" fill="#000"/>
+  <path d="M355.0,98.0 L358.0,107.0 L352.0,107.0 Z" fill="#000"/>
+  <path d="M470.0,280.0 L467.0,271.0 L473.0,271.0 Z" fill="#000"/>
+  <path d="M470.0,140.0 L473.0,149.0 L467.0,149.0 Z" fill="#000"/>
+  <path d="M520.0,382.0 L511.0,385.0 L511.0,379.0 Z" fill="#000"/>
+  <path d="M415.0,382.0 L424.0,379.0 L424.0,385.0 Z" fill="#000"/>
+  <path d="M520.0,397.0 L511.0,400.0 L511.0,394.0 Z" fill="#000"/>
+  <path d="M296.0,397.0 L305.0,394.0 L305.0,400.0 Z" fill="#000"/>
+  <path d="M520.0,417.0 L511.0,420.0 L511.0,414.0 Z" fill="#000"/>
+  <path d="M156.0,417.0 L165.0,414.0 L165.0,420.0 Z" fill="#000"/>
+</svg>

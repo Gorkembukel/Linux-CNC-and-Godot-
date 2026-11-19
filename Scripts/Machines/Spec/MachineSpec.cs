@@ -8,6 +8,16 @@ using CncTrainer.Chips;
 
 namespace CncTrainer.Spec;
 
+
+/// <summary>How a machine's programs call tools.</summary>
+public enum ToolCallStyle
+{
+    /// <summary>LinuxCNC / RS274NGC: T1 M6, then G43 H1 for the offset.</summary>
+    LinuxCnc,
+    /// <summary>Fanuc lathe: T0101 = turret station 01 with offset 01.</summary>
+    FanucTurret,
+}
+
 /// <summary>Kind of machine a MachineSpec builds.</summary>
 public enum MachineKind
 {
@@ -45,6 +55,16 @@ public partial class MachineSpec : Resource
     [Export] public bool UseToolChangePosition;
     /// <summary>Machine X/Y/Z the control moves to before a tool change.</summary>
     [Export] public Vector3 ToolChangePosition;
+    /// <summary>How programs call tools. LinuxCnc: T1 M6 then G43 H1, every
+    /// change waits for TOOL CHG END. FanucTurret (lathes with a disc
+    /// turret): T0101 = station 1 with offset 1 in one word, the turret
+    /// indexes by itself; under it a bare T1 means offset 1 on station 0,
+    /// so the two styles cannot be mixed in one machine's programs.</summary>
+    [Export] public ToolCallStyle ToolCalls = ToolCallStyle.LinuxCnc;
+
+    /// <summary>T0101 calls are in force (only a disc-turret lathe takes them).</summary>
+    public bool FanucToolCalls => ToolCalls == ToolCallStyle.FanucTurret && Kind == MachineKind.Lathe
+        && Lathe is { Turret: TurretKind.Disc };
 
     /// <summary>Mills: list order is the kinematic chain, the first entry
     /// of each side sits closest to the machine base.</summary>
@@ -127,7 +147,8 @@ public partial class MachineSpec : Resource
         UseToolChangePosition ? ToolChangePosition + new Vector3(0f, 0f, ToolLengths().ZControlOffsetMm) : null,
         new IniExtras(EffectiveMaxRpm, SpindleMinRpm,
             Kind == MachineKind.Mill && Mill is { MagazinePockets: > 0, RandomToolChanger: true },
-            Kind == MachineKind.Lathe && Lathe != null ? (Lathe.DiameterMode ? "G7 G18" : "G8 G18") : ""));
+            Kind == MachineKind.Lathe && Lathe != null ? (Lathe.DiameterMode ? "G7 G18" : "G8 G18") : "",
+            FanucToolCalls));
 
     public string ToolTable()
     {

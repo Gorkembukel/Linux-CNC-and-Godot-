@@ -183,6 +183,9 @@ A setup sheet on the right of the screen ticks each step off.
    side: `G38.2 Y-30 F50` from outside it, then the edge's coordinate less
    the 2 mm ball radius (`Y-42` for an edge at Y-40), **MEASURE**. Driving the probe in with G0/G1 stops the
    control (or breaks the stylus).
+   For tool lengths without paper, the **Z setting block** (50.000 mm) on the
+   bench: stand it on the part, step down until it is snug, type `Z50`,
+   **MEASURE**.
    Or by hand: MDI `T9 M6` (edge finder, then TOOL CHG END),
    **HANDLE**, creep up to the left edge until the finder kicks; **OFS/SET >
    WORK**, type `X-5`, **MEASURE**. Same for Y. Then the cutter, hold the
@@ -206,11 +209,28 @@ close them smaller than the bore, slide the part over them bore first, then
 the key **opens** the jaws out against the bore and tightens. The whole
 outside is free to turn; the bore must be at least 15 mm deep.
 
+### Chucks
+
+Two more chucks stand on the floor by the jaw rack. With the chuck empty and
+the key out, click it with one in hand to swap: the **4-jaw independent**
+chuck seats a bar well off centre, then the mallet (with the dial on the bar)
+adjusts one jaw against the other, also when tight, down to microns; the
+**collet** chuck takes small bars only and holds them nearly dead true. Each
+chuck has its own speed limit; going faster is warned.
+
+### Fanuc-style tool calls
+
+A lathe with a disc turret can take Fanuc calls: set `ToolCalls` to
+`FanucTurret` in its MachineSpec. `T0101` then indexes station 1 and applies
+offset 1 in one word, and the turret turns by itself (no TOOL CHG END). See
+`nc_files/lathe_kademeli_mil_fanuc.ngc`. Under it a bare `T1` means offset 1
+on station 0, so a machine uses one style or the other.
+
 ### Work orders
 
 The work order board (**İŞ EMİRLERİ**): the wheel leafs through the orders,
-a click takes one. Its drawing stays top left: material, stock, program and
-every toleranced size. Make the part, then put it on the quality control
+a click takes one. Its card stays top left (material, stock, program and
+every toleranced size) and its technical drawing bottom left. Make the part, then put it on the quality control
 table (**KALİTE KONTROL**): the report card lists each size as measured, the
 material, the surface roughness, any incident since the order was taken, a
 score and where to look first when it fails. Orders are `.tres` files under

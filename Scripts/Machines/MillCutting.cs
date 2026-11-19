@@ -168,16 +168,26 @@ public sealed class MillCutting : CuttingProcess
 
     /// <summary>Gap between the tool tip and the stock straight below it
     /// (mm), or null when there is nothing within 2 mm.</summary>
-    public float? TipGapMm()
+    public float? TipGapMm(float maxMm = 2f)
     {
         if (_stock == null || _lastPose is not Transform3D pose)
             return null;
         var axis = pose.Basis.Y.Normalized();
-        for (float gap = 0f; gap <= 2f; gap += 0.01f)
-            if (_stock.Stock.SampleDistance(pose.Origin - axis * gap) >= 0f)
-                return gap;
+        bool Solid(float gap) => _stock.Stock.SampleDistance(pose.Origin - axis * gap) >= 0f;
+        // Coarse steps down to the surface, then 0.005 mm back up to it.
+        for (float coarse = 0f; coarse <= maxMm + CoarseGapStepMm; coarse += CoarseGapStepMm)
+        {
+            if (!Solid(coarse))
+                continue;
+            float gap = coarse;
+            while (gap > 0f && Solid(gap - FineGapStepMm))
+                gap -= FineGapStepMm;
+            return gap <= maxMm ? gap : null;
+        }
         return null;
     }
+
+    private const float CoarseGapStepMm = 0.25f, FineGapStepMm = 0.005f;
 
     protected override Vector3 MoveBody(double delta)
     {

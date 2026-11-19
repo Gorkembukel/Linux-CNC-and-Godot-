@@ -185,6 +185,28 @@ public partial class ProceduralMachine : Node3D, IMachine
         }
     }
 
+    private double _indexTimer;
+
+    /// <summary>A Fanuc-style turret indexes on the T word by itself: the
+    /// tool change is confirmed without TOOL CHG END.</summary>
+    private void IndexTurret(double delta)
+    {
+        if (!Spec.FanucToolCalls || Rig?.Bridge is not { } bridge || !bridge.State.ToolChangePending)
+        {
+            _indexTimer = 0.0;
+            return;
+        }
+        _indexTimer += delta;
+        if (_indexTimer < TurretIndexSeconds)
+            return;
+        _indexTimer = 0.0;
+        bridge.ConfirmToolChange();
+    }
+
+    /// <summary>How long a turret index takes before the control is told
+    /// it is done.</summary>
+    private const double TurretIndexSeconds = 0.6;
+
     public override void _Process(double delta)
     {
         if (Engine.IsEditorHint())
@@ -199,6 +221,7 @@ public partial class ProceduralMachine : Node3D, IMachine
         }
 
         Cutting?.Process(delta);
+        IndexTurret(delta);
         if (Rig?.Monitor is { } monitor)
         {
             monitor.WearFactor = Rig.Bridge.State.Coolant ? Machining.CutMonitor.CoolantWearFactor : 1f;
