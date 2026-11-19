@@ -276,7 +276,8 @@ public partial class LatheWorkholding : MachineSetup, ISawable, IThreaded
     {
         var s = Bridge.State;
         float rpm = (float)System.Math.Abs(s.SpindleRpm);
-        float spin = Mathf.Min(rpm * 6f, MaxSpinDegPerSec) * (float)delta;
+        // Signed: M4 turns the other way.
+        float spin = Mathf.Sign((float)s.SpindleRpm) * Mathf.Min(rpm * 6f, MaxSpinDegPerSec) * (float)delta;
         Chuck.Spin(spin);
         _workpiece.RotateX(Mathf.DegToRad(spin));
         CheckDoorInterlock();

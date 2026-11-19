@@ -96,6 +96,14 @@ public partial class MachineSpec : Resource
     [Export] public float SpindleMaxRpm = 4000f;
     /// <summary>Lowest spindle speed the control allows.</summary>
     [Export] public float SpindleMinRpm;
+    /// <summary>How fast the spindle gains or loses speed (rpm per second),
+    /// the mass of chuck and work behind it: the control waits for it to
+    /// get up to speed before feeding. 0 = typical for the kind (a lathe's
+    /// heavy chuck 400, a mill 2500).</summary>
+    [Export(PropertyHint.Range, "0,20000,10,suffix:rpm/s")] public float SpindleAccelRpmPerSec;
+
+    /// <summary>The spindle's acceleration actually used.</summary>
+    public float EffectiveSpindleAccel => SpindleAccelRpmPerSec > 0f ? SpindleAccelRpmPerSec : Kind == MachineKind.Lathe ? 400f : 2500f;
     /// <summary>Top step of the console's jog feed dial (mm/min); the
     /// lower steps scale with it.</summary>
     [Export] public float JogMaxMmPerMin = 1260f;
@@ -148,7 +156,7 @@ public partial class MachineSpec : Resource
         new IniExtras(EffectiveMaxRpm, SpindleMinRpm,
             Kind == MachineKind.Mill && Mill is { MagazinePockets: > 0, RandomToolChanger: true },
             Kind == MachineKind.Lathe && Lathe != null ? (Lathe.DiameterMode ? "G7 G18" : "G8 G18") : "",
-            FanucToolCalls));
+            FanucToolCalls, EffectiveSpindleAccel));
 
     public string ToolTable()
     {

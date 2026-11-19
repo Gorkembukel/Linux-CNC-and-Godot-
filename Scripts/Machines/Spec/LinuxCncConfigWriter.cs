@@ -13,7 +13,7 @@ namespace CncTrainer.Spec;
 /// <summary>Machine-wide INI settings beyond the axes. SpindleMaxRpm 0 =
 /// no spindle speed limit written.</summary>
 public readonly record struct IniExtras(float SpindleMaxRpm = 0f, float SpindleMinRpm = 0f, bool RandomToolChanger = false, string StartupCode = "",
-    bool FanucToolCalls = false);
+    bool FanucToolCalls = false, float SpindleAccelRpmPerSec = 0f);
 
 public static class LinuxCncConfigWriter
 {
@@ -110,6 +110,7 @@ JOINTS = {joints.Length}
 [SPINDLE_0]
 MAX_FORWARD_VELOCITY = {extras.SpindleMaxRpm:F0}
 MIN_FORWARD_VELOCITY = {extras.SpindleMinRpm:F0}
+GODOT_ACCEL_RPM_PER_SEC = {extras.SpindleAccelRpmPerSec:F0}
 "));
 
         for (int joint = 0; joint < joints.Length; joint++)
