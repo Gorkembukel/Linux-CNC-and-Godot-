@@ -18,7 +18,7 @@
 [ext_resource type="PackedScene" path="res://Scenes/Workshop/ToolCart.tscn" id="18"]
 [ext_resource type="PackedScene" path="res://Scenes/Machines/BenchLatheBoring.tscn" id="18_346fj"]
 [ext_resource type="Script" uid="uid://do382wrytnimu" path="res://Scripts/Machines/Spec/MachineSpec.cs" id="18_jyqft"]
-[ext_resource type="Script" uid="uid://bdnxa6db6md8i" path="res://Scripts/Machines/Spec/ToolGeometry.cs" id="19_0sclb"]
+[ext_resource type="Resource" uid="uid://cujdchswnm04" path="res://Machines/Tools/custom_form_tool.tres" id="19_fq0cl"]
 [ext_resource type="PackedScene" path="res://Scenes/Machines/ThreadLathe.tscn" id="20_thrd"]
 [ext_resource type="PackedScene" path="res://Scenes/Workshop/SawBench.tscn" id="21_saw"]
 
@@ -155,24 +155,6 @@ TipRadiusMm = 0.4
 LengthMm = 60.0
 Orientation = 2
 
-[sub_resource type="Resource" id="Resource_gctiq"]
-script = ExtResource("19_0sclb")
-Insert = 2
-EdgeLengthMm = 50.0
-NoseRadiusMm = 0.4
-ApproachDeg = 107.5
-InsertColor = Color(0.25, 0.45, 0.8, 1)
-
-[sub_resource type="Resource" id="Resource_sxkr1"]
-script = ExtResource("17_hwpts")
-Number = 2
-Kind = 4
-Description = "VBMT 160404, 107.5° fine profiling"
-DiameterMm = 0.0
-TipRadiusMm = 0.4
-Color = Color(0.25, 0.45, 0.8, 1)
-Geometry = SubResource("Resource_gctiq")
-
 [sub_resource type="Resource" id="Resource_0sclb"]
 script = ExtResource("18_jyqft")
 Kind = 1
@@ -183,7 +165,7 @@ DemoProgram = "nc_files/lathe_delik_boring.ngc"
 UseToolChangePosition = true
 ToolChangePosition = Vector3(80, 0, 40)
 Axes = Array[ExtResource("15_sxkr1")]([SubResource("Resource_wgwj4"), SubResource("Resource_ae6dg")])
-Tools = Array[ExtResource("17_hwpts")]([SubResource("Resource_12dgx"), SubResource("Resource_txsrw"), SubResource("Resource_346fj"), SubResource("Resource_ak66g"), SubResource("Resource_sxkr1")])
+Tools = Array[ExtResource("17_hwpts")]([SubResource("Resource_12dgx"), SubResource("Resource_txsrw"), SubResource("Resource_346fj"), SubResource("Resource_ak66g"), ExtResource("19_fq0cl")])
 BodyColor = Color(0.15, 0.35, 0.22, 1)
 StockMaterial = 0
 SpindlePowerKw = 3.0
