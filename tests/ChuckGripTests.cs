@@ -135,4 +135,67 @@ public class ChuckGripTests
         Assert.True(grip.Insert(50.2f, 140f));
         Assert.True(grip.RunoutMm(0f) < 0.016f, $"runout {grip.RunoutMm(0f)}");
     }
+
+    [Fact]
+    public void Bore_IsHeldFromInside_WhenTheJawsCloseSmallerThanIt()
+    {
+        var grip = new ChuckGrip(80f, 30f, 30f, 250f);
+        grip.KeyIn = true;
+        Assert.False(grip.CanInsertInside(40f));
+        while (grip.OpeningMm > 38f)
+            grip.TurnKey(1);
+        Assert.True(grip.InsertInside(40f, 25f, 70f, 60f));
+        Assert.True(grip.Inside);
+        Assert.Equal(40f, grip.GripDiameterMm);
+        Assert.Equal(70f, grip.BarDiameterMm);
+        Assert.Equal(35f, grip.StickOutMm);
+        Assert.Equal(25f, grip.GripLengthMm);
+    }
+
+    [Fact]
+    public void HeldFromInside_TheKeyOpensOutThenTightens()
+    {
+        var grip = new ChuckGrip(80f, 30f, 30f, 250f);
+        grip.KeyIn = true;
+        while (grip.OpeningMm > 30f)
+            grip.TurnKey(1);
+        grip.InsertInside(40f, 25f, 70f, 60f);
+        Assert.False(grip.AtContact);
+        for (int i = 0; i < 10 && !grip.AtContact; i++)
+            grip.TurnKey(1);
+        Assert.True(grip.AtContact);
+        Assert.Equal(0, grip.Torque);
+        grip.TurnKey(1);
+        grip.TurnKey(1);
+        Assert.True(grip.HoldsFirmly);
+        grip.TurnKey(-1);
+        grip.TurnKey(-1);
+        grip.TurnKey(-1);
+        Assert.True(grip.OpeningMm < 40f);
+    }
+
+    [Fact]
+    public void ShallowBore_DoesNotHold()
+    {
+        var grip = new ChuckGrip(80f, 30f, 30f, 250f);
+        grip.KeyIn = true;
+        while (grip.OpeningMm > 30f)
+            grip.TurnKey(1);
+        grip.InsertInside(40f, 8f, 70f, 60f);
+        for (int i = 0; i < 10; i++)
+            grip.TurnKey(1);
+        Assert.False(grip.HoldsFirmly);
+    }
+
+    [Fact]
+    public void InsideGrip_NeedsHardJawsAndABoreTheyReach()
+    {
+        var grip = new ChuckGrip(80f, 30f, 30f, 250f);
+        Assert.NotNull(grip.WhyNotInside(10f));
+        Assert.NotNull(grip.WhyNotInside(90f));
+        Assert.Null(grip.WhyNotInside(40f));
+        grip.KeyIn = true;
+        grip.ChangeJaws(JawKind.Soft);
+        Assert.NotNull(grip.WhyNotInside(40f));
+    }
 }

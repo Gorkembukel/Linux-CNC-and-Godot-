@@ -122,9 +122,11 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
     {
         float inner = Grip.OpeningMm / 2f * M, jawRadial = RadiusM * 0.45f;
         var look = BodyParts.Mat(JawSetItem.ColorOf(Grip.Jaws), Grip.Jaws == JawKind.Soft ? 0.5f : 0.7f, 0.45f);
+        // Held by a bore, the jaws' outer faces bear on it instead.
+        float centre = Grip.Inside ? inner - jawRadial / 2f : inner + jawRadial / 2f;
         foreach (var jaw in _jaws)
         {
-            jaw.Position = new Vector3(-Grip.JawDepthMm * M * 0.35f, inner + jawRadial / 2f, 0f);
+            jaw.Position = new Vector3(-Grip.JawDepthMm * M * 0.35f, centre, 0f);
             jaw.MaterialOverride = look;
         }
         _key.Visible = Grip.KeyIn;
@@ -181,6 +183,8 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
                 + (g.HasBar ? System.FormattableString.Invariant($"  Ø{g.BarDiameterMm:0.#} x {g.BarLengthMm:0.#}") : "") + "\n";
             if (!g.HasBar)
                 return text + "    Ayna anahtarını tak, çeneleri aç,\n    yuvarlak çubuğu aynaya sür\n";
+            if (g.Inside)
+                text += System.FormattableString.Invariant($"    İçten bağlı: çeneler Ø{g.GripDiameterMm:0.#} deliğe açıldı\n");
             text += Sheet.Mark(g.GripLengthMm >= ChuckGrip.MinGripMm)
                 + System.FormattableString.Invariant($"Çıkıntı {g.StickOutMm:0} mm, çenede {g.GripLengthMm:0} mm\n");
             if (g.Slenderness > Machining.CuttingLoad.SlenderWorkRatio)
@@ -222,6 +226,17 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
         Seat.Put(item, this, new Transform3D(t, Vector3.Zero));
         if (item.Burred)
             Grip.AddRunout(0.03f);
+        Refresh();
+        Changed?.Invoke();
+        return true;
+    }
+
+    /// <summary>Puts a part on the jaws held by its bore.</summary>
+    public bool InsertBarInside(StockItem item, float boreMm, float boreDepthMm)
+    {
+        if (!Grip.InsertInside(boreMm, boreDepthMm, GripSizeMm(item, Basis.Identity), SquareTurn.Extents(Basis.Identity, item.Blank.BoundsM).X / WorldScale.MmToM))
+            return false;
+        Seat.Put(item, this, Transform3D.Identity);
         Refresh();
         Changed?.Invoke();
         return true;
@@ -275,6 +290,13 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
             float size = GripSizeMm(held, turn, reversed);
             if (g.Jaws == JawKind.Soft && !g.SoftJawsFit(size) && size <= g.MaxGripDiameterMm)
                 return System.FormattableString.Invariant($"[Tık] Yumuşak çeneleri bu parçaya göre tornala (Ø{size:0.##})");
+            if (!g.CanInsert(size) && BoreAt(held, reversed) is var (bore, depth))
+            {
+                if (g.CanInsertInside(bore))
+                    return System.FormattableString.Invariant($"[Tık] Aynaya içten bağla (delik Ø{bore:0.#}, {depth:0} mm derin)");
+                if (g.WhyNotInside(bore) is null)
+                    return System.FormattableString.Invariant($"İçten bağlamak için çeneleri Ø{bore - 1f:0}'in altına kapat (şimdi Ø{g.OpeningMm:0}), ya da dıştan bağlamak için aç");
+            }
             if (g.WhyNot(size) is string why)
                 return why;
             string what = held.Blank.Shape == StockShape.Block
@@ -291,7 +313,7 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
         if (player.Held != null)
             return null;
         if (g.KeyIn)
-            return (g.HasBar && g.OpeningMm <= g.BarDiameterMm
+            return (g.AtContact
                 ? $"[Tekerlek] Aynayı sık / gevşet   sıkma {g.Torque}/{ChuckGrip.FullTorque}"
                 : $"[Tekerlek] Çeneleri aç / kapat   Ø{g.OpeningMm:0} mm") + "   [Tık] Anahtarı çıkar";
         if (g.HasBar)
@@ -327,6 +349,15 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
                 item.ReverseTurned();
             InsertBar(item, turn);
         }
+        else if (player.Held is StockItem hollow && !MilledBefore(hollow) && !Grip.HasBar
+                 && Placement(player, hollow) is var (_, hollowReversed)
+                 && BoreAt(hollow, hollowReversed) is var (bore, depth) && Grip.CanInsertInside(bore))
+        {
+            player.ReleaseHeld();
+            if (hollowReversed)
+                hollow.ReverseTurned();
+            InsertBarInside(hollow, bore, depth);
+        }
         else if (player.Held == null && Grip.KeyIn)
             player.Give(TakeKey());
         else if (player.Held == null && Grip.HasBar && Grip.Torque == 0)
@@ -358,6 +389,22 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
             return Mathf.Max(across.Y, across.Z);
         }
         return item.Blank.DiameterMm;
+    }
+
+    /// <summary>The bore at the end of a turned part that goes in (diameter,
+    /// depth), or null when that end is solid.</summary>
+    private static (float BoreMm, float DepthMm)? BoreAt(StockItem item, bool reversed)
+    {
+        if (item.Turned is not { } t || t.InnerMm.Length == 0)
+            return null;
+        int end = reversed ? t.InnerMm.Length - 1 : 0, step = reversed ? -1 : 1;
+        float bore = t.InnerMm[end];
+        if (bore <= 0f)
+            return null;
+        int count = 0;
+        for (int i = end; i >= 0 && i < t.InnerMm.Length && t.InnerMm[i] >= bore - 0.05f; i += step)
+            count++;
+        return (2f * bore, count * t.StepMm);
     }
 
     private static bool MilledBefore(StockItem item) => item.GetChildren().OfType<VoxelStockVisual>().Any();

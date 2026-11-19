@@ -45,6 +45,21 @@ public sealed class ChuckGrip
     public JawKind Jaws { get; private set; } = JawKind.Hard;
     /// <summary>The diameter the soft jaws were bored for; null until they are.</summary>
     public float? SoftBoredForMm { get; private set; }
+    /// <summary>The part is held by its bore: the jaws open out against it
+    /// (ID gripping), leaving the whole outside free to turn.</summary>
+    public bool Inside { get; private set; }
+    /// <summary>The diameter the jaws bear on: the bar's outside, or its
+    /// bore when held from inside.</summary>
+    public float GripDiameterMm => Inside ? _boreMm : BarDiameterMm;
+    private float _boreMm, _boreDepthMm;
+
+    /// <summary>Smallest and largest bore the hard jaws open out into.</summary>
+    public float MinBoreGripMm => MaxOpeningMm * 0.25f;
+    public float MaxBoreGripMm => MaxOpeningMm;
+
+    /// <summary>The jaws are on the part (closed onto it, or opened out
+    /// into its bore): the key now tightens instead of moving them.</summary>
+    public bool AtContact => HasBar && (Inside ? OpeningMm >= _boreMm : OpeningMm <= BarDiameterMm);
 
     /// <summary>Smallest and largest diameter the mounted jaws close on.</summary>
     public float MinGripDiameterMm => Jaws == JawKind.HardReversed ? MaxOpeningMm * 0.5f : 0f;
@@ -61,7 +76,7 @@ public sealed class ChuckGrip
         OpeningMm = maxOpeningMm * 0.75f;
     }
 
-    private float MaxInsertMm => BarDiameterMm <= BoreMm ? BoreDepthMm : JawDepthMm;
+    private float MaxInsertMm => Inside ? Math.Min(_boreDepthMm, JawDepthMm) : BarDiameterMm <= BoreMm ? BoreDepthMm : JawDepthMm;
     private float MinStickOutMm => Math.Max(0f, BarLengthMm - MaxInsertMm);
 
     public float GripLengthMm => HasBar ? Math.Min(BarLengthMm - StickOutMm, JawDepthMm) : 0f;
@@ -79,6 +94,36 @@ public sealed class ChuckGrip
         : diameterMm < MinGripDiameterMm ? $"Ters çeneler bu kadar küçüğe kapanmaz (en az {MinGripDiameterMm:0} mm): sert çeneleri tak"
         : Jaws == JawKind.Soft && !SoftJawsFit(diameterMm) ? "Yumuşak çeneler bu çapa tornalanmadı"
         : null;
+
+    /// <summary>A part with this bore can be slid over the jaws to be held
+    /// from inside: hard jaws, closed smaller than the bore.</summary>
+    public bool CanInsertInside(float boreMm) => !HasBar && WhyNotInside(boreMm) == null && OpeningMm <= boreMm - 1f;
+
+    /// <summary>Why a part cannot be held by a bore this size, or null when
+    /// it can (closing the jaws aside).</summary>
+    public string WhyNotInside(float boreMm) =>
+        Jaws != JawKind.Hard ? "İçten bağlama sert çenelerle olur (normal yönde takılı)"
+        : boreMm < MinBoreGripMm ? $"Delik çenelerin içine girmeye çok dar (en az Ø{MinBoreGripMm:0} mm)"
+        : boreMm > MaxBoreGripMm ? $"Delik çenelerin açılabildiğinden geniş (en fazla Ø{MaxBoreGripMm:0} mm)"
+        : null;
+
+    /// <summary>Puts a part in held by its bore: slid over the closed jaws
+    /// as far as the bore (or the jaws) allow.</summary>
+    public bool InsertInside(float boreMm, float boreDepthMm, float outerDiameterMm, float lengthMm)
+    {
+        if (!CanInsertInside(boreMm))
+            return false;
+        Inside = true;
+        _boreMm = boreMm;
+        _boreDepthMm = boreDepthMm;
+        HasBar = true;
+        BarDiameterMm = outerDiameterMm;
+        BarLengthMm = lengthMm;
+        Torque = 0;
+        StickOutMm = MinStickOutMm;
+        SeatRunout();
+        return true;
+    }
 
     /// <summary>Swaps the jaw set; only with the key in and nothing in the
     /// chuck. Returns why not, or null when done.</summary>
@@ -111,6 +156,7 @@ public sealed class ChuckGrip
         if (!CanInsert(diameterMm))
             return false;
         HasBar = true;
+        Inside = false;
         BarDiameterMm = diameterMm;
         BarLengthMm = lengthMm;
         Torque = 0;
@@ -186,6 +232,7 @@ public sealed class ChuckGrip
     public void Remove()
     {
         HasBar = false;
+        Inside = false;
         Torque = 0;
     }
 
@@ -203,9 +250,22 @@ public sealed class ChuckGrip
         BarLengthMm = lengthMm;
     }
 
-    /// <summary>One notch of the key: +1 closes the jaws, then tightens.</summary>
+    /// <summary>One notch of the key: +1 closes the jaws, then tightens.
+    /// Holding a bore it is the other way: +1 opens them out, then tightens.</summary>
     public void TurnKey(int steps)
     {
+        if (Inside)
+        {
+            if (steps > 0 && OpeningMm < _boreMm)
+                OpeningMm = Math.Min(_boreMm, OpeningMm + JawStepMm);
+            else if (steps > 0)
+                Torque = Math.Min(FullTorque, Torque + 1);
+            else if (Torque > 0)
+                Torque--;
+            else
+                OpeningMm = Math.Max(MinGripDiameterMm, OpeningMm - JawStepMm);
+            return;
+        }
         float contact = HasBar ? BarDiameterMm : 0f;
         if (steps > 0)
         {
