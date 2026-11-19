@@ -249,6 +249,13 @@ control waits for it before feeding. M4 turns it the other way.
 
 ### Chuck cabinet and stand
 
+| | |
+|---|---|
+| ![Chuck cabinet](docs/screenshots/chuck_cabinet.png) | ![Inside the curved enclosure](docs/screenshots/chuck_enclosure.png) |
+| The chuck cabinet: curved enclosure, a drawer of jaws, the chuck stand | Chucks of many sizes and noses behind the sliding curved doors |
+| ![Chuck on the stand](docs/screenshots/chuck_stand_jaws.png) | ![Chuck on the lathe](docs/screenshots/lathe_chuck_on_nose.png) |
+| On the stand: jaw 1 caught by the scroll, jaw 2 in its guides, jaw 3 on the bench | The slotted chuck on the lathe, key in |
+
 Beside a console, K turns the keyboard's CNC control (and the console's
 corner window) off, so the keys are yours again; K again turns it back on.
 
@@ -305,6 +312,8 @@ offset 1 in one word, and the turret turns by itself (no TOOL CHG END). See
 on station 0, so a machine uses one style or the other.
 
 ### Work orders
+
+![Work order drawing](docs/screenshots/work_order_drawing.png)
 
 The work order board (**İŞ EMİRLERİ**): the wheel leafs through the orders,
 a click takes one. Its card stays top left (material, stock, program and
