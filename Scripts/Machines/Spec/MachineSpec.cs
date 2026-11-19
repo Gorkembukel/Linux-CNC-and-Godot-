@@ -104,20 +104,38 @@ public partial class MachineSpec : Resource
     /// has its own limit.</summary>
     public float EffectiveMaxRpm => Kind == MachineKind.Lathe && Lathe != null ? Mathf.Min(SpindleMaxRpm, Lathe.ChuckMaxRpm) : SpindleMaxRpm;
 
-    public AxisDef[] AxisDefs() => Axes.Where(a => a != null).Select(a => a.ToDef()).ToArray();
+    /// <summary>How tool lengths work on this machine; a lathe always
+    /// uses the nominal tool tip.</summary>
+    public ToolLengthModel ToolLengths() => Kind == MachineKind.Mill && Mill != null
+        ? new ToolLengthModel(Mill.ToolLengthReference,
+            Tools.Where(t => t != null).Select(t => t.LengthMm).DefaultIfEmpty(50f).Max(), Mill.PresetToolLengths)
+        : new ToolLengthModel(ToolLengthReference.NominalToolTip, 0f, false);
+
+    public AxisDef[] AxisDefs()
+    {
+        float zOffset = ToolLengths().ZControlOffsetMm;
+        return Axes.Where(a => a != null)
+            .Select(a => a.Letter == AxisId.Z ? a.ToDef() with { ControlOffset = zOffset } : a.ToDef())
+            .ToArray();
+    }
 
     public ToolSpec FindTool(int number) => Tools.FirstOrDefault(t => t != null && t.Number == number);
 
     public AxisSpec FindAxis(AxisId letter) => Axes.FirstOrDefault(a => a != null && a.Letter == letter);
 
     public string Ini() => LinuxCncConfigWriter.Ini(MachineName, ConfigStem, AxisDefs(),
-        UseToolChangePosition ? ToolChangePosition : null,
+        UseToolChangePosition ? ToolChangePosition + new Vector3(0f, 0f, ToolLengths().ZControlOffsetMm) : null,
         new IniExtras(EffectiveMaxRpm, SpindleMinRpm,
             Kind == MachineKind.Mill && Mill is { MagazinePockets: > 0, RandomToolChanger: true },
             Kind == MachineKind.Lathe && Lathe != null ? (Lathe.DiameterMode ? "G7 G18" : "G8 G18") : ""));
 
-    public string ToolTable() => LinuxCncConfigWriter.ToolTable(
-        Tools.Where(t => t != null).Select(t => t.ToDef(Kind == MachineKind.Lathe)));
+    public string ToolTable()
+    {
+        var lengths = ToolLengths();
+        return LinuxCncConfigWriter.ToolTable(Tools.Where(t => t != null).Select(t => Kind == MachineKind.Lathe
+            ? t.ToDef(true)
+            : t.ToDef(false) with { LengthZ = lengths.InitialTableLengthMm(t.LengthMm) }));
+    }
 
     /// <summary>Writes this machine's INI and tool table next to the
     /// hand-written ones; the bridge deploys the whole folder into WSL.</summary>

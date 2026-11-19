@@ -225,8 +225,17 @@ door on enclosed machines.
 - `ProceduralMachine` origin is ON THE FLOOR (y = `WorldScale.FloorY`); the
   legacy hand-written machines are not.
 - Tool error belongs to the physical `ToolItem`, not to the tool number.
-  Tool lengths are entered as the DIFFERENCE from nominal (machine Z still
-  means "tip of a nominal tool").
+- Mill tool length reference is per machine (`MillStructure.ToolLengthReference`,
+  `ToolLengthModel`). Default `SpindleGaugeLine`: LinuxCNC Z is the spindle
+  gauge line, the table holds whole gauge lengths (catalogue length + 60 mm
+  holder), the INI Z limits / home / tool change Z are the physical ones
+  shifted up by the longest tool's gauge length (`AxisDef.ControlOffset`,
+  taken back in `MachineKinematics.LinkTransform`), and G54 Z stays the
+  physical Z of work zero. `NominalToolTip` is the old simplified model
+  (Z = nominal tip, table holds only the setting error). `PresetToolLengths`
+  starts the table with catalogue lengths. Without G43 the gauge line goes
+  to the programmed Z: a soft-limit alarm when the part is low, a dive when
+  it is in reach; a wrong H crashes (`TmpFix wrongh`).
 - Every mill program needs `G43` after each `Tn M6`; without it LinuxCNC
   ignores tool length offsets.
 - Mill/lathe cutting do NOT share `IMaterialModel` (lathe 1D radius profile

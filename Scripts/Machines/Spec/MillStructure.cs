@@ -62,6 +62,21 @@ public partial class MillStructure : Resource
     /// <summary>Most weight (fixture and stock) the table carries.</summary>
     [Export] public float TableMaxLoadKg = 150f;
 
+    /// <summary>What the control's Z means without a tool length offset.
+    /// SpindleGaugeLine (real machine): Z is the spindle gauge line, the
+    /// tool table holds whole tool lengths, and a program that forgets G43
+    /// drives the tip a full tool length below the programmed Z.
+    /// NominalToolTip (simplified): Z is the tip of a catalogue-length tool,
+    /// the table holds only each tool's setting error, and forgetting G43
+    /// costs just that error.</summary>
+    [ExportGroup("Tool Length")]
+    [Export] public ToolLengthReference ToolLengthReference = ToolLengthReference.SpindleGaugeLine;
+    /// <summary>On: the tool table starts with every tool's catalogue length,
+    /// as if set on a presetter, so an unmeasured tool is off only by its
+    /// setting error. Off: the table starts at zero and every tool must be
+    /// measured before G43 is safe. Only matters with SpindleGaugeLine.</summary>
+    [Export] public bool PresetToolLengths = true;
+
     /// <summary>Table length along X.</summary>
     [ExportGroup("Table")]
     [Export] public float TableSizeXMm = 500f;

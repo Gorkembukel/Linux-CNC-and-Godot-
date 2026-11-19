@@ -13,6 +13,7 @@ namespace CncTrainer.Workshop;
 public partial class ToolCart : Node3D
 {
     private const float TopY = 0.85f;
+    private ToolLengthGauge _gauge;
 
     /// <summary>The ProceduralMachine whose tools this cart carries.</summary>
     [Export] public NodePath Machine;
@@ -30,7 +31,8 @@ public partial class ToolCart : Node3D
             Position = new Vector3(0f, TopY - 0.2f, 0.201f),
             Modulate = new Color(0.95f, 0.95f, 0.95f),
         });
-        AddChild(ToolLengthGauge.Create(new Vector3(0.38f, TopY, 0f)));
+        _gauge = ToolLengthGauge.Create(new Vector3(0.38f, TopY, 0f));
+        AddChild(_gauge);
 
         if (!Engine.IsEditorHint())
             CallDeferred(MethodName.Fill);
@@ -44,6 +46,7 @@ public partial class ToolCart : Node3D
             GD.PrintErr($"[ToolCart] '{Name}': Machine is not set to a ProceduralMachine.");
             return;
         }
+        _gauge.Lengths = machine.Spec.ToolLengths();
         int i = 0;
         foreach (var spec in machine.Spec.Tools)
         {
@@ -64,6 +67,9 @@ public partial class ToolCart : Node3D
 /// one, which again has its own length.</summary>
 public partial class ToolLengthGauge : StaticBody3D, IInteractable
 {
+    /// <summary>The cart's machine: decides which number goes in its tool table.</summary>
+    public Spec.ToolLengthModel Lengths;
+
     public static ToolLengthGauge Create(Vector3 at)
     {
         var gauge = new ToolLengthGauge { Name = "LengthGauge", Position = at };
@@ -82,8 +88,10 @@ public partial class ToolLengthGauge : StaticBody3D, IInteractable
             return "[Tık] Kırık takımı yenisiyle değiştir";
         if (tool.ForLathe)
             return "Torna kalemi burada ölçülmez: deneme pasosu al, kumpasla ölç, TOUCH OFF";
+        float gaugeLength = tool.TrueLengthMm + Spec.ToolLengthModel.HolderLengthMm;
+        float table = Lengths.TableLengthMm(tool.Spec.LengthMm, tool.ErrorMm.Y);
         return System.FormattableString.Invariant(
-            $"Takım boyu: {tool.TrueLengthMm:0.00} mm   (nominal {tool.Spec.LengthMm:0.00}, fark {tool.ErrorMm.Y:+0.00;-0.00})   aşınma %{tool.State.Wear * 100f:0}");
+            $"Burun-uç boyu: {gaugeLength:0.00} mm   (nominal {tool.Spec.LengthMm + Spec.ToolLengthModel.HolderLengthMm:0.00}, fark {tool.ErrorMm.Y:+0.00;-0.00})   OFS'e: Z{table:0.00}   aşınma %{tool.State.Wear * 100f:0}");
     }
 
     public void Use(PlayerController player)

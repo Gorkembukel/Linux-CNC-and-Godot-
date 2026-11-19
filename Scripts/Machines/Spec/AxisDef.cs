@@ -11,11 +11,13 @@ namespace CncTrainer.Spec;
 /// take these instead and stay unit-testable). Linear axes are in mm, rotary
 /// (A/B/C) in degrees. PivotMm is a point on a rotary axis' centreline, in
 /// machine coordinates relative to work zero with every axis at 0.
+/// ControlOffset: the control's value minus the physical one (limits, home
+/// and pivot here are physical).
 /// </summary>
 public readonly record struct AxisDef(
     AxisId Letter, bool OnWorkpiece, float MinLimit, float MaxLimit,
     float MaxVelocity, float MaxAcceleration, float Home, int HomeSequence, Vector3 PivotMm,
-    float HomeSearchVel = 20f, float HomeLatchVel = 5f, float Backlash = 0f, bool Wrapped = false)
+    float HomeSearchVel = 20f, float HomeLatchVel = 5f, float Backlash = 0f, bool Wrapped = false, float ControlOffset = 0f)
 {
     public bool IsRotary => Letter >= AxisId.A;
 
@@ -25,4 +27,4 @@ public readonly record struct AxisDef(
 }
 
 public readonly record struct ToolDef(
-    int Number, float TableDiameter, bool LatheTool, float FrontAngle, float BackAngle, int Orientation, string Comment);
+    int Number, float TableDiameter, bool LatheTool, float FrontAngle, float BackAngle, int Orientation, string Comment, float LengthZ = 0f);

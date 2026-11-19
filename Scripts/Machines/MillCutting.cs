@@ -1,6 +1,7 @@
 using Godot;
 using CncTrainer.Bridge;
 using CncTrainer.Chips;
+using CncTrainer.Machining;
 using CncTrainer.Procedural;
 using CncTrainer.Spec;
 
@@ -13,6 +14,7 @@ public sealed class MillCutting : CuttingProcess
 {
     private readonly ProceduralMillBody _body;
     private readonly MachineKinematics _kinematics;
+    private readonly ToolLengthModel _lengths;
 
     private VoxelStockVisual _stock;
     private Transform3D _workToStock;
@@ -29,14 +31,22 @@ public sealed class MillCutting : CuttingProcess
     {
         _body = body;
         _kinematics = new MachineKinematics(spec.AxisDefs());
+        _lengths = spec.ToolLengths();
     }
 
-    /// <summary>Tool tip position in the body's frame (metres).</summary>
-    public Vector3 TipInBody(AxisVector position) => _kinematics.ToolTransform(position).Origin;
+    /// <summary>How far this tool's real tip sits below the kinematic
+    /// reference point, along the tool axis (mm).</summary>
+    public float TipBelowReferenceMm(MountedTool mounted) =>
+        mounted.Present ? _lengths.TipBelowReferenceMm(mounted.Spec.LengthMm, mounted.ErrorMm.Y) : 0f;
 
-    /// <summary>Tool tip pose relative to the part of the machine that
-    /// carries the workpiece (metres).</summary>
-    public Transform3D ToolInWork(AxisVector position) => _kinematics.ToolInWork(position);
+    /// <summary>Real tip pose of this tool relative to the part of the
+    /// machine that carries the workpiece (metres); basis Y points from the
+    /// tip toward the spindle.</summary>
+    public Transform3D TipInWork(AxisVector position, MountedTool mounted) =>
+        DownTool(_kinematics.ToolInWork(position), TipBelowReferenceMm(mounted) * WorldScale.MmToM);
+
+    private static Transform3D DownTool(Transform3D pose, float distance) =>
+        new(pose.Basis, pose.Origin - pose.Basis.Y.Normalized() * distance);
 
     /// <summary>Starts cutting this stock where it now sits. It must already
     /// be parented under the body's WorkEnd.</summary>
@@ -61,9 +71,7 @@ public sealed class MillCutting : CuttingProcess
         var inStock = _workToStock * _kinematics.ToolInWork(Errors.Apply(s.Position));
         var mounted = Tools.Active(s.ToolNumber);
         var tool = mounted.Spec;
-        // A tool sticking out further than nominal has its tip that much
-        // further from the spindle than the control thinks.
-        var pose = new Transform3D(inStock.Basis, inStock.Origin / WorldScale.MmToM - inStock.Basis.Y.Normalized() * mounted.ErrorMm.Y);
+        var pose = DownTool(new Transform3D(inStock.Basis, inStock.Origin / WorldScale.MmToM), TipBelowReferenceMm(mounted));
 
         SetCollision(mounted.Present ? BodyInStock(pose, tool.LengthMm + mounted.ErrorMm.Y) : null);
 
@@ -150,6 +158,6 @@ public sealed class MillCutting : CuttingProcess
         _body.ShowTool(mounted.Cuts ? mounted.Spec : null, mounted.ErrorMm.Y);
         _body.SetCoolant(Bridge.State.Coolant && Spec.FloodCoolant);
         _stock?.RebuildDirtyChunks();
-        return _kinematics.ToolTransform(position).Origin;
+        return DownTool(_kinematics.ToolTransform(position), TipBelowReferenceMm(mounted) * WorldScale.MmToM).Origin;
     }
 }
