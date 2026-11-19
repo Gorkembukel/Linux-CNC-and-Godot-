@@ -45,19 +45,18 @@ public partial class LatheStructure : Resource
     [Export] public int ChuckJawCount = 3;
     /// <summary>Highest speed the chuck is rated for; the spindle is limited to it.</summary>
     [Export] public float ChuckMaxRpm = 4000f;
-    /// <summary>Highest speed for the four-jaw independent chuck on the rack
-    /// (heavier, unbalanced jaws); running faster with it fitted is warned.</summary>
-    [Export] public float FourJawMaxRpm = 1500f;
-    /// <summary>Highest speed for the collet chuck on the rack.</summary>
-    [Export] public float ColletMaxRpm = 5000f;
+    /// <summary>Chucks standing by the lathe for the operator to fit, each
+    /// with its own sizes. Empty = a Ø125 four-jaw independent chuck and an
+    /// ER32 collet chuck. One that does not clear the bed is refused.</summary>
+    [Export] public Godot.Collections.Array<Fixtures.ChuckModel> SpareChucks = new();
 
-    /// <summary>The rated speed of whichever chuck is fitted.</summary>
-    public float MaxRpmFor(Fixtures.ChuckKind kind) => kind switch
-    {
-        Fixtures.ChuckKind.FourJawIndependent => FourJawMaxRpm,
-        Fixtures.ChuckKind.Collet => ColletMaxRpm,
-        _ => ChuckMaxRpm,
-    };
+    /// <summary>The chuck the lathe comes with, from the settings above.</summary>
+    public Fixtures.ChuckModel FittedChuck() => Fixtures.ChuckModel.ThreeJaw(ChuckDiameterMm, ChuckJawCount, GripLengthMm, ChuckMaxRpm);
+
+    /// <summary>The spare chucks, or the default pair when none are set.</summary>
+    public Fixtures.ChuckModel[] Spares() => SpareChucks.Count > 0
+        ? System.Linq.Enumerable.ToArray(System.Linq.Enumerable.Where(SpareChucks, c => c != null))
+        : new[] { Fixtures.ChuckModel.FourJaw125(), Fixtures.ChuckModel.ColletEr32() };
 
     /// <summary>Disc: every tool sits on an indexing turret. ToolPost: one
     /// holder, the active tool is swapped in.</summary>

@@ -261,14 +261,25 @@ door on enclosed machines.
    the jaws inside the bore is not checked; soft jaws for ID; the lathe's
    workpiece profile assumes a turned part's StepMm is its own 0.1 mm;
    reversed jaws' larger reach in the turret collision.
-   Chucks (`ChuckGrip.Kind`, `ChuckItem`, two more on the floor by the jaw
-   rack): 3-jaw; 4-jaw independent (seats ~0.3 mm off, the mallet becomes
-   a per-jaw adjustment at any tightness, dials in to microns); collet (bars
-   up to 40 % of the jaw chuck's opening, ~0.002 mm runout, no jaws, no ID).
-   Each has its rated speed (`LatheStructure.ChuckMaxRpm` / `FourJawMaxRpm` /
-   `ColletMaxRpm`); the INI keeps the fitted chuck's, a slower chuck swapped
-   in is only warned about. Live (TmpLathe `collet`): swapped by the player,
-   Ø20 bar 0.0021 mm runout, turned with no incident.
+   Chucks are things of their own (`ChuckModel`: diameter, length nose to
+   jaw face, jaws, opening, bore, rated rpm, collet sizes); the lathe's own
+   comes from its LatheStructure fields, spares from `SpareChucks` (default
+   Ø125 4-jaw independent, ER32 collet). A chuck off the lathe is a
+   `ChuckItem` carrying its `ChuckGrip` (its jaws stay in it). Change: key
+   out, cam key undoes 3 cam locks (`JawChuck.CamsLocked`), swap, lock again;
+   spindle with a cam undone = Crash. `ProceduralLatheBody.FitChuck` moves
+   the jaw face (nose + length) and the carriage's chuck zone; bigger than
+   the bed clears is refused. Jaws (`ChuckJaws`): numbered `JawItem`s, one
+   at a time; the scroll's thread start moves a slot per 3 key notches;
+   opening past full runs jaws off (3, 2, 1); a jaw in the wrong slot or a
+   turn late is off by pitch/3 per slot or a pitch per turn, the chuck holds
+   that far off (jaws closed in show it: they do not meet). 4-jaw: any
+   order, ~0.3 mm seat, the mallet adjusts one jaw against the other. Collet:
+   `ColletItem` per size (size to size-1), key only tightens/loosens, loose =
+   the bar slides. Live (TmpLathe `collet` / `camsloose`): jaws out 3-2-1,
+   reversed set in order meets, out of order 4 mm off (TIR ~8 mm), cams
+   3->0, ER32 fitted (jaw face -150 -> -155), Ø20 collet 0.005 mm, loosened
+   bar slid, turned with no incident; cams left undone -> Crash.
    Gauge block: `HandToolKind.GaugeBlock` (50.000 mm Z setting block) on the
    tool bench, felt like the paper (`Interaction.FeelerGauge`, fit ±0.01 mm
    against the paper's ±0.03); `MillCutting.TipGapMm` searches coarse then

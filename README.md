@@ -198,11 +198,17 @@ come out wrong: only the report card (or your own measuring) tells you.
 ### Lathe jaws
 
 The chuck starts with hard jaws. The jaw rack left of the lathe control
-holds two more sets: put the chuck key in, empty the chuck and click it with
-a set in hand to swap. **Reversed** hard jaws take big parts but do not close
-on small ones; **soft** jaws only hold a part once bored for it (click the
-chuck with the part in hand), and then it runs nearly true. A bar sticking
-out more than four diameters chatters; the setup sheet warns.
+holds two more sets, every jaw numbered. To change them, empty the chuck,
+put the key in and open the jaws all the way; turning on runs them off the
+scroll one at a time (3, 2, 1), each into your hand: put it down before the
+next. To fit a set, turn the key until the scroll's thread starts at slot 1
+(the prompt says where it is), click with jaw 1, turn on to slot 2, jaw 2,
+and so on. A jaw in the wrong slot, or one caught a turn late, holds the part
+millimetres off: closed right in, such jaws do not meet at the centre.
+**Reversed** hard jaws take big parts but do not close on small ones;
+**soft** jaws only hold a part once bored for it (click the chuck with the
+part in hand), and then it runs nearly true. A bar sticking out more than
+four diameters chatters; the setup sheet warns.
 
 A bored part can be held **from inside** (ID gripping) on the hard jaws:
 close them smaller than the bore, slide the part over them bore first, then
@@ -211,12 +217,19 @@ outside is free to turn; the bore must be at least 15 mm deep.
 
 ### Chucks
 
-Two more chucks stand on the floor by the jaw rack. With the chuck empty and
-the key out, click it with one in hand to swap: the **4-jaw independent**
-chuck seats a bar well off centre, then the mallet (with the dial on the bar)
-adjusts one jaw against the other, also when tight, down to microns; the
-**collet** chuck takes small bars only and holds them nearly dead true. Each
-chuck has its own speed limit; going faster is warned.
+Two more chucks stand on the floor by the jaw rack, each with its own size
+(a lathe refuses one that would hit its bed). To change: empty the chuck,
+take the key out, then with the **cam key** (on the rack) wheel back to undo
+the three cam locks; click the chuck with the other one in hand (the old one,
+with its jaws, comes off into your hands); wheel the cam key forward to lock
+the three cams again. Starting the spindle with a cam undone throws the
+chuck. The work now sits as far out as the new chuck is long.
+The **4-jaw independent** chuck seats a bar well off centre, then the mallet
+(with the dial on the bar) adjusts one jaw against the other, also when
+tight, down to microns; its jaws go in any order. The **ER32 collet** chuck
+takes one collet at a time from the box on the rack (each holds its size to
+1 mm under): collet in, bar in, key to tighten; loosened, the bar slides.
+Each chuck has its own speed limit; going faster is warned.
 
 ### Fanuc-style tool calls
 

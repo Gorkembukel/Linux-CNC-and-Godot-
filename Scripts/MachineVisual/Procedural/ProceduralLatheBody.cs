@@ -41,6 +41,10 @@ public partial class ProceduralLatheBody : Node3D
     /// front at machine Z = JawFrontZMm.</summary>
     public JawChuck Chuck { get; private set; }
     public float JawFrontZMm { get; private set; }
+    /// <summary>Machine Z of the spindle nose face, where a chuck's back sits.</summary>
+    public float NoseZMm { get; private set; }
+    /// <summary>Largest chuck that clears the bed.</summary>
+    public float MaxChuckDiameterMm { get; private set; }
     /// <summary>The enclosure's open front (centre and size, this body's
     /// frame), null on an open machine.</summary>
     public (Vector3 Centre, Vector2 Size)? DoorOpening { get; private set; }
@@ -53,6 +57,17 @@ public partial class ProceduralLatheBody : Node3D
     private readonly System.Collections.Generic.List<Zone> _fixedZones = new();
     private float _wallLeftMm = float.NegativeInfinity, _wallRightMm = float.PositiveInfinity, _outerReachMm = float.PositiveInfinity;
     private float _turretRadiusMm;
+    private int _chuckZone = -1;
+
+    /// <summary>The chuck now on the nose decides where its jaws end and
+    /// what the carriage can run into.</summary>
+    public void FitChuck(ChuckModel model)
+    {
+        JawFrontZMm = NoseZMm + model.LengthMm;
+        Chuck.Position = new Vector3(JawFrontZMm * M, 0f, 0f);
+        if (_chuckZone >= 0)
+            _fixedZones[_chuckZone] = new Zone("aynaya", NoseZMm, JawFrontZMm, model.DiameterMm / 2f);
+    }
 
     public void Build(MachineSpec spec)
     {
@@ -75,10 +90,13 @@ public partial class ProceduralLatheBody : Node3D
         float bedTop = -(chuckR + 0.03f);
 
         JawFrontZMm = l.StockZMin + l.GripLengthMm;
+        NoseZMm = l.StockZMin - 50f;
+        MaxChuckDiameterMm = l.ChuckDiameterMm + 50f;
         Chuck = null;
         if (spec.ManualSetup)
         {
-            Chuck = JawChuck.Create(l.ChuckDiameterMm, l.ChuckJawCount, l.GripLengthMm, l.HeadstockLengthMm);
+            var fitted = l.FittedChuck();
+            Chuck = JawChuck.Create(fitted, new ChuckGrip(fitted.Dims(l.HeadstockLengthMm)));
             Chuck.Position = new Vector3(JawFrontZMm * M, 0f, 0f);
             AddChild(Chuck);
         }
@@ -116,6 +134,7 @@ public partial class ProceduralLatheBody : Node3D
         _turretRadiusMm = l.TurretDiameterMm / 2f;
         AddZone("fener mili gövdesine", bedLeft, headstockRight,
             BoxReach(new Vector3(0f, (headstockTop + bedTop) / 2f, 0f), new Vector3(0f, (headstockTop - bedTop) / 2f, bedDepth / 2f)));
+        _chuckZone = _fixedZones.Count;
         AddZone("aynaya", headstockRight, JawFrontZMm * M, chuckR);
 
         // The ways sit behind the tool as seen from the centreline, which

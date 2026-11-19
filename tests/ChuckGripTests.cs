@@ -89,12 +89,24 @@ public class ChuckGripTests
         Assert.Equal(-8f, profile.ZMax);
     }
 
-    private static ChuckGrip EmptyChuckWith(JawKind jaws)
+    private static readonly ChuckDims ThreeJaw = new(ChuckKind.ThreeJaw, 3, 80f, 30f, 30f, 250f);
+
+    private static ChuckGrip EmptyChuckWith(JawKind jaws) => new(ThreeJaw, jaws);
+
+    /// <summary>Opens the key until the next jaw comes off the scroll.</summary>
+    private static SeatedJaw? NextJawOut(ChuckGrip grip)
     {
-        var grip = new ChuckGrip(80f, 30f, 30f, 250f) { KeyIn = true };
-        Assert.Null(grip.ChangeJaws(jaws));
-        grip.KeyIn = false;
-        return grip;
+        for (int i = 0; i < 100; i++)
+            if (grip.TurnKey(-1, canTakeJaw: true) is SeatedJaw jaw)
+                return jaw;
+        return null;
+    }
+
+    /// <summary>Turns the scroll on until slot (0-based) is the one to fill.</summary>
+    private static void ScrollTo(ChuckGrip grip, int slot)
+    {
+        for (int i = 0; i < 30 && grip.Jaws.OpenSlot != slot; i++)
+            grip.TurnKey(1);
     }
 
     private static bool Fits(ChuckGrip grip, float diameter)
@@ -105,14 +117,76 @@ public class ChuckGripTests
     }
 
     [Fact]
-    public void JawsChange_OnlyWithTheKeyIn_AndAnEmptyChuck()
+    public void Jaws_ComeOffTheScrollOneByOne_LastInFirstOut()
     {
-        var grip = new ChuckGrip(80f, 30f, 30f, 250f);
-        Assert.NotNull(grip.ChangeJaws(JawKind.Soft));
-        Assert.Equal(JawKind.Hard, grip.Jaws);
-        var loaded = LoadedChuck();
-        loaded.KeyIn = true;
-        Assert.NotNull(loaded.ChangeJaws(JawKind.Soft));
+        var grip = new ChuckGrip(ThreeJaw) { KeyIn = true };
+        Assert.Equal(3, NextJawOut(grip)?.Number);
+        Assert.Equal(2, NextJawOut(grip)?.Number);
+        Assert.Equal(1, NextJawOut(grip)?.Number);
+        Assert.True(grip.Jaws.Empty);
+        Assert.NotNull(grip.WhyNot(40f));
+    }
+
+    [Fact]
+    public void AJawWaitingInHand_StopsTheKey()
+    {
+        var grip = new ChuckGrip(ThreeJaw) { KeyIn = true };
+        for (int i = 0; i < 100; i++)
+            Assert.Null(grip.TurnKey(-1, canTakeJaw: false));
+        Assert.True(grip.Jaws.Complete);
+    }
+
+    [Fact]
+    public void JawsInByNumber_AsTheScrollReachesEachSlot_MeetAtTheCentre()
+    {
+        var grip = new ChuckGrip(ThreeJaw, fitted: null) { KeyIn = true };
+        for (int n = 1; n <= 3; n++)
+        {
+            ScrollTo(grip, n - 1);
+            Assert.Null(grip.InstallJaw(JawKind.HardReversed, n, ChuckKind.ThreeJaw));
+        }
+        Assert.True(grip.Jaws.Complete);
+        Assert.True(grip.Jaws.MeetAtCentre);
+        Assert.Equal(JawKind.HardReversed, grip.JawSet);
+    }
+
+    [Fact]
+    public void AJawCaughtATurnLate_HoldsThePartOff()
+    {
+        var grip = new ChuckGrip(ThreeJaw, fitted: null) { KeyIn = true };
+        foreach (int n in new[] { 2, 3, 1 })
+        {
+            ScrollTo(grip, n - 1);
+            Assert.Null(grip.InstallJaw(JawKind.Hard, n, ChuckKind.ThreeJaw));
+        }
+        Assert.False(grip.Jaws.MeetAtCentre);
+        for (int i = 0; i < 30; i++) grip.TurnKey(-1, canTakeJaw: false);
+        Assert.True(grip.Insert(40f, 100f));
+        Assert.True(grip.RunoutMm(0f) > 1f, $"runout {grip.RunoutMm(0f)}");
+    }
+
+    [Fact]
+    public void JawInTheWrongSlot_HoldsThePartOff()
+    {
+        var grip = new ChuckGrip(ThreeJaw, fitted: null) { KeyIn = true };
+        foreach (var (number, slot) in new[] { (2, 0), (1, 1), (3, 2) })
+        {
+            ScrollTo(grip, slot);
+            Assert.Null(grip.InstallJaw(JawKind.Hard, number, ChuckKind.ThreeJaw));
+        }
+        Assert.False(grip.Jaws.MeetAtCentre);
+    }
+
+    [Fact]
+    public void Jaws_GoInOnlyWithTheKey_AnEmptyChuck_AndFromOneSet()
+    {
+        var grip = new ChuckGrip(ThreeJaw, fitted: null);
+        Assert.NotNull(grip.InstallJaw(JawKind.Hard, 1, ChuckKind.ThreeJaw));
+        grip.KeyIn = true;
+        Assert.NotNull(grip.InstallJaw(JawKind.Hard, 1, ChuckKind.FourJawIndependent));
+        Assert.Null(grip.InstallJaw(JawKind.Hard, 1, ChuckKind.ThreeJaw));
+        ScrollTo(grip, 1);
+        Assert.NotNull(grip.InstallJaw(JawKind.Soft, 2, ChuckKind.ThreeJaw));
     }
 
     [Fact]
@@ -194,17 +268,7 @@ public class ChuckGripTests
         Assert.NotNull(grip.WhyNotInside(10f));
         Assert.NotNull(grip.WhyNotInside(90f));
         Assert.Null(grip.WhyNotInside(40f));
-        grip.KeyIn = true;
-        grip.ChangeJaws(JawKind.Soft);
-        Assert.NotNull(grip.WhyNotInside(40f));
-    }
-
-    private static ChuckGrip Fitted(ChuckKind kind)
-    {
-        var grip = new ChuckGrip(80f, 30f, 30f, 250f);
-        Assert.Null(grip.ChangeChuck(kind));
-        grip.KeyIn = true;
-        return grip;
+        Assert.NotNull(EmptyChuckWith(JawKind.Soft).WhyNotInside(40f));
     }
 
     private static void Tighten(ChuckGrip grip, int torque)
@@ -213,25 +277,38 @@ public class ChuckGripTests
             grip.TurnKey(1);
     }
 
+    private static readonly ChuckDims Er32 = new(ChuckKind.Collet, 0, 20f, 30f, 20f, 250f);
+
     [Fact]
-    public void Collet_TakesOnlySmallBars_AndHoldsThemNearlyTrue()
+    public void Collet_HoldsOnlyItsOwnSize_AndLetsGoWhenLoosened()
     {
-        var grip = Fitted(ChuckKind.Collet);
-        Assert.Equal(32f, grip.MaxGripDiameterMm);
-        Assert.NotNull(grip.WhyNot(40f));
+        var grip = new ChuckGrip(Er32) { KeyIn = true };
+        Assert.Contains("pens yok", grip.WhyNot(20f));
+        Assert.Null(grip.InstallCollet(20f));
+        Assert.NotNull(grip.WhyNot(21f));
+        Assert.NotNull(grip.WhyNot(18f));
         Assert.NotNull(grip.WhyNotInside(20f));
-        Assert.NotNull(grip.ChangeJaws(JawKind.Soft));
-        while (!grip.CanInsert(20f)) grip.TurnKey(-1);
-        Assert.True(grip.Insert(20f, 100f));
+        Assert.True(grip.Insert(19.5f, 100f));
         Assert.True(grip.RunoutMm(0f) < 0.007f, $"runout {grip.RunoutMm(0f)}");
-        Tighten(grip, 2);
+        Tighten(grip, ChuckGrip.FullTorque);
+        Assert.True(grip.HoldsFirmly);
         Assert.Contains("Pens", grip.Tap(0f));
+        float stick = grip.StickOutMm;
+        grip.Slide(-10f);
+        Assert.Equal(stick, grip.StickOutMm);
+        for (int i = 0; i < 3; i++) grip.TurnKey(-1);
+        Assert.Equal(0, grip.Torque);
+        grip.Slide(-10f);
+        Assert.Equal(stick - 10f, grip.StickOutMm);
+        Assert.Null(grip.TakeCollet());
+        grip.Remove();
+        Assert.Equal(20f, grip.TakeCollet());
     }
 
     [Fact]
     public void FourJaw_SeatsOffCentre_ButDialsInWhileTight()
     {
-        var grip = Fitted(ChuckKind.FourJawIndependent);
+        var grip = new ChuckGrip(new ChuckDims(ChuckKind.FourJawIndependent, 4, 110f, 30f, 32f, 250f)) { KeyIn = true };
         while (!grip.CanInsert(50f)) grip.TurnKey(-1);
         grip.Insert(50f, 120f);
         Tighten(grip, ChuckGrip.FullTorque);
@@ -246,16 +323,11 @@ public class ChuckGripTests
     }
 
     [Fact]
-    public void ChuckChange_NeedsAnEmptyChuckAndTheKeyOut()
+    public void FourJaw_JawsGoInAnyOrder()
     {
-        var grip = new ChuckGrip(80f, 30f, 30f, 250f);
-        grip.KeyIn = true;
-        Assert.NotNull(grip.ChangeChuck(ChuckKind.Collet));
-        grip.KeyIn = false;
-        grip.Insert(20f, 100f);
-        Assert.NotNull(grip.ChangeChuck(ChuckKind.Collet));
-        grip.Remove();
-        Assert.Null(grip.ChangeChuck(ChuckKind.Collet));
-        Assert.Equal(ChuckKind.Collet, grip.Kind);
+        var grip = new ChuckGrip(new ChuckDims(ChuckKind.FourJawIndependent, 4, 110f, 30f, 32f, 250f), fitted: null) { KeyIn = true };
+        foreach (int n in new[] { 3, 1, 4, 2 })
+            Assert.Null(grip.InstallJaw(JawKind.Hard, n, ChuckKind.FourJawIndependent));
+        Assert.True(grip.Jaws.Complete);
     }
 }
