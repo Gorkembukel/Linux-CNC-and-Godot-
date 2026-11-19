@@ -13,13 +13,9 @@ from __future__ import annotations
 import gcode
 from rs274.interpret import Translated, ArcsToSegmentsMixin, StatMixin
 
-from protocol import AXIS_X, AXIS_Z, MotionType, PreviewSegment
+from protocol import AXIS_X, AXIS_Y, AXIS_Z, MotionType, PreviewSegment
 
-
-def _xz(x: float, z: float) -> tuple[float, ...]:
-    v = [0.0] * 6
-    v[AXIS_X], v[AXIS_Z] = x, z
-    return tuple(v)
+_ORIGIN = (0.0,) * 6
 
 
 import os
@@ -49,8 +45,7 @@ class PreviewCanon(Translated, ArcsToSegmentsMixin, StatMixin):
         self.parameter_file = parameter_file
         self.messages: list[str] = []
         self.segments: list[PreviewSegment] = []
-        self.last_x = 0.0
-        self.last_z = 0.0
+        self._last = _ORIGIN
         self.feed_rate = 0.0
         self.line_number = 0
         self.lathe_diameter_mode = False
@@ -77,15 +72,14 @@ class PreviewCanon(Translated, ArcsToSegmentsMixin, StatMixin):
         self.messages.append(text)
 
     def straight_traverse_translated(self, x, y, z, a, b, c, u, v, w) -> None:
-        self._record(MotionType.RAPID, x, z)
+        self._record(MotionType.RAPID, x, y, z, a, b, c)
 
     def straight_feed_translated(self, x, y, z, a, b, c, u, v, w) -> None:
-        self._record(MotionType.LINEAR, x, z)
+        self._record(MotionType.LINEAR, x, y, z, a, b, c)
 
     def straight_arcsegments(self, segs) -> None:
         for seg in segs:
-            x, y, z = seg[0], seg[1], seg[2]
-            self._record(MotionType.ARC_CW, x, z)
+            self._record(MotionType.ARC_CW, *seg[:6])
 
     # Empirically determined (not found documented anywhere): gcode.parse()'s
     # throwaway Interp instance reports canon coordinates in inches whenever the
@@ -97,25 +91,25 @@ class PreviewCanon(Translated, ArcsToSegmentsMixin, StatMixin):
     # to detect the interpreter's chosen units after the fact.
     _INCH_TO_MM = 25.4
 
-    def _record(self, motion_type: int, x: float, z: float) -> None:
-        x *= self._INCH_TO_MM
-        z *= self._INCH_TO_MM
+    def _record(self, motion_type: int, x: float, y: float, z: float, a: float = 0.0, b: float = 0.0,
+                c: float = 0.0) -> None:
+        """Linear axes scaled back to mm (rotary ones are degrees either way)."""
+        end = (x * self._INCH_TO_MM, y * self._INCH_TO_MM, z * self._INCH_TO_MM, a, b, c)
+        start = self._last
         if _DEBUG:
-            print(f"[preview] _record type={motion_type} from=({self.last_x},{self.last_z}) to=({x},{z})")
-        if x != self.last_x or z != self.last_z:
+            print(f"[preview] _record type={motion_type} from={start} to={end}")
+        if end != start:
             self.segments.append(PreviewSegment(
-                motion_type=motion_type, line_number=self.line_number,
-                start=_xz(self.last_x, self.last_z), end=_xz(x, z),
+                motion_type=motion_type, line_number=self.line_number, start=start, end=end,
                 feed_rate=0.0 if motion_type == MotionType.RAPID else self.feed_rate,
             ))
-        self.last_x, self.last_z = x, z
+        self._last = end
 
     def calc_extents(self) -> None:
-        xs = [s.start[AXIS_X] for s in self.segments] + [s.end[AXIS_X] for s in self.segments]
-        zs = [s.start[AXIS_Z] for s in self.segments] + [s.end[AXIS_Z] for s in self.segments]
-        if xs:
-            self.min_extents = [min(xs), 0.0, min(zs)]
-            self.max_extents = [max(xs), 0.0, max(zs)]
+        points = [s.start for s in self.segments] + [s.end for s in self.segments]
+        if points:
+            self.min_extents = [min(p[i] for p in points) for i in (AXIS_X, AXIS_Y, AXIS_Z)]
+            self.max_extents = [max(p[i] for p in points) for i in (AXIS_X, AXIS_Y, AXIS_Z)]
 
 
 def preview_program(stat, filename: str, config_dir: str) -> list[PreviewSegment]:

@@ -10,7 +10,7 @@ public static class SynthSounds
 {
     private const int Rate = 22050;
 
-    private static AudioStreamWav _click, _beep, _motor, _cut, _servo, _coolant;
+    private static AudioStreamWav _click, _beep, _motor, _cut, _servo, _coolant, _chatter;
 
     public static AudioStreamWav Click => _click ??= Make(Generate(0.03f, (t, rnd) =>
         (Noise(rnd) * 0.6f + Mathf.Sin(Tau * 2600f * t) * 0.5f) * Mathf.Exp(-t * 220f)), false);
@@ -29,6 +29,12 @@ public static class SynthSounds
     /// player's pitch follows the spindle speed.</summary>
     public static AudioStreamWav Cut => _cut ??= Make(Filtered(1f, 0.25f, 0.02f, 0.7f, t =>
         Mathf.Sin(Tau * 420f * t) * 0.25f * (0.6f + 0.4f * Mathf.Sin(Tau * 7f * t))), true);
+
+    /// <summary>Chatter: the harsh, pulsing squeal of tool and work shaking
+    /// against each other, the sound an operator stops the cut for.</summary>
+    public static AudioStreamWav Chatter => _chatter ??= Make(Generate(1f, (t, rnd) =>
+        (Mathf.Sin(Tau * 1750f * t) * 0.3f + Mathf.Sin(Tau * 3500f * t) * 0.12f + Noise(rnd) * 0.06f)
+        * (0.55f + 0.45f * Mathf.Sin(Tau * 32f * t))), true);
 
     /// <summary>Axis servo and ballscrew whine.</summary>
     public static AudioStreamWav Servo => _servo ??= Make(Generate(1f, (t, rnd) =>

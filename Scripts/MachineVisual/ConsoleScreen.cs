@@ -24,6 +24,7 @@ public partial class ConsoleScreen : Control
     private readonly ColorRect[] _softkeyBoxes = new ColorRect[SoftkeyCount];
     private Control _plot;
     private IReadOnlyList<(Vector2 Point, bool Rapid)> _plotPoints;
+    private IReadOnlyList<(Vector2 From, Vector2 To, bool Rapid)> _plotProgram = System.Array.Empty<(Vector2, Vector2, bool)>();
     private Vector2 _plotTool;
 
     public ConsoleScreen()
@@ -95,9 +96,12 @@ public partial class ConsoleScreen : Control
 
     /// <summary>Tool path backplot (null hides it): feed moves cyan, rapids
     /// yellow, the tool now a red dot; fitted to the area at equal scale.</summary>
-    public void SetPlot(IReadOnlyList<(Vector2 Point, bool Rapid)> points, Vector2 tool)
+    /// <summary>points: the path cut so far; program: the whole program's
+    /// path (drawn dim underneath, so it can be checked before running).</summary>
+    public void SetPlot(IReadOnlyList<(Vector2 Point, bool Rapid)> points, Vector2 tool, IReadOnlyList<(Vector2 From, Vector2 To, bool Rapid)> program = null)
     {
         _plotPoints = points;
+        _plotProgram = program ?? System.Array.Empty<(Vector2, Vector2, bool)>();
         _plotTool = tool;
         _plot.Visible = points != null;
         if (points != null)
@@ -115,10 +119,17 @@ public partial class ConsoleScreen : Control
             min = min.Min(p);
             max = max.Max(p);
         }
+        foreach (var (from, to, _) in _plotProgram)
+        {
+            min = min.Min(from).Min(to);
+            max = max.Max(from).Max(to);
+        }
         var span = (max - min).Max(new Vector2(10f, 10f)) * 1.1f;
         var mid = (min + max) / 2f;
         float scale = Mathf.Min(size.X / span.X, size.Y / span.Y);
         Vector2 Map(Vector2 p) => size / 2f + new Vector2(p.X - mid.X, mid.Y - p.Y) * scale;
+        foreach (var (from, to, rapid) in _plotProgram)
+            _plot.DrawLine(Map(from), Map(to), rapid ? new Color(0.6f, 0.55f, 0.3f, 0.45f) : new Color(0.5f, 0.6f, 0.7f, 0.5f), 1f);
         for (int i = 1; i < _plotPoints.Count; i++)
             _plot.DrawLine(Map(_plotPoints[i - 1].Point), Map(_plotPoints[i].Point),
                 _plotPoints[i].Rapid ? new Color(1f, 0.85f, 0.3f, 0.7f) : Accent, 1.5f);

@@ -1,0 +1,51 @@
+[gd_resource type="Resource" script_class="WorkOrder" load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Inspection/WorkOrder.cs" id="1_order"]
+[ext_resource type="Script" path="res://Scripts/Inspection/PartFeature.cs" id="2_feature"]
+
+[sub_resource type="Resource" id="Feature_thick"]
+script = ExtResource("2_feature")
+Label = "Kalınlık"
+Kind = 4
+PositionMm = Vector3(-45, -15, 25)
+Axis = 1
+NominalMm = 29.0
+
+[sub_resource type="Resource" id="Feature_depth"]
+script = ExtResource("2_feature")
+Label = "Cep derinliği"
+Kind = 3
+ReferenceMm = Vector3(-45, 0, 25)
+NominalMm = 6.0
+
+[sub_resource type="Resource" id="Feature_len"]
+script = ExtResource("2_feature")
+Label = "Cep boyu (X)"
+Kind = 4
+PositionMm = Vector3(0, -4, 6)
+NominalMm = 50.0
+LowerToleranceMm = -0.1
+UpperToleranceMm = 0.1
+
+[sub_resource type="Resource" id="Feature_width"]
+script = ExtResource("2_feature")
+Label = "Cep eni (Y)"
+Kind = 4
+PositionMm = Vector3(0, -4, 6)
+Axis = 2
+NominalMm = 30.0
+LowerToleranceMm = -0.1
+UpperToleranceMm = 0.1
+
+[resource]
+script = ExtResource("1_order")
+Title = "Cepli plaka"
+OrderNumber = "İE-0002"
+Machine = 0
+Material = 1
+StockShape = 0
+StockSizeMm = Vector3(120, 80, 30)
+Program = "nc_files/demo_mill_pocket.ngc"
+Notes = "Bloğu mengeneye paralellerle bağla. X/Y sıfırı bloğun ortası, Z0 ham üst yüzey.
+Her takımın boyunu ölç (G43). Yüzey frezeleme 1 mm alır: kalınlık 29 mm."
+Features = Array[ExtResource("2_feature")]([SubResource("Feature_thick"), SubResource("Feature_depth"), SubResource("Feature_len"), SubResource("Feature_width")])

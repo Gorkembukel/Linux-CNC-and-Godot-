@@ -129,7 +129,7 @@ public partial class StockStation : Node3D
         box.AddChild(Row("Şekil", shapeSelect));
 
         var materialSelect = new OptionButton();
-        foreach (var kind in new[] { MaterialKind.Aluminum, MaterialKind.Steel, MaterialKind.Brass })
+        foreach (var kind in System.Enum.GetValues<MaterialKind>())
             materialSelect.AddItem(StockBlank.NameOf(kind), (int)kind);
         materialSelect.ItemSelected += index => { _material = (MaterialKind)materialSelect.GetItemId((int)index); RefreshPreview(); };
         box.AddChild(Row("Malzeme", materialSelect));

@@ -52,7 +52,9 @@ public partial class LatheWorkholding : MachineSetup, ISawable, IThreaded
         body.CrossSlide.AddChild(Turret);
         cutting.Tools = Turret;
         AddDoor(body, body.DoorOpening);
+        AddJawRack(spec.Lathe);
         cutting.IsSecure = () => Chuck.HoldsFirmly;
+        cutting.WorkSlenderness = () => Chuck.Grip.Slenderness;
         cutting.CutWhileLoose = () =>
         {
             string reason = Chuck.LooseReason;
@@ -67,6 +69,24 @@ public partial class LatheWorkholding : MachineSetup, ISawable, IThreaded
         Chuck.UseWith = UseOnChuck;
         Chuck.TurnWith = TurnByHand;
         Chuck.PromptWith = IndicatorPrompt;
+    }
+
+    /// <summary>A small stand left of the control with the jaw sets that
+    /// are not on the chuck: the hard jaws to turn round for big parts, and
+    /// soft jaws to bore for a part that must run true.</summary>
+    private void AddJawRack(LatheStructure lathe)
+    {
+        var rack = new Node3D { Name = "JawRack", Position = new Vector3((lathe.StockZMin - lathe.HeadstockLengthMm - 900f) * M, 0f, (lathe.BedDepthMm / 2f + 300f) * M) };
+        AddChild(rack);
+        BodyParts.SolidBox(rack, "Shelf", new Vector3(0.4f, 0.04f, 0.3f), new Vector3(0f, 0.83f, 0f), BodyParts.DarkSteel);
+        BodyParts.SolidBox(rack, "Post", new Vector3(0.05f, 0.81f, 0.05f), new Vector3(0f, 0.405f, 0f), BodyParts.DarkSteel);
+        foreach (var (kind, x) in new[] { (JawKind.HardReversed, -0.1f), (JawKind.Soft, 0.1f) })
+        {
+            var set = JawSetItem.Create(kind);
+            set.Freeze = true;
+            rack.AddChild(set);
+            set.Position = new Vector3(x, 0.85f, 0f);
+        }
     }
 
     private float LiveLengthMm() => (_workpiece.Profile.LiveRadii().Length - 1) * _workpiece.Profile.StepMm;
@@ -125,7 +145,9 @@ public partial class LatheWorkholding : MachineSetup, ISawable, IThreaded
     {
         var profile = _workpiece.Profile;
         var radii = profile.LiveRadii();
-        Carryable part = StockItem.CreateTurned(radii, profile.LiveInner(), profile.StepMm, _cutting.Material, profile.SquareHalfMm);
+        var turned = StockItem.CreateTurned(radii, profile.LiveInner(), profile.StepMm, _cutting.Material, profile.SquareHalfMm);
+        turned?.FinishSurface(_cutting.Surface());
+        Carryable part = turned;
         float centreZ = profile.ZMin + (radii.Length - 1) * profile.StepMm / 2f;
         if (part == null)
         {
@@ -135,8 +157,6 @@ public partial class LatheWorkholding : MachineSetup, ISawable, IThreaded
             BodyParts.Cylinder(part, "Stub", radius, 0.003f, Vector3.Zero, Vector3.Right, BodyParts.Steel);
             part.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = new Vector3(0.003f, radius * 2f, radius * 2f) } });
         }
-        else
-            part.DisplayName += _cutting.SurfaceNote();
         _cutting.PartFinished?.Invoke();
         GetTree().CurrentScene.AddChild(part);
         part.GlobalTransform = _body.GlobalTransform * new Transform3D(Basis.Identity, new Vector3(centreZ * M, 0f, 0f));

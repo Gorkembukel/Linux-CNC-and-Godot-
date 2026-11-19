@@ -12,6 +12,10 @@ public readonly record struct MountedTool(ToolSpec Spec, ToolState State, Vector
 {
     public bool Present => Spec != null;
     public bool Cuts => Spec != null && !State.Broken;
+
+    /// <summary>What this tool takes as it is really set up: a mill cutter
+    /// bends with the length it actually sticks out of its holder.</summary>
+    public ToolLimits Limits() => Spec.IsLatheTool ? Spec.Limits() : Spec.Limits() with { StickOutMm = Spec.LengthMm + ErrorMm.Y };
 }
 
 /// <summary>Answers "what is really cutting when the control says tool N".</summary>

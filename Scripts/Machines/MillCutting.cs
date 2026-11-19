@@ -152,7 +152,7 @@ public sealed class MillCutting : CuttingProcess
 
     protected override Vector3 MoveBody(double delta)
     {
-        var position = Errors.Apply(Bridge.Prediction.VisualPosition);
+        var position = Errors.Apply(BodyPosition);
         _body.SetPose(position);
         var mounted = Tools.Active(Bridge.State.ToolNumber);
         _body.ShowTool(mounted.Cuts ? mounted.Spec : null, mounted.ErrorMm.Y);

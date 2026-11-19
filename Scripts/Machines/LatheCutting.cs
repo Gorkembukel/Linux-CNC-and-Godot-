@@ -219,7 +219,7 @@ public sealed class LatheCutting : CuttingProcess
         var part = StockItem.CreateTurned(removedRadii, removedInner, profile.StepMm, Material, profile.SquareHalfMm);
         if (part == null)
             return;
-        part.DisplayName += SurfaceNote();
+        part.FinishSurface(Surface());
         // Parted or sawn off: the cut face keeps a burr (the parting pip).
         part.Burred = true;
         PartFinished?.Invoke();
@@ -231,7 +231,7 @@ public sealed class LatheCutting : CuttingProcess
     protected override Vector3 MoveBody(double delta)
     {
         int tool = Bridge.State.ToolNumber;
-        var position = TipAt(Bridge.Prediction.VisualPosition, tool);
+        var position = TipAt(BodyPosition, tool);
         _body.SetPose(position.Y, position.X, tool, delta);
         _body.SetCoolant(Bridge.State.Coolant && Spec.FloodCoolant);
         _workpiece.RebuildDirtyChunks();

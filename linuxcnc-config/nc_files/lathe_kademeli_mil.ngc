@@ -1,9 +1,9 @@
 %
 ( TORNA - KADEMELI MIL )
-( Makine: Lathe / BenchLathe. Kutuk: cap 50mm, aynadan 55mm disarida )
+( Makine: Lathe / BenchLathe. Kutuk: cap 50mm, aynadan en az 95mm disarida: kesmede taret aynaya yaklasir )
 ( Z0 = kutugun serbest ucu, eksi Z aynaya dogru. X = YARICAP - G8 )
-( T1 kaba, T2 ince, T3 kesme kalemi )
-( Sonuc: R10 / R16 / R22 uc kademe, kademe baslarinda 1mm pah, Z-52'de kesme )
+( T1 kaba, T2 ince, T3 kesme kalemi - bicagi 20 mm derin, R20'den kalin yeri kesemez )
+( Sonuc: R10 / R16 / R18 uc kademe, kademe baslarinda 1mm pah. Kesme Z-55'te: kontrol noktasi bicagin ayna tarafindaki kosesi, 3 mm bicak serbest uca uzanir, parca boyu 52 mm )
 
 G21 G8 G18 G90 G54
 
@@ -17,38 +17,39 @@ G1 Z0.0 F150
 G1 X-0.5 F80
 G0 Z2.0
 
-( --- kaba: en buyuk kademe, Z-48'e kadar --- )
-G0 X22.2
-G1 Z-48.0 F150
+( --- kaba: en buyuk kademe ve kesme bolgesi, Z-64'e kadar --- )
 G0 X26.0
+G0 X22.2
+G1 Z-64.0 F150
+G1 X26.0 F300
+G0 Z2.0
+G0 X20.2
+G1 Z-64.0 F150
+G1 X26.0 F300
+G0 Z2.0
+G0 X18.2
+G1 Z-64.0 F150
+G1 X26.0 F300
 G0 Z2.0
 
 ( --- kaba: orta kademe, Z-32'ye kadar --- )
-G0 X20.0
-G1 Z-32.0 F150
-G0 X26.0
-G0 Z2.0
-G0 X18.0
-G1 Z-32.0 F150
-G0 X26.0
-G0 Z2.0
 G0 X16.2
 G1 Z-32.0 F150
-G0 X26.0
+G1 X26.0 F300
 G0 Z2.0
 
 ( --- kaba: uc kademe, Z-15'e kadar --- )
 G0 X14.0
 G1 Z-15.0 F150
-G0 X26.0
+G1 X26.0 F300
 G0 Z2.0
 G0 X12.0
 G1 Z-15.0 F150
-G0 X26.0
+G1 X26.0 F300
 G0 Z2.0
 G0 X10.2
 G1 Z-15.0 F150
-G0 X26.0
+G1 X26.0 F300
 G0 Z5.0
 
 ( --- ince: tek pasoda butun profil, pahlarla --- )
@@ -63,9 +64,9 @@ G1 Z-15.0
 G1 X15.0
 G1 X16.0 Z-16.0
 G1 Z-32.0
-G1 X21.0
-G1 X22.0 Z-33.0
-G1 Z-48.0
+G1 X17.0
+G1 X18.0 Z-33.0
+G1 Z-64.0
 G1 X26.0
 G0 Z5.0
 
@@ -74,7 +75,8 @@ M5
 T3 M6
 G43 H3
 S600 M3
-G0 X26.0 Z-52.0
+G0 X26.0 Z-55.0
+G1 X19.0 F80
 G1 X-0.5 F40
 G0 X26.0
 

@@ -41,6 +41,21 @@ public partial class StockItem : Carryable, IMeasurable, IThreaded
 
     private const string BurrNote = " (çapaklı)";
 
+    /// <summary>What the machining left on the surface (Ra, chatter marks);
+    /// clean for stock nobody has cut.</summary>
+    public Machining.SurfaceFinish Surface { get; private set; }
+
+    /// <summary>Records the finish the part came off the machine with.</summary>
+    public void FinishSurface(Machining.SurfaceFinish surface)
+    {
+        Surface = surface;
+        DisplayName += surface.Note;
+    }
+
+    /// <summary>How far it crept in a fixture that was not fully tight while
+    /// it was cut (mm): the root cause behind sizes that are off.</summary>
+    public float SlipMm;
+
     /// <summary>Held by a fixture: not free to pick up.</summary>
     public bool Fixed;
     public override bool CanPickUp => !Fixed;

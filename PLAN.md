@@ -185,11 +185,22 @@ door on enclosed machines.
    `MillMachine`, `MachineBody`, `MillBody`, `MillHeightmap`,
    `MillStockVisual`, `Lathe.tscn`, `Mill.tscn`)? No scene in `Main.tscn`
    uses it; nothing new is built on it.
-3. **Training / scenario mode** (work order, drawing with tolerances, report
-   card) — not started. Inputs exist: `IMeasurable`,
-   `MachineSafety.Incidents`, `CutMonitor` (peak load, chatter, wear).
-4. Not modelled: guards on open bench machines, RTCP, G-code preview beyond
-   X/Z, persistence of cut state across a restart, tool deflection, a
+3. **Scenario mode v1** is in (`Scripts/Inspection`): `WorkOrder` /
+   `PartFeature` resources under `res://Machines/WorkOrders/` (the board
+   finds every .tres there), `JobBoard` (wheel browses, click takes / hands
+   back an order; its drawing card stays top-left on the HUD via
+   `IJobCard`), `InspectionTable` (put the finished part on it: report card
+   with measured sizes, material, Ra, incidents since the order was taken,
+   score and a root-cause hint). Measuring is `PartInspector` over
+   `IPartGeometry`: `TurnedGeometry` (profile, read from whichever end
+   matches the drawing), `VoxelGeometry` (`VoxelStock.Span` / `SurfaceY`,
+   sub-voxel), `WithSurface` (adds Ra). Live-verified with the demo programs
+   (`TmpLive` + `CNC_LIVE_ORDER`). Still to do: place `Scenes/Workshop/JobBoard.tscn`
+   and `InspectionTable.tscn` in `Main.tscn` (left out on purpose while the
+   user edits that scene); a drawn 2D drawing instead of the text card; more
+   orders.
+4. Not modelled: guards on open bench machines, RTCP, persistence of cut
+   state across a restart, tool deflection, a
    locking rotary brake (LinuxCNC `LOCKING_INDEXER` needs an unlock handshake
    basic_sim does not wire), the random changer moving tools between pockets
    on our side (LinuxCNC keeps its own pocket bookkeeping). The requested tool
@@ -197,16 +208,45 @@ door on enclosed machines.
    after the change.
 5. The eleven demo programs in `linuxcnc-config/nc_files/` have never all
    run end to end live (the statue program only offline + `rs274`).
+   `lathe_kademeli_mil` was rewritten: G1 retracts at its shoulders (G0
+   rubbed them), the big step is Ø36 to Z-64 so the 20 mm parting blade can
+   part it at Z-55 (part 52 long: the blade's controlled point is its chuck-
+   side corner), 95+ mm out of the chuck. It (HandsOnLathe, preset 2) and
+   `demo_mill_pocket` run end to end and pass their work orders. Found on
+   the way: `LatheRadiusProfile.Sever` stopped at the parting groove's own
+   empty buckets, so a blade wider than one bucket never let a part go.
+   `demo_facing_turning` on preset 1 still drives the tool into the chuck.
 6. Side finding, not investigated: `BridgeClient.LastCommandRttMs` stays NaN.
-7. Console: DRY RUN / machine lock and the conveyor / air keys were removed
-   (blank caps); F1-F7 are unassigned builder keys. PRG RESTART uses
-   LinuxCNC run-from-line, so tool / spindle set before that line are not
-   replayed.
+7. Console: MC LOCK is back (`CuttingProcess.SetMachineLock`: the body
+   stays, nothing cuts or collides; released after the control moved it
+   unhomes the machine, as on a Fanuc). DRY RUN stays blank: LinuxCNC has no
+   dry-run feed (only the 0-150 % override). Conveyor / air keys blank,
+   F1-F7 unassigned. PRG RESTART uses LinuxCNC run-from-line, so tool /
+   spindle set before that line are not replayed. GRAPH now draws the whole
+   opened program dim underneath the cut path: the bridge parses it with
+   LinuxCNC's interpreter on PROGRAM_OPEN (`preview.py`, all six axes, on a
+   thread with its own stat) and streams PREVIEW chunks; `BridgeClient.ProgramPath`.
+   Not done: checking that path against fixtures before running.
 8. Lathe X wear is entered in the tool table's own X units (G10 L1 X);
    whether that is radius or diameter under G7 was not checked live.
-9. Console bug: FEED HOLD in MDI mode cannot be resumed. `CycleStart` only
-   resumes a paused interpreter in AUTO; in MDI it re-sends the typed blocks
-   (nothing, if none are pending). It should resume when paused, as in AUTO.
+9. Realism pass (this branch): tool stick-out is the player's (wheel at the
+   length gauge slides the cutter in its collet, `ToolItem.SlideInHolder`;
+   chatter uses the real stick-out); a bar sticking out more than 4
+   diameters chatters (`CuttingLoad.SlenderWorkRatio`, setup sheet warns; a
+   tailstock does not yet count as support); chatter has its own sound;
+   Ra from feed and nose / cutter radius of the last non-parting tool
+   (`SurfaceFinish`, on the part and on the report card); chips pack in a
+   deep dry pocket in ductile material and snap the tool (`ChipEvacuation`);
+   a vise at 2/3 or a loose clamp nut lets the part creep under the cut
+   (`IStockFixture.SlipMmPerMm3`, `StockItem.SlipMm`, the report card names
+   it as the root cause); stainless and Delrin (`MaterialPreset` now owns
+   name, saw rate and "needs coolant"); interchangeable lathe jaws (hard,
+   hard reversed for big parts, soft bored to the part for near-zero runout;
+   `ChuckGrip.Jaws`, `JawSetItem`, a jaw rack left of the lathe control).
+   FEED HOLD in MDI now resumes with CYCLE START. Not done: ID gripping,
+   reversed jaws' larger reach in the turret collision, changing the chuck
+   itself (3/4-jaw / collet), a touch probe (G38 needs a probe HAL pin
+   driven from Godot), gauge blocks.
 10. **Idea: a Godot-side config mechanism** for rules that are a choice, not
    physics. Today one setting exists: `cnc_trainer/workshop/saw_requires_clamping`
    in Project Settings (`WorkshopSettings`, default off). Candidates to move

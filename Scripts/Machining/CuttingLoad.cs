@@ -47,12 +47,17 @@ public static class CuttingLoad
     public const float StallAtSpindleLoad = 1.5f;
     private const float TaylorExponent = 0.25f;
     private const float MinSpeedMmPerSec = 50f;
+    /// <summary>Work sticking out of the chuck more than this many diameters
+    /// (with nothing supporting its end) starts to chatter under a light cut.</summary>
+    public const float SlenderWorkRatio = 4f;
 
     /// <param name="removalRateMm3PerSec">Smoothed over a few samples.</param>
     /// <param name="feedPerRevMm">Tool travel per spindle turn.</param>
     /// <param name="wearFactor">1 = dry; coolant lowers it.</param>
+    /// <param name="workSlenderness">Unsupported length / diameter of the
+    /// work (a bar in a lathe chuck); 0 = rigid.</param>
     public static CutLoad Evaluate(float removalRateMm3PerSec, float rpm, float surfaceSpeedMmPerSec, float feedPerRevMm,
-        ToolLimits tool, MaterialPreset material, float ratedPowerW, float wearFactor = 1f)
+        ToolLimits tool, MaterialPreset material, float ratedPowerW, float wearFactor = 1f, float workSlenderness = 0f)
     {
         if (removalRateMm3PerSec <= 0f)
             return default;
@@ -77,7 +82,8 @@ public static class CuttingLoad
                      * (rubbing ? 3f : 1f)
                      * (1f + 4f * Mathf.Max(0f, toolLoad - 0.5f));
 
-        bool chatter = toolLoad > 0.75f || (tool.Slender && toolLoad > 0.35f);
+        bool chatter = toolLoad > 0.75f || (tool.Slender && toolLoad > 0.35f)
+                       || (workSlenderness > SlenderWorkRatio && toolLoad > 1.2f / workSlenderness);
         var fault = toolLoad > 1f ? CutFault.ToolOverload
             : spindleLoad > StallAtSpindleLoad ? CutFault.SpindleOverload
             : CutFault.None;

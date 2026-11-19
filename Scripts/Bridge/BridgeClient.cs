@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using Godot;
 using CncTrainer.Sim;
 
@@ -40,6 +41,9 @@ public partial class BridgeClient : Node
     public PredictionModel Prediction { get; private set; } = new();
     /// <summary>The control's tool offset page: LinuxCNC's tool table split into geometry and wear.</summary>
     public ToolOffsetTable Offsets { get; } = new();
+    /// <summary>The whole path of the program last opened, parsed by
+    /// LinuxCNC's own interpreter (PREVIEW packets), in program coordinates.</summary>
+    public IReadOnlyList<PreviewSegment> ProgramPath { get; private set; } = Array.Empty<PreviewSegment>();
     public bool IsBridgeConnected { get; private set; }
     public double LastPacketAgeSeconds { get; private set; }
 
@@ -61,7 +65,6 @@ public partial class BridgeClient : Node
     [Signal] public delegate void StateUpdatedEventHandler();
     [Signal] public delegate void ConnectionChangedEventHandler(bool connected);
     [Signal] public delegate void EventReceivedEventHandler(int eventKind, string text);
-    [Signal] public delegate void PreviewReceivedEventHandler(Godot.Collections.Array segments);
 
     private PacketPeerUdp _stateSocket;
     private PacketPeerUdp _commandSocket;
@@ -234,20 +237,7 @@ public partial class BridgeClient : Node
 
         if (collected >= totalSegments && totalSegments > 0)
         {
-            var all = new Godot.Collections.Array();
-            foreach (var chunk in _previewChunks.Values)
-                foreach (var seg in chunk)
-                    all.Add(new Godot.Collections.Dictionary
-                    {
-                        ["motion_type"] = (int)seg.MotionType,
-                        ["line_number"] = seg.LineNumber,
-                        ["start_x"] = seg.Start.X,
-                        ["start_z"] = seg.Start.Z,
-                        ["end_x"] = seg.End.X,
-                        ["end_z"] = seg.End.Z,
-                        ["feed_rate"] = seg.FeedRate,
-                    });
-            EmitSignal(SignalName.PreviewReceived, all);
+            ProgramPath = _previewChunks.Values.SelectMany(chunk => chunk).ToArray();
             _previewTotal = -1;
             _previewChunks.Clear();
         }

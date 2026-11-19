@@ -38,8 +38,12 @@ public partial class ProceduralMachine : Node3D, IMachine
     private string _fingerprint;
     private double _fingerprintTimer;
 
+    /// <summary>Group every running machine joins.</summary>
+    public const string Group = "machines";
+
     public override void _Ready()
     {
+        AddToGroup(Group);
         Rebuild();
         if (!Engine.IsEditorHint() && _work != null)
             StartMachine();
@@ -155,7 +159,7 @@ public partial class ProceduralMachine : Node3D, IMachine
         }
         Rig.Monitor = new Machining.CutMonitor(Spec, Cutting, Safety);
         Cutting.Collided += reason => Safety.Trip(IncidentKind.Crash, reason);
-        Cutting.SurfaceNote = () => Rig.Monitor.ChatterMarks ? " (yüzey titreşim izli)" : " (yüzey temiz)";
+        Cutting.Surface = () => Rig.Monitor.Surface;
         Cutting.PartFinished = Rig.Monitor.ResetQuality;
         bridge.Connect(BridgeClient.SignalName.StateUpdated, Callable.From(Cutting.OnConfirmedState));
     }

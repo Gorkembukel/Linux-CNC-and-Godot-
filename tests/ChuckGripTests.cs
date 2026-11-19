@@ -88,4 +88,51 @@ public class ChuckGripTests
         Assert.Equal(new[] { 25f, 25f, 20f }, profile.LiveRadii());
         Assert.Equal(-8f, profile.ZMax);
     }
+
+    private static ChuckGrip EmptyChuckWith(JawKind jaws)
+    {
+        var grip = new ChuckGrip(80f, 30f, 30f, 250f) { KeyIn = true };
+        Assert.Null(grip.ChangeJaws(jaws));
+        grip.KeyIn = false;
+        return grip;
+    }
+
+    private static bool Fits(ChuckGrip grip, float diameter)
+    {
+        for (int i = 0; i < 60 && !grip.CanInsert(diameter); i++)
+            grip.TurnKey(-1);
+        return grip.CanInsert(diameter);
+    }
+
+    [Fact]
+    public void JawsChange_OnlyWithTheKeyIn_AndAnEmptyChuck()
+    {
+        var grip = new ChuckGrip(80f, 30f, 30f, 250f);
+        Assert.NotNull(grip.ChangeJaws(JawKind.Soft));
+        Assert.Equal(JawKind.Hard, grip.Jaws);
+        var loaded = LoadedChuck();
+        loaded.KeyIn = true;
+        Assert.NotNull(loaded.ChangeJaws(JawKind.Soft));
+    }
+
+    [Fact]
+    public void ReversedJaws_TakeBigPartsButNotSmallOnes()
+    {
+        Assert.False(Fits(new ChuckGrip(80f, 30f, 30f, 250f), 95f));
+        Assert.True(Fits(EmptyChuckWith(JawKind.HardReversed), 95f));
+        Assert.False(Fits(EmptyChuckWith(JawKind.HardReversed), 20f));
+        Assert.Contains("Ters", EmptyChuckWith(JawKind.HardReversed).WhyNot(20f));
+    }
+
+    [Fact]
+    public void SoftJaws_HoldOnlyTheDiameterTheyWereBoredFor_AndRunNearlyTrue()
+    {
+        var grip = EmptyChuckWith(JawKind.Soft);
+        Assert.False(Fits(grip, 50f));
+        Assert.True(grip.BoreSoftJaws(50f));
+        Assert.False(Fits(grip, 45f));
+        Assert.True(Fits(grip, 50.2f));
+        Assert.True(grip.Insert(50.2f, 140f));
+        Assert.True(grip.RunoutMm(0f) < 0.016f, $"runout {grip.RunoutMm(0f)}");
+    }
 }

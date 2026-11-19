@@ -96,4 +96,25 @@ public class CuttingLoadTests
         Assert.False(crib.IsBroken(1));
         Assert.Equal(0f, crib[1].Wear);
     }
+
+    [Fact]
+    public void ACutterSlidOutFurther_ChattersSooner()
+    {
+        var cut = (rate: 700f, rpm: 3000f);
+        var short10 = CuttingLoad.Evaluate(cut.rate, cut.rpm, Speed(10f, cut.rpm), 0.1f, EndMill10 with { StickOutMm = 30f }, MaterialPreset.Steel, 5000f);
+        var long10 = CuttingLoad.Evaluate(cut.rate, cut.rpm, Speed(10f, cut.rpm), 0.1f, EndMill10 with { StickOutMm = 70f }, MaterialPreset.Steel, 5000f);
+        Assert.False(short10.Chatter);
+        Assert.True(long10.Chatter);
+        Assert.True(long10.ToolLoad > short10.ToolLoad);
+    }
+
+    [Fact]
+    public void ABarStickingFarOutOfTheChuck_ChattersUnderALightCut()
+    {
+        var rigid = CuttingLoad.Evaluate(800f, 800f, 1500f, 0.15f, TurningTool, MaterialPreset.Steel, 5000f);
+        var slender = CuttingLoad.Evaluate(800f, 800f, 1500f, 0.15f, TurningTool, MaterialPreset.Steel, 5000f, workSlenderness: 6f);
+        Assert.False(rigid.Chatter);
+        Assert.True(slender.Chatter);
+        Assert.False(CuttingLoad.Evaluate(800f, 800f, 1500f, 0.15f, TurningTool, MaterialPreset.Steel, 5000f, workSlenderness: 3f).Chatter);
+    }
 }

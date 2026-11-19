@@ -86,6 +86,24 @@ public partial class MillWorkholding : MachineSetup, ISawable
 
         cutting.IsSecure = () => Fixture?.HoldsFirmly ?? true;
         cutting.CutWhileLoose = ThrowPart;
+        cutting.CutObserved += SlipUnderCut;
+    }
+
+    /// <summary>A part clamped snug but not fully tight creeps along the
+    /// feed under the cutting force. Nothing says so: the cut lands off by
+    /// that much, and only measuring the part shows it.</summary>
+    private void SlipUnderCut(CutSample sample)
+    {
+        if (Fixture is not { } fixture || fixture.SlipMmPerMm3 <= 0f || fixture.Seat.MachinedPart is not VoxelStockVisual visual)
+            return;
+        var v = Bridge.State.Velocity;
+        var feed = new Vector3((float)v.X, 0f, -(float)v.Y);
+        if (feed.LengthSquared() < 1e-6f)
+            return;
+        float mm = sample.VolumeMm3 * fixture.SlipMmPerMm3;
+        visual.GlobalPosition += (_body.WorkEnd.GlobalBasis * feed).Normalized() * mm * M;
+        fixture.Seat.Stock.SlipMm += mm;
+        _cutting.MountStock(visual);
     }
 
     public MaterialKind SawMaterial => Fixture?.Seat.Stock?.Blank.Material ?? MaterialKind.Steel;
@@ -172,7 +190,7 @@ public partial class MillWorkholding : MachineSetup, ISawable
                 _mountedAt = at;
                 _cutting.MountStock((VoxelStockVisual)seat.MachinedPart);
             }
-            seat.SurfaceNote = _cutting.SurfaceNote();
+            seat.Surface = _cutting.Surface();
             if (_cutting.RemovedMm3 > _removedAtMount)
             {
                 seat.WasCut = true;
@@ -318,7 +336,7 @@ public partial class MillWorkholding : MachineSetup, ISawable
     private void CheckFixtureCrash(IStockFixture fixture)
     {
         string reason = null;
-        if (InSpindle is { Present: true } mounted)
+        if (InSpindle is { Present: true } mounted && !_cutting.MachineLock)
         {
             float radius = mounted.Spec.DiameterMm / 2f * M;
             float length = (mounted.Spec.LengthMm + mounted.ErrorMm.Y) * M;

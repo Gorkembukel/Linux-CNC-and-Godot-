@@ -33,6 +33,9 @@ public abstract class CuttingProcess
 
     /// <summary>What the stock being cut is made of.</summary>
     public MaterialKind Material;
+    /// <summary>Unsupported length / diameter of the work being cut (a bar
+    /// in a lathe chuck); 0 = rigid, as a part in a vise is.</summary>
+    public System.Func<float> WorkSlenderness = () => 0f;
     /// <summary>Asked on every cut: is the stock held firmly? Null = always.</summary>
     public System.Func<bool> IsSecure;
     /// <summary>Raised once when a real cut is taken on stock that is not secure.</summary>
@@ -40,14 +43,45 @@ public abstract class CuttingProcess
     public event System.Action<CutSample> CutObserved;
     /// <summary>A part of the machine that does not cut ran into the work.</summary>
     public event System.Action<string> Collided;
-    /// <summary>What the cutting so far has left on the surface, as a
-    /// suffix for the finished part's name; and the call that starts a new part.</summary>
-    public System.Func<string> SurfaceNote = () => "";
+    /// <summary>What the cutting so far has left on the surface (for the
+    /// finished part); and the call that starts a new part.</summary>
+    public System.Func<SurfaceFinish> Surface = () => SurfaceFinish.Clean;
     public System.Action PartFinished;
     /// <summary>What is really cutting when the control says tool N.</summary>
     public IToolSource Tools;
     /// <summary>Play and thermal growth between the control and the tool.</summary>
     public readonly MachineErrors Errors;
+
+    /// <summary>MACHINE LOCK: the control runs the program and its position
+    /// display counts, but the axes stay where they were: nothing is cut and
+    /// nothing collides. The way to check a program on the GRAPH page
+    /// without the machine moving.</summary>
+    public bool MachineLock { get; private set; }
+    private AxisVector _lockedAt;
+
+    /// <summary>Where the machine body is drawn: the predicted position, or
+    /// where it stood when MACHINE LOCK went on.</summary>
+    protected AxisVector BodyPosition => MachineLock ? _lockedAt : Bridge.Prediction.VisualPosition;
+
+    /// <summary>Releasing the lock after the control moved leaves its
+    /// position and the real axes apart: as on a real control, the machine
+    /// has lost its reference. Returns false when that happened.</summary>
+    public bool SetMachineLock(bool on)
+    {
+        if (on == MachineLock)
+            return true;
+        MachineLock = on;
+        if (on)
+        {
+            _lockedAt = Bridge.State.Position;
+            return true;
+        }
+        if ((Bridge.State.Position - _lockedAt).Length() < 0.01f)
+            return true;
+        Bridge.MachineOff();
+        Bridge.Unhome();
+        return false;
+    }
 
     protected CuttingProcess(MachineSpec spec, BridgeClient bridge, ChipSpawner chips)
     {
@@ -64,6 +98,8 @@ public abstract class CuttingProcess
         long now = Bridge.State.LastTMonoNs;
         float seconds = _lastSampleNs == 0 ? 0f : Mathf.Clamp((now - _lastSampleNs) * 1e-9f, 0f, 0.5f);
         _lastSampleNs = now;
+        if (MachineLock)
+            return;
         Errors.Update(Bridge.State, seconds);
         Cut(Bridge.State, seconds);
     }

@@ -131,9 +131,14 @@ leaves.
   is a space), **INSERT**, **CYCLE START**.
 - **Programs:** **PROG**, softkey **DIR**, cursor to a file, **SELECT**.
   **AUTO** + **CYCLE START** runs it; **FEED HOLD** pauses, **CYCLE START**
-  resumes, **RESET** stops. **SINGLE BLOCK**, **BLOCK SKIP**, **OPT STOP** and
-  the rapid override keys work as on a real control; **PRG RESTART** starts
-  from the line under the PROG cursor.
+  resumes (in MDI too), **RESET** stops. **SINGLE BLOCK**, **BLOCK SKIP**,
+  **OPT STOP** and the rapid override keys work as on a real control;
+  **PRG RESTART** starts from the line under the PROG cursor.
+- **Checking a program:** **CSTM/GR > GRAPH** draws the whole selected
+  program (dim) under the path being cut. **MC LOCK** runs it without moving
+  the machine: the screen counts, nothing cuts or collides. Releasing the
+  lock after the control moved costs the reference (**ALL REF** again), as on
+  a real control.
 - **Editing:** **EDIT**, cursor to a line, type, then **INSERT** (new line
   after the cursor), **ALTER** (replace) or **DELETE**. The edited program
   runs as a copy beside the original (`nc_files/_edit_<name>.ngc`); the
@@ -168,12 +173,37 @@ A setup sheet on the right of the screen ticks each step off.
 6. With the vise handle, open the jaws wide enough; click the vise with the
    blank in hand; tighten with the wheel to 3/3; tap with the mallet.
 7. Tools: take them from the blue tool cart, check each on its length gauge,
-   load the first into the spindle.
+   load the first into the spindle. On the gauge the wheel slides a cutter in
+   its collet: shorter chatters less but reaches less deep; measure it again
+   after.
 8. Work zero at the control: MDI `T9 M6` (edge finder, then TOOL CHG END),
    **HANDLE**, creep up to the left edge until the finder kicks; **OFS/SET >
    WORK**, type `X-5`, **MEASURE**. Same for Y. Then the cutter, hold the
    paper gauge under it, step down until the paper drags, type `Z0.05`,
    **MEASURE**.
+
+A vise at 2/3 holds the part, but it creeps under the cut and the sizes
+come out wrong: only the report card (or your own measuring) tells you.
+
+### Lathe jaws
+
+The chuck starts with hard jaws. The jaw rack left of the lathe control
+holds two more sets: put the chuck key in, empty the chuck and click it with
+a set in hand to swap. **Reversed** hard jaws take big parts but do not close
+on small ones; **soft** jaws only hold a part once bored for it (click the
+chuck with the part in hand), and then it runs nearly true. A bar sticking
+out more than four diameters chatters; the setup sheet warns.
+
+### Work orders
+
+The work order board (**İŞ EMİRLERİ**): the wheel leafs through the orders,
+a click takes one. Its drawing stays top left: material, stock, program and
+every toleranced size. Make the part, then put it on the quality control
+table (**KALİTE KONTROL**): the report card lists each size as measured, the
+material, the surface roughness, any incident since the order was taken, a
+score and where to look first when it fails. Orders are `.tres` files under
+`Machines/WorkOrders/` (edit them in the inspector: every field explains
+itself); a new file shows up on the board by itself.
 
 ## Generating a machine
 
@@ -247,6 +277,7 @@ Scripts/
   Player/                player, posture, console close-up
   Audio/                 synthesised sounds, machine audio
   Panel/                 the debug 2D operator panel (F2)
+  Inspection/            work orders, the job board, the inspection table, part measuring
   Chips/, Sim/, Scheduling/
 Scenes/                  Main.tscn (workshop), Machines/, Workshop/, UI/
 tests/                   C# (xUnit) and Python (pytest)
@@ -257,9 +288,8 @@ PLAN.md                  current status, open work, environment gotchas
 
 ## Status and limits
 
-Working: everything above. Not started: a training / scenario mode (work
-orders, drawings with tolerances, a report card); its inputs — measurements,
-the incident list, load and wear — are in place.
+Working: everything above. The drawing on a work order is a text card, not
+a drawn 2D drawing yet.
 
 - Kinematics are plain trivkins (no tool-centre-point control); lathes are
   X/Z only.
