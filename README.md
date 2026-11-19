@@ -48,7 +48,14 @@ More in [`docs/screenshots/`](docs/screenshots/).
   costs the machine its reference, a key left in the chuck flies out, an open
   door blocks the cycle.
 - **Measuring.** Caliper, micrometer and depth gauge read the real cut
-  surface — on the machine and on finished parts.
+  surface — on the machine and on finished parts. A touch probe runs G38.2
+  on the real control; a Z setting block sets tool lengths.
+- **Chucks as a craft.** Chucks of many sizes and spindle noses in a curved
+  cabinet; changed on the lathe with the cam key; their jaws set by hand
+  into the guides on a chuck stand and caught by the turning scroll, with
+  the faults a real scroll chuck has (wrong slot, a turn late).
+- **Work orders.** Take a job from the board (with its drawing), make the
+  part, get it graded at the inspection table.
 - **Sound.** Key clicks, alarm beeps, spindle motor, cutting, axis servos and
   coolant, all synthesised and placed in 3D.
 - **Machine generator** (editor plugin). Describe a machine — axes, travels,
@@ -100,9 +107,12 @@ shows live data.
 | Q / R | lean left / right |
 | Left Alt + mouse | move the head (peek into a machine); Alt + wheel: head forward / back; tap Alt to bring it back |
 | V | first / third person |
-| F | pick up / drop what you are looking at |
+| F | pick up (held where it lies) / drop; Shift + F: straight into the hands |
+| B | bring what you hold up to your hands |
+| Mouse wheel | turn a bolt, the vise screw, a dial or the handwheel; holding something: nearer / further (Shift: finely) |
+| T (hold) + mouse, or middle drag | turn what you hold (Shift: finely); Z / X quarter turns |
 | Left click | use, place, press a console key |
-| Mouse wheel | turn a bolt, the vise screw, a dial or the handwheel |
+| K | near a console: turn the keyboard's CNC control and the corner window off / on |
 | E or Tab | at a console: close-up on the panel; at the stock station: its panel |
 | Esc | free / capture the mouse |
 | F2 | debug: 2D operator panel and status text |
@@ -372,7 +382,8 @@ Scripts/
                          procedural mill and lathe bodies, tool meshes
   Material/              lathe radius profile, voxel stock and mesher
   Fixtures/              vise, clamps, centring plate, chucks, mill / lathe setup
-  Workshop/              stock station, stock items, tool bench and carts
+  Workshop/              stock station, stock items, tool bench and carts,
+                         the chuck cabinet and its curved enclosure, settings
   Interaction/           what the player can look at, carry, use and measure
   Player/                player, posture, console close-up
   Audio/                 synthesised sounds, machine audio
@@ -388,8 +399,9 @@ PLAN.md                  current status, open work, environment gotchas
 
 ## Status and limits
 
-Working: everything above. The drawing on a work order is a text card, not
-a drawn 2D drawing yet.
+Working: everything above. Not yet: setting jaws physically on the lathe
+itself (that is done on the chuck stand), the probe sensing the vise or
+table, a tailstock counting as support for a slender bar.
 
 - Kinematics are plain trivkins (no tool-centre-point control); lathes are
   X/Z only.
