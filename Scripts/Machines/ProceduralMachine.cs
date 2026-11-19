@@ -25,6 +25,9 @@ public partial class ProceduralMachine : Node3D, IMachine
     public MachineRig Rig { get; private set; }
     public MachineSafety Safety { get; private set; }
     public CuttingProcess Cutting { get; private set; }
+    /// <summary>What the opened program's path is checked against before it
+    /// runs (GRAPH page).</summary>
+    public System.Collections.Generic.List<Machining.IPathObstacle> PathObstacles { get; } = new();
     public Scheduling.JobScheduler Scheduler => null;
 
     private const int EditorPreviewNodes = 150_000;
@@ -140,6 +143,7 @@ public partial class ProceduralMachine : Node3D, IMachine
                 var setup = new MillWorkholding { Name = "Workholding" };
                 AddChild(setup);
                 setup.Setup(Spec, _millBody, mill, bridge, Safety);
+                PathObstacles.Add(setup);
             }
             else
                 mill.MountStock(_voxelStock);
@@ -150,6 +154,7 @@ public partial class ProceduralMachine : Node3D, IMachine
             _work.AddChild(parts);
             var lathe = new LatheCutting(Spec, bridge, _latheBody, _workpiece, chips, parts);
             Cutting = lathe;
+            PathObstacles.Add(lathe);
             if (Spec.ManualSetup)
             {
                 var setup = new LatheWorkholding { Name = "Workholding" };

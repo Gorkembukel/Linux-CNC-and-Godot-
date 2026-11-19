@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using CncTrainer.Bridge;
+using CncTrainer.Machining;
 using CncTrainer.Player;
 
 namespace CncTrainer;
@@ -1442,7 +1443,9 @@ public partial class ConsoleStand : Node3D
                 _trail.RemoveRange(0, 1000);
         }
         bool graph = connected && _page == Page.Custom && _subPage == 1;
-        _screen.SetPlot(graph ? _trail : null, tool, graph ? ProgramPlot() : null);
+        var conflict = graph ? CheckProgram(s) : null;
+        _screen.SetPlot(graph ? _trail : null, tool, graph ? ProgramPlot() : null,
+            conflict is PathConflict c ? Plot(c.WorkPosition) : null);
 
         bool alarm = connected && s.Estop;
         if (alarm && !_wasAlarm)
@@ -1494,6 +1497,29 @@ public partial class ConsoleStand : Node3D
             .Select(p => (Plot(p.First.Start), Plot(p.Last.End), p.First.MotionType == MotionType.Rapid))
             .ToArray();
         return _programPlot;
+    }
+
+    /// <summary>Seconds between re-checks of the program against the setup
+    /// while the GRAPH page is up (fixtures and offsets can change).</summary>
+    private const double ProgramCheckIntervalSec = 1.0;
+    private double _checkedAt = double.NegativeInfinity;
+    private PathConflict? _conflict;
+
+    /// <summary>Where the opened program first runs into the setup, with
+    /// the tool in the spindle and today's offsets; null if it is clear.</summary>
+    private PathConflict? CheckProgram(MachineState s)
+    {
+        double now = Time.GetTicksMsec() / 1000.0;
+        if (s.InCycle || now - _checkedAt < ProgramCheckIntervalSec)
+            return _conflict;
+        _checkedAt = now;
+        var obstacles = (GetParent() as ProceduralMachine)?.PathObstacles;
+        var found = obstacles == null ? null
+            : ProgramCheck.FirstConflict(_bridge.ProgramPath, s.WorkOffset, s.WorkPosition, obstacles);
+        if (found is PathConflict c && _conflict?.LineNumber != c.LineNumber)
+            PlayerController.Notify(this, $"GRAPH: program N{c.LineNumber} satırında çarpar — {c.Reason}");
+        _conflict = found;
+        return _conflict;
     }
 
     private bool MachineLocked => (GetParent() as ProceduralMachine)?.Cutting?.MachineLock ?? false;
@@ -1618,9 +1644,12 @@ public partial class ConsoleStand : Node3D
             case Page.System:
                 return ("SYSTEM", "", $"MACHINE   {Rig?.Profile.Name}\nLINK      seq {s.LastSeq}  age {_bridge.LastPacketAgeSeconds * 1000:F0} ms\nJITTER    {_bridge.StateStreamJitterMs:F1} ms\nMODE      {s.TaskMode}\nINTERP    {s.InterpState}");
             case Page.Custom when _subPage == 1:
-                return ("GRAPH", "", IsLathe
+                return ("GRAPH", "", (IsLathe
                     ? $"Z ->  X ^   {_trail.Count} pts   feed cyan  rapid yellow"
-                    : $"X ->  Y ^   {_trail.Count} pts   feed cyan  rapid yellow");
+                    : $"X ->  Y ^   {_trail.Count} pts   feed cyan  rapid yellow")
+                    + (_bridge.ProgramPath.Count == 0 ? ""
+                        : _conflict is PathConflict c ? $"\nCRASH N{c.LineNumber}: {c.Reason}"
+                        : $"\nPATH CLEAR (T{s.ToolNumber:00}, current offsets)"));
             case Page.Custom:
             {
                 float load = Rig?.Monitor != null ? Rig.Monitor.Load.SpindleLoad : 0f;

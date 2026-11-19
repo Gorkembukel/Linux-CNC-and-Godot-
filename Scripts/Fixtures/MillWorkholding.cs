@@ -20,7 +20,7 @@ namespace CncTrainer.Fixtures;
 /// throws it out and stops the machine. The fixtures themselves come from a
 /// FixtureCart in the workshop.
 /// </summary>
-public partial class MillWorkholding : MachineSetup, ISawable
+public partial class MillWorkholding : MachineSetup, ISawable, IPathObstacle
 {
     private const float M = WorldScale.MmToM;
 
@@ -207,7 +207,7 @@ public partial class MillWorkholding : MachineSetup, ISawable
 
         CheckDoorInterlock();
         RunToolChanger(delta);
-        CheckFixtureCrash(fixture);
+        CheckFixtureCrash();
         if (Chuck != null)
             CheckKeyLeftIn(Chuck, Mathf.Abs(Bridge.State.Velocity.A) > 0.01f, "ÇARPMA: ayna anahtarı aynada unutuldu, döner eksen çalıştı");
         CheckEdgeFinder();
@@ -333,36 +333,43 @@ public partial class MillWorkholding : MachineSetup, ISawable
 
     /// <summary>The tool, or the holder above it, running into the
     /// fixture's own hardware or into the table.</summary>
-    private void CheckFixtureCrash(IStockFixture fixture)
+    private void CheckFixtureCrash()
     {
-        string reason = null;
-        if (InSpindle is { Present: true } mounted && !_cutting.MachineLock)
-        {
-            float radius = mounted.Spec.DiameterMm / 2f * M;
-            float length = (mounted.Spec.LengthMm + mounted.ErrorMm.Y) * M;
-            var tool = _body.WorkEnd.GlobalTransform * _cutting.TipInWork(Bridge.State.Position, mounted);
-            Vector3 tip = tool.Origin, holder = tool * new Vector3(0f, length, 0f);
-            Vector3 nose = tool * new Vector3(0f, length + ToolMeshBuilder.HolderLength, 0f);
-            float noseRadius = Spec.Mill.SpindleHousingDiameterMm * 0.375f * M;
-
-            if (fixture is Node3D node)
-            {
-                var toFixture = node.GlobalTransform.AffineInverse();
-                reason = fixture.ToolCrash(toFixture * tip, radius)
-                         ?? (fixture.ToolCrash(toFixture * holder, HolderRadius) != null ? "ÇARPMA: takım tutucu bağlama aparatına çarptı" : null)
-                         ?? (fixture.ToolCrash(toFixture * nose, noseRadius) != null ? "ÇARPMA: iş mili burnu bağlama aparatına çarptı" : null);
-            }
-            if (reason == null && Table != null)
-            {
-                var toTable = Table.GlobalTransform.AffineInverse();
-                reason = Table.ToolCrash(toTable * tip, radius)
-                         ?? (Table.ToolCrash(toTable * holder, HolderRadius) != null ? "ÇARPMA: takım tutucu tablaya çarptı" : null)
-                         ?? (Table.ToolCrash(toTable * nose, noseRadius) != null ? "ÇARPMA: iş mili burnu tablaya çarptı" : null);
-            }
-        }
+        string reason = _cutting.MachineLock ? null : CrashAt(Bridge.State.Position);
         if (reason != null && !_crashed)
             Safety.Trip(IncidentKind.Crash, reason);
         _crashed = reason != null;
+    }
+
+    /// <summary>Why the spindle's tool, holder or nose would be inside the
+    /// fixture or the table with the machine at this position, or null.</summary>
+    public string CrashAt(AxisVector machinePosition)
+    {
+        if (InSpindle is not { Present: true } mounted)
+            return null;
+        float radius = mounted.Spec.DiameterMm / 2f * M;
+        float length = (mounted.Spec.LengthMm + mounted.ErrorMm.Y) * M;
+        var tool = _body.WorkEnd.GlobalTransform * _cutting.TipInWork(machinePosition, mounted);
+        Vector3 tip = tool.Origin, holder = tool * new Vector3(0f, length, 0f);
+        Vector3 nose = tool * new Vector3(0f, length + ToolMeshBuilder.HolderLength, 0f);
+        float noseRadius = Spec.Mill.SpindleHousingDiameterMm * 0.375f * M;
+
+        string reason = null;
+        if (Fixture is Node3D node and IStockFixture fixture)
+        {
+            var toFixture = node.GlobalTransform.AffineInverse();
+            reason = fixture.ToolCrash(toFixture * tip, radius)
+                     ?? (fixture.ToolCrash(toFixture * holder, HolderRadius) != null ? "ÇARPMA: takım tutucu bağlama aparatına çarptı" : null)
+                     ?? (fixture.ToolCrash(toFixture * nose, noseRadius) != null ? "ÇARPMA: iş mili burnu bağlama aparatına çarptı" : null);
+        }
+        if (reason == null && Table != null)
+        {
+            var toTable = Table.GlobalTransform.AffineInverse();
+            reason = Table.ToolCrash(toTable * tip, radius)
+                     ?? (Table.ToolCrash(toTable * holder, HolderRadius) != null ? "ÇARPMA: takım tutucu tablaya çarptı" : null)
+                     ?? (Table.ToolCrash(toTable * nose, noseRadius) != null ? "ÇARPMA: iş mili burnu tablaya çarptı" : null);
+        }
+        return reason;
     }
 
     private const float HolderRadius = 0.026f;
