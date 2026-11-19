@@ -296,11 +296,15 @@ door on enclosed machines.
    used on the lathe, in the hand and on the stand. `ChuckModel.Mount`
    (`SpindleNose` D1-3..D1-8, cams 3 or 6) must match
    `LatheStructure.SpindleNose`; jaws carry `JawFamily` (kind + size).
-   `ChuckStand`: a chuck face up; a jaw within 15 deg of square and flat,
-   resting on the face near its groove, drops in (`ChuckJaws.Place`) and
-   waits until the scroll's thread start reaches it (`Advance`); jaws let
-   go slide out and stay out until picked up. Its Area3D and physics tick
-   run only while a slot is empty; fitted jaws are drawn, not simulated.
+   `ChuckStand`: a chuck face up with its real slotted CSG collision
+   (`ChuckItem.SetSlotCollision`); jaws are bodies (wide body, narrow
+   tongue: `JawMesh.BodyShare` / `TongueShare`) that the player sets into
+   the guides by hand, no snapping or pull. Only when a key notch takes the
+   thread start across a slot (arriving, or leaving the crossing it sat
+   on) is a jaw lying in that slot's guides (square within 12 deg, body on
+   the face) caught (`CatchLyingJaws` -> `ChuckJaws.Place`) and replaced by
+   the drawn jaw; one let go becomes a body in its guides again. Nothing
+   runs per frame: the Area3D is only read on key turns.
    A chuck can also come off alone (`JawChuck.Lift`: cams undone, empty
    hand); the nose is drawn bare and the carriage zone shrinks to it
    (`ProceduralLatheBody.FitBareNose`) until one is mounted. Handed-over

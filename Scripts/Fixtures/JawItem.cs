@@ -65,7 +65,13 @@ public partial class JawItem : Carryable
             Mass = Mathf.Max(0.1f, length * height * width * (kind == JawKind.Soft ? 2700f : 7850f) * 0.8f),
         };
         JawMesh.Build(item, kind, number, length, height, width);
-        item.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = new Vector3(length, height + 0.004f, width) }, Position = new Vector3(length / 2f, height / 2f - 0.002f, 0f) });
+        // Its body rests on a chuck's face, its tongue fits down a groove.
+        item.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = new Vector3(length, height, width * JawMesh.BodyShare) }, Position = new Vector3(length / 2f, height / 2f, 0f) });
+        item.AddChild(new CollisionShape3D
+        {
+            Shape = new BoxShape3D { Size = new Vector3(length, JawMesh.TongueDepthM, width * JawMesh.TongueShare) },
+            Position = new Vector3(length / 2f, -JawMesh.TongueDepthM / 2f, 0f),
+        });
         item._knock = new AudioStreamPlayer3D { Stream = Audio.SynthSounds.Clink, UnitSize = 1.2f, MaxDistance = 12f };
         item.AddChild(item._knock);
         item.ContactMonitor = true;

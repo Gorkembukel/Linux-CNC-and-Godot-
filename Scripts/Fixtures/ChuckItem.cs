@@ -26,8 +26,21 @@ public partial class ChuckItem : Carryable
         item.Visual.ShowGrip(grip);
         // The body up to its face: a jaw laid on the face rests on it.
         float radius = item.Visual.RadiusM, height = item.Visual.FaceM;
-        item.AddChild(new CollisionShape3D { Shape = new CylinderShape3D { Radius = radius, Height = height }, Position = new Vector3(0f, height / 2f, 0f) });
+        item._plain = new CollisionShape3D { Shape = new CylinderShape3D { Radius = radius, Height = height }, Position = new Vector3(0f, height / 2f, 0f) };
+        item.AddChild(item._plain);
         return item;
+    }
+
+    private CollisionShape3D _plain;
+
+    /// <summary>On a stand its slots are real: jaws go down and slide in
+    /// them. Carried about it is a plain cylinder. A collet chuck has no
+    /// slots and keeps its cylinder.</summary>
+    public void SetSlotCollision(bool slots)
+    {
+        bool cut = slots && Model.Kind != ChuckKind.Collet;
+        Visual.SetSlotCollision(cut);
+        _plain.Disabled = cut;
     }
 
     /// <summary>Redraws the jaws after the grip changed.</summary>

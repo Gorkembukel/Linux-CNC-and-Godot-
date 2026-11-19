@@ -263,9 +263,12 @@ holds one chuck's spare jaws (hard, reversed, soft, all numbered) or its
 collets. On the worktop, the chuck stand: set a chuck on it face up and
 change its jaws off the machine, as in a real shop. Chuck key in, open past
 the end and the jaws are let go one by one (the last caught first) and lie
-loose in their grooves: pull them out by hand. To fit them, lay each jaw
-square in its groove and flat on the face (it drops in), then turn the key:
-the scroll's thread start catches each one as it crosses its slot. Jaw 1
+loose in their grooves: lift them out. To fit them, set each jaw into its
+groove yourself: nothing snaps; a jaw is a solid thing, its narrow tongue
+goes down the groove only when it is square to it, and then it slides in
+the guides. It stays loose there until the key brings the scroll's thread
+start across that slot: only then is it caught (and becomes part of the
+chuck). Jaw 1
 first, then 2, then 3, each laid in before the start reaches it: a jaw in
 another number's slot sits off by a third of a pitch, one laid in after the
 start has passed is caught a turn late and sits a whole pitch out. A notch

@@ -53,6 +53,21 @@ public partial class ChuckVisual : Node3D
     public Vector3 GrooveEntry(int slot) => SlotDirection(slot) * (_r - JawLengthM - 0.002f) + Vector3.Up * _body;
 
     public float JawLengthM => _r * 0.45f;
+    public float GrooveWidthM => _grooveWidth;
+
+    private CsgCombiner3D _bodyCsg;
+
+    /// <summary>The body's own collision, slots and all, so a jaw's tongue
+    /// can go down a groove and slide in it (on the stand, where the chuck
+    /// is still; off, the carried chuck uses a plain cylinder).</summary>
+    public void SetSlotCollision(bool on)
+    {
+        if (_bodyCsg == null)
+            return;
+        _bodyCsg.CollisionLayer = 1;
+        _bodyCsg.CollisionMask = 0;
+        _bodyCsg.UseCollision = on;
+    }
 
     private void Build(ChuckModel model)
     {
@@ -104,6 +119,7 @@ public partial class ChuckVisual : Node3D
         // The body, with the slots and the bore cut out of it.
         var body = new CsgCombiner3D { Name = "Body" };
         AddChild(body);
+        _bodyCsg = body;
         body.AddChild(new CsgCylinder3D
         {
             Radius = _r, Height = _body - back, Sides = 64, Material = steel,
@@ -294,15 +310,20 @@ public partial class ChuckVisual : Node3D
 /// way round), soft jaws a plain block.</summary>
 public static class JawMesh
 {
+    /// <summary>The body is wider than the groove (it rests on the face),
+    /// the tongue narrower (it goes down the groove's mouth); both as
+    /// shares of the groove width. The tongue's depth (m).</summary>
+    public const float BodyShare = 1.3f, TongueShare = 0.7f, TongueDepthM = 0.0055f;
+
     public static void Build(Node3D parent, JawKind kind, int number, float length, float height, float width)
     {
         var material = BodyParts.Mat(JawItem.ColorOf(kind), kind == JawKind.Soft ? 0.5f : 0.75f, kind == JawKind.Soft ? 0.45f : 0.35f);
         var teeth = BodyParts.Mat(new Color(0.12f, 0.12f, 0.13f), 0.6f, 0.5f);
-        float w = width * 0.92f;
-        // Guide tongue in the groove, with the scroll teeth under it.
-        BodyParts.Box(parent, "Tongue", new Vector3(length, 0.004f, w * 0.7f), new Vector3(length / 2f, -0.0015f, 0f), material);
+        float w = width * BodyShare;
+        // Guide tongue down the groove, the scroll teeth under it.
+        BodyParts.Box(parent, "Tongue", new Vector3(length, TongueDepthM, width * TongueShare), new Vector3(length / 2f, -TongueDepthM / 2f, 0f), material);
         for (int t = 0; t < 4; t++)
-            BodyParts.Box(parent, "Tooth", new Vector3(length * 0.08f, 0.0015f, w * 0.65f), new Vector3(length * (0.15f + 0.22f * t), -0.004f, 0f), teeth);
+            BodyParts.Box(parent, "Tooth", new Vector3(length * 0.08f, 0.0015f, width * TongueShare * 0.9f), new Vector3(length * (0.15f + 0.22f * t), -TongueDepthM - 0.0007f, 0f), teeth);
         if (kind == JawKind.Soft)
             BodyParts.Box(parent, "Block", new Vector3(length, height, w), new Vector3(length / 2f, height / 2f, 0f), material);
         else

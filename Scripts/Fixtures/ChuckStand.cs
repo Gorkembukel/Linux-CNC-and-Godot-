@@ -26,22 +26,15 @@ namespace CncTrainer.Fixtures;
 public partial class ChuckStand : Carryable, IInteractable
 {
     private const float M = WorldScale.MmToM;
-    /// <summary>A jaw within this many degrees of square to a groove, and
-    /// of flat on the face, drops in.</summary>
-    private const float AlignDeg = 15f;
-    /// <summary>How close above the face a jaw's underside must come (m).</summary>
-    private const float DropInHeightM = 0.015f;
-    /// <summary>Within this many degrees and a groove's width or so, a
-    /// jaw is drawn toward the groove: the hand feels it want to go in.</summary>
-    private const float GuideDeg = 35f;
-    /// <summary>Spring of that draw (per second squared per metre / per radian).</summary>
-    private const float GuidePull = 160f, GuideTurn = 40f;
+    /// <summary>A jaw counts as lying in a slot's guides within this many
+    /// degrees of square and this far of its body resting on the face.</summary>
+    private const float InGuideDeg = 12f, InGuideHeightM = 0.0025f;
 
     /// <summary>Text about the jaws only without physical handling; with it,
     /// the chuck itself has to be read.</summary>
     private static bool Hints => !WorkshopSettings.PhysicalHandling;
 
-    private AudioStreamPlayer3D _clunk, _clack, _ratchet, _scrape;
+    private AudioStreamPlayer3D _clack, _ratchet, _scrape;
 
     private static AudioStreamPlayer3D Sound(Node3D parent, AudioStream stream, float db)
     {
@@ -66,12 +59,8 @@ public partial class ChuckStand : Carryable, IInteractable
 
     private Area3D _watch;
     private readonly HashSet<JawItem> _near = new();
-    /// <summary>Jaws the scroll has just let go of: they lie in their groove
-    /// but stay out until picked up (or moved off the chuck).</summary>
-    private readonly HashSet<JawItem> _ejected = new();
     private Node3D _key;
     private bool _keyIn;
-    private string _lastRefusal;
 
     /// <summary>Fixed to the bench where it stands: a chuck can be set on it
     /// (and it is not picked up).</summary>
@@ -102,7 +91,6 @@ public partial class ChuckStand : Carryable, IInteractable
         stand._watch = new Area3D { Name = "GrooveWatch", Monitoring = false, CollisionLayer = 0, CollisionMask = 1 };
         stand._watch.AddChild(new CollisionShape3D { Shape = new CylinderShape3D { Radius = 0.25f, Height = 0.25f }, Position = new Vector3(0f, 0.15f, 0f) });
         stand.AddChild(stand._watch);
-        stand._clunk = Sound(stand, Audio.SynthSounds.Clunk, -2f);
         stand._clack = Sound(stand, Audio.SynthSounds.Clack, 0f);
         stand._ratchet = Sound(stand, Audio.SynthSounds.Ratchet, -8f);
         stand._scrape = Sound(stand, Audio.SynthSounds.Scrape, -6f);
@@ -112,7 +100,6 @@ public partial class ChuckStand : Carryable, IInteractable
             if (body is not JawItem jaw)
                 return;
             stand._near.Remove(jaw);
-            stand._ejected.Remove(jaw);
         };
         return stand;
     }
@@ -145,6 +132,7 @@ public partial class ChuckStand : Carryable, IInteractable
         chuck.Transform = new Transform3D(Basis.Identity, SeatOffset);
         chuck.Freeze = true;
         chuck.Seated = true;
+        chuck.SetSlotCollision(true);
         Chuck = chuck;
         UpdateWatch();
     }
@@ -154,135 +142,95 @@ public partial class ChuckStand : Carryable, IInteractable
         var chuck = Chuck;
         Chuck = null;
         chuck.Seated = false;
+        chuck.SetSlotCollision(false);
         chuck.Reparent(GetTree().CurrentScene, true);
         player.Give(chuck);
         UpdateWatch();
     }
 
-    /// <summary>The groove watch runs only while there is a jaw slot to
-    /// fill on a scroll or independent chuck, and physical handling is on.</summary>
+    /// <summary>The groove watch (which jaw bodies are near the chuck) runs
+    /// only while a slot is empty on a jawed chuck with physical handling.
+    /// It is only read when the key turns: nothing is worked out per frame.</summary>
     private void UpdateWatch()
     {
         bool open = Chuck != null && !Grip.IsCollet && !Grip.Jaws.Complete && WorkshopSettings.PhysicalHandling;
         _watch.SetDeferred(Area3D.PropertyName.Monitoring, open);
         if (!open)
-        {
             _near.Clear();
-            _ejected.Clear();
-        }
-        SetPhysicsProcess(open);
     }
 
-    public override void _Ready() => UpdateWatch();
-
-    public override void _PhysicsProcess(double delta)
+    public override void _Ready()
     {
-        foreach (var jaw in _near.ToArray())
+        UpdateWatch();
+        SetPhysicsProcess(false);
+    }
+
+    /// <summary>The jaw body lying in a slot's guides: square to it, upright,
+    /// its tongue down in the groove so its body rests on the face. Laid
+    /// across, or on its tongue, it sits higher and is not in.</summary>
+    private JawItem JawLyingIn(int slot)
+    {
+        var frame = Visual.GlobalTransform;
+        var up = frame.Basis.Y.Normalized();
+        var along = Visual.SlotDirection(slot);
+        var dir = (frame.Basis * along).Normalized();
+        float cos = Mathf.Cos(Mathf.DegToRad(InGuideDeg));
+        foreach (var jaw in _near)
         {
             if (!IsInstanceValid(jaw))
-            {
-                _near.Remove(jaw);
-                _ejected.Remove(jaw);
                 continue;
-            }
-            if (_ejected.Contains(jaw))
-            {
-                if (GetTree().GetFirstNodeInGroup("player") is not PlayerController holder || holder.Held != jaw)
-                    continue;
-                _ejected.Remove(jaw);
-            }
-            if (GrooveFor(jaw) is int slot)
-                DropIn(jaw, slot);
-            else
-                Guide(jaw);
-        }
-    }
-
-    /// <summary>A jaw nearly square over a groove is drawn into line with it
-    /// and down onto the face, a little: in the hand that feels like the
-    /// groove taking it.</summary>
-    private void Guide(JawItem jaw)
-    {
-        var frame = Visual.GlobalTransform;
-        var up = frame.Basis.Y.Normalized();
-        var jawBasis = jaw.GlobalBasis.Orthonormalized();
-        var local = frame.AffineInverse() * jaw.GlobalPosition;
-        if (local.Y > Visual.FaceM + 0.04f || jawBasis.Y.Dot(up) < Mathf.Cos(Mathf.DegToRad(GuideDeg)))
-            return;
-        var flat = new Vector3(local.X, 0f, local.Z);
-        for (int slot = 0; slot < Visual.Slots; slot++)
-        {
-            if (Grip.Jaws.Slot(slot) != null || Grip.Jaws.Waiting(slot) != null)
+            var basis = jaw.GlobalBasis.Orthonormalized();
+            if (basis.Y.Dot(up) < cos || basis.X.Dot(dir) < cos)
                 continue;
-            var along = Visual.SlotDirection(slot);
-            var dir = (frame.Basis * along).Normalized();
-            if (jawBasis.X.Dot(dir) < Mathf.Cos(Mathf.DegToRad(GuideDeg)))
-                continue;
-            float radial = flat.Dot(along);
-            var off = flat - along * radial;
-            if (off.Length() > Visual.RadiusM * 0.3f || radial < Visual.RadiusM * 0.2f || radial > Visual.RadiusM * 1.1f)
-                continue;
-            float m = jaw.Mass;
-            var sideways = frame.Basis * off;
-            float height = local.Y - Visual.FaceM;
-            jaw.ApplyCentralForce(m * (-sideways * GuidePull - up * Mathf.Max(0f, height) * GuidePull * 0.5f - jaw.LinearVelocity * 4f));
-            var square = jawBasis.X.Cross(dir) + jawBasis.Y.Cross(up);
-            jaw.ApplyTorque(m * 0.002f * (square * GuideTurn - jaw.AngularVelocity * 2f));
-            return;
-        }
-    }
-
-    /// <summary>The groove a jaw lies square in, flat on the face, near its
-    /// outer end; null when it does not.</summary>
-    private int? GrooveFor(JawItem jaw)
-    {
-        var frame = Visual.GlobalTransform;
-        var up = frame.Basis.Y.Normalized();
-        var jawBasis = jaw.GlobalBasis.Orthonormalized();
-        if (jawBasis.Y.Dot(up) < Mathf.Cos(Mathf.DegToRad(AlignDeg)))
-            return null;
-        // The jaw's own frame: X along it from the gripping face outward.
-        var local = frame.AffineInverse() * jaw.GlobalPosition;
-        if (local.Y < Visual.FaceM - 0.004f || local.Y > Visual.FaceM + DropInHeightM)
-            return null;
-        float cos = Mathf.Cos(Mathf.DegToRad(AlignDeg));
-        for (int slot = 0; slot < Visual.Slots; slot++)
-        {
-            var dir = frame.Basis * Visual.SlotDirection(slot);
-            dir = dir.Normalized();
-            if (jawBasis.X.Dot(dir) < cos)
-                continue;
-            var along = Visual.SlotDirection(slot);
+            var local = frame.AffineInverse() * jaw.GlobalPosition;
             var flat = new Vector3(local.X, 0f, local.Z);
             float radial = flat.Dot(along), lateral = (flat - along * radial).Length();
-            if (lateral < Visual.RadiusM * 0.1f && radial > Visual.RadiusM * 0.3f && radial < Visual.RadiusM)
-                return slot;
+            if (Mathf.Abs(local.Y - Visual.FaceM) < InGuideHeightM && lateral < Visual.GrooveWidthM * 0.35f
+                && radial > Chuck.Model.BoreMm / 2f * WorldScale.MmToM && radial < Visual.RadiusM)
+                return jaw;
         }
         return null;
     }
 
-    private void DropIn(JawItem jaw, int slot)
+    /// <summary>After a notch in: the thread start crossing a slot takes the
+    /// jaw lying in that slot's guides (an independent chuck's screw takes
+    /// any jaw lying in its slot). The one moment a jaw stops being a body.</summary>
+    private int? CatchLyingJaws()
     {
-        if (Grip.Jaws.WhyNotJaw(slot, jaw.Kind, jaw.Number, jaw.MadeFor, jaw.Family) is string why)
+        var jaws = Grip.Jaws;
+        IEnumerable<int> slots = jaws.Independent ? Enumerable.Range(0, jaws.SlotCount)
+            : jaws.Notch % ChuckJaws.NotchesPerSlot == 0 ? new[] { jaws.StartSlot } : System.Array.Empty<int>();
+        foreach (int slot in slots)
         {
-            // It just will not go in: the tongue does not fit, or the
-            // groove is taken. Said in words only without physical handling.
-            if (why != _lastRefusal)
-                Say(why);
-            _lastRefusal = why;
-            return;
+            if (jaws.Slot(slot) != null || JawLyingIn(slot) is not JawItem body)
+                continue;
+            // A jaw for another chuck, or from another set, does not engage.
+            if (jaws.Place(slot, body.Kind, body.Number, body.MadeFor, body.Family) != null || jaws.Slot(slot) == null)
+            {
+                jaws.TakeWaiting(slot);
+                continue;
+            }
+            if (GetTree().GetFirstNodeInGroup("player") is PlayerController player && player.Held == body)
+                player.ReleaseHeld();
+            _near.Remove(body);
+            body.QueueFree();
+            return slot;
         }
-        _lastRefusal = null;
-        if (GetTree().GetFirstNodeInGroup("player") is PlayerController player && player.Held == jaw)
-            player.ReleaseHeld();
-        int seatedBefore = Grip.Jaws.Seated;
-        Grip.Jaws.Place(slot, jaw.Kind, jaw.Number, jaw.MadeFor, jaw.Family);
-        _near.Remove(jaw);
-        jaw.QueueFree();
-        Play(_clunk);
-        if (Grip.Jaws.Seated > seatedBefore)
-            Play(_clack);
-        AfterJawChange($"{jaw.DisplayName} {slot + 1}. kanala oturdu");
+        return null;
+    }
+
+    /// <summary>A jaw the scroll let go of: a body again, lying in its
+    /// slot's guides where it was, to be slid out by hand.</summary>
+    private void Loosen(int slot)
+    {
+        if (Grip.Jaws.TakeWaiting(slot) is not SeatedJaw jaw)
+            return;
+        var item = JawItem.Create(jaw.Kind, jaw.Number, Chuck.Model);
+        GetTree().CurrentScene.AddChild(item);
+        var frame = Visual.GlobalTransform;
+        var dir = (frame.Basis * Visual.SlotDirection(slot)).Normalized();
+        var up = frame.Basis.Y.Normalized();
+        item.GlobalTransform = new Transform3D(new Basis(dir, up, dir.Cross(up)), frame * Visual.GrooveEntry(slot) + up * 0.001f);
     }
 
     private void AfterJawChange(string what)
@@ -298,21 +246,6 @@ public partial class ChuckStand : Carryable, IInteractable
                 ? "Çene spirale dayalı bekliyor: anahtarı çevir, spiralin başı kanala gelince yakalar"
                 : "Sıradaki numaralı çeneyi kanalına yatır";
         PlayerController.Notify(this, $"{what}. {next}");
-    }
-
-    /// <summary>A jaw the scroll let go of slides out of its groove onto the bench.</summary>
-    private void Eject(SeatedJaw jaw, int slot)
-    {
-        var item = JawItem.Create(jaw.Kind, jaw.Number, Chuck.Model);
-        GetTree().CurrentScene.AddChild(item);
-        var frame = Visual.GlobalTransform;
-        var dir = (frame.Basis * Visual.SlotDirection(slot)).Normalized();
-        var up = frame.Basis.Y.Normalized();
-        item.GlobalTransform = new Transform3D(new Basis(dir, up, dir.Cross(up)), frame * Visual.GrooveEntry(slot) + up * 0.004f);
-        item.LinearVelocity = dir * 0.35f;
-        _ejected.Add(item);
-        Play(_scrape);
-        Say($"{jaw.Number} numaralı çene spiralden kurtulup kanaldan çıktı");
     }
 
     public string Prompt(PlayerController player)
@@ -435,9 +368,20 @@ public partial class ChuckStand : Carryable, IInteractable
         if (Grip.IsCollet)
             return;
         var g = Grip;
+        // The start sitting right at a slot takes the jaw there as it moves on.
+        int? leaving = steps > 0 && WorkshopSettings.PhysicalHandling && g.Torque == 0 ? CatchLyingJaws() : null;
         var turned = g.TurnKey(steps);
+        if (leaving is int left && turned.Caught == null)
+            turned = turned with { Caught = left };
         _key.RotateObjectLocal(Vector3.Back, steps * Mathf.Pi / 6f);
         Play(_ratchet);
+        if (WorkshopSettings.PhysicalHandling)
+        {
+            if (steps > 0 && turned.Caught == null && CatchLyingJaws() is int took)
+                turned = turned with { Caught = took };
+            if (turned.Released is int let)
+                Loosen(let);
+        }
         Chuck.Refresh();
         if (turned.Caught is int caught)
         {
