@@ -226,7 +226,14 @@ door on enclosed machines.
    opened program dim underneath the cut path: the bridge parses it with
    LinuxCNC's interpreter on PROGRAM_OPEN (`preview.py`, all six axes, on a
    thread with its own stat) and streams PREVIEW chunks; `BridgeClient.ProgramPath`.
-   Not done: checking that path against fixtures before running.
+   While GRAPH is up the path is also checked against the setup
+   (`Machining.ProgramCheck`, every 2 mm, at most 20000 points, once a
+   second): each `IPathObstacle` (`MillWorkholding` = fixture and table with
+   the spindle tool, holder and nose; `LatheCutting` = chuck, tailstock,
+   guarding, turret vs. bar). The first hit is a red cross and a CRASH line.
+   Limits: today's work and tool offsets for the whole program (a later
+   tool's length is not used), the bar/stock is not checked (rapids through
+   material the program has already cut would be false alarms).
 8. Lathe X wear is entered in the tool table's own X units (G10 L1 X);
    whether that is radius or diameter under G7 was not checked live.
 9. Realism pass (this branch): tool stick-out is the player's (wheel at the

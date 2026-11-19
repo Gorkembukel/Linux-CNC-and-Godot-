@@ -11,7 +11,7 @@ namespace CncTrainer;
 /// <summary>Cutting on a procedural lathe: confirmed positions cut the
 /// radius profile, a parting cut drops a pickupable part. With no stock in
 /// the chuck the tool cuts nothing.</summary>
-public sealed class LatheCutting : CuttingProcess
+public sealed class LatheCutting : CuttingProcess, Machining.IPathObstacle
 {
     private readonly ProceduralLatheBody _body;
     private readonly WorkpieceVisual _workpiece;
@@ -187,6 +187,16 @@ public sealed class LatheCutting : CuttingProcess
     }
 
     /// <summary>The turret or tool post itself (not the tool) inside the bar.</summary>
+    /// <summary>Why the carriage at this position would hit the chuck, the
+    /// tailstock, the guarding or the bar itself, or null. The bar is taken
+    /// as it is now, before the program cuts it.</summary>
+    public string CrashAt(AxisVector machinePosition)
+    {
+        float z = machinePosition.Z, x = machinePosition.X;
+        var profile = _workpiece.Profile;
+        return _body.Interference(z, x) ?? (profile != null ? CarriageInStock(profile, z, x) : null);
+    }
+
     private string CarriageInStock(LatheRadiusProfile profile, float zMm, float xMm)
     {
         foreach (var part in _body.Carried(zMm, xMm))

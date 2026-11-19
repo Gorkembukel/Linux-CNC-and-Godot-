@@ -135,7 +135,9 @@ leaves.
   **OPT STOP** and the rapid override keys work as on a real control;
   **PRG RESTART** starts from the line under the PROG cursor.
 - **Checking a program:** **CSTM/GR > GRAPH** draws the whole selected
-  program (dim) under the path being cut. **MC LOCK** runs it without moving
+  program (dim) under the path being cut and checks it against the vise,
+  clamps, table or chuck as they sit now: the first crash is marked with a
+  red cross and its line number (`CRASH N26: ...`). **MC LOCK** runs it without moving
   the machine: the screen counts, nothing cuts or collides. Releasing the
   lock after the control moved costs the reference (**ALL REF** again), as on
   a real control.

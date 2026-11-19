@@ -97,9 +97,12 @@ public partial class ConsoleScreen : Control
     /// <summary>Tool path backplot (null hides it): feed moves cyan, rapids
     /// yellow, the tool now a red dot; fitted to the area at equal scale.</summary>
     /// <summary>points: the path cut so far; program: the whole program's
-    /// path (drawn dim underneath, so it can be checked before running).</summary>
-    public void SetPlot(IReadOnlyList<(Vector2 Point, bool Rapid)> points, Vector2 tool, IReadOnlyList<(Vector2 From, Vector2 To, bool Rapid)> program = null)
+    /// path (drawn dim underneath, so it can be checked before running);
+    /// conflict: where that path first crashes, marked with a red cross.</summary>
+    public void SetPlot(IReadOnlyList<(Vector2 Point, bool Rapid)> points, Vector2 tool,
+        IReadOnlyList<(Vector2 From, Vector2 To, bool Rapid)> program = null, Vector2? conflict = null)
     {
+        _plotConflict = conflict;
         _plotPoints = points;
         _plotProgram = program ?? System.Array.Empty<(Vector2, Vector2, bool)>();
         _plotTool = tool;
@@ -107,6 +110,8 @@ public partial class ConsoleScreen : Control
         if (points != null)
             _plot.QueueRedraw();
     }
+
+    private Vector2? _plotConflict;
 
     private void DrawPlot()
     {
@@ -124,6 +129,11 @@ public partial class ConsoleScreen : Control
             min = min.Min(from).Min(to);
             max = max.Max(from).Max(to);
         }
+        if (_plotConflict is Vector2 hit)
+        {
+            min = min.Min(hit);
+            max = max.Max(hit);
+        }
         var span = (max - min).Max(new Vector2(10f, 10f)) * 1.1f;
         var mid = (min + max) / 2f;
         float scale = Mathf.Min(size.X / span.X, size.Y / span.Y);
@@ -134,5 +144,12 @@ public partial class ConsoleScreen : Control
             _plot.DrawLine(Map(_plotPoints[i - 1].Point), Map(_plotPoints[i].Point),
                 _plotPoints[i].Rapid ? new Color(1f, 0.85f, 0.3f, 0.7f) : Accent, 1.5f);
         _plot.DrawCircle(Map(_plotTool), 4f, new Color(1f, 0.3f, 0.25f));
+        if (_plotConflict is Vector2 crash)
+        {
+            var at = Map(crash);
+            var red = new Color(1f, 0.15f, 0.1f);
+            _plot.DrawLine(at + new Vector2(-7f, -7f), at + new Vector2(7f, 7f), red, 2.5f);
+            _plot.DrawLine(at + new Vector2(-7f, 7f), at + new Vector2(7f, -7f), red, 2.5f);
+        }
     }
 }
