@@ -14,7 +14,7 @@ namespace CncTrainer;
 /// unit, and what the material-removal tests are written against).
 ///
 /// [Tool]: builds the default (uncut) stock shape in the editor too, not just
-/// at play time -- same reasoning as MachineBody.cs. The stock-size fields
+/// at play time, so the editor shows it. The stock-size fields
 /// live here (not on Main) specifically so the editor can show a correctly-
 /// sized default stock without needing the running game.
 ///

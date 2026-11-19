@@ -312,12 +312,12 @@ public partial class ProceduralLatheBody : Node3D
             _toolNumber = toolNumber;
             int index = _activeStation = StationOf(toolNumber);
             if (_turret != null && index >= 0)
-                _targetAngle = MachineBody.TargetIndexAngleDeg(index + 1, _stationCount);
+                _targetAngle = TurretIndex.TargetAngleDeg(index + 1, _stationCount);
             RefreshPost();
         }
         if (_turret != null)
         {
-            _indexAngle = MachineBody.StepAngleToward(_indexAngle, _targetAngle, IndexSpeedDegPerSec * (float)delta);
+            _indexAngle = TurretIndex.StepToward(_indexAngle, _targetAngle, IndexSpeedDegPerSec * (float)delta);
             _turret.RotationDegrees = new Vector3(_indexAngle, 0f, 0f);
         }
     }

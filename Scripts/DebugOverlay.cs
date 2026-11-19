@@ -43,7 +43,7 @@ public partial class DebugOverlay : Control
     /// <summary>Called by Main._Ready once this rig's BridgeClient exists --
     /// replaces the old self-lookup via the fixed "/root/BridgeClient"
     /// autoload path, which a second live machine (Phase B) can't support.
-    /// Takes the scheduler directly (not a whole Main/LatheMachine
+    /// Takes the scheduler directly (not a whole machine
     /// reference) -- that's the only thing SchedulerReport actually needs,
     /// and the scheduler now lives on whichever machine scene owns it, not
     /// on the workshop's own root.</summary>

@@ -8,7 +8,7 @@ namespace CncTrainer.Bridge;
 /// body yet): Phase A has exactly one real machine type, and adding factory
 /// hooks with only one implementation to factor against would be
 /// speculative. Built from a machine scene's own [Export] fields now (see
-/// LatheMachine.cs) rather than a hardcoded static instance -- that's what
+/// MachineSpec) rather than a hardcoded static instance -- that's what
 /// lets the machine-scene-generator editor plugin parametrize a new
 /// machine scene by just filling in a form.
 /// </summary>
