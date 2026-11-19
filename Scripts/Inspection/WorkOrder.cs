@@ -2,6 +2,7 @@ using System.Linq;
 using System.Text;
 using Godot;
 using CncTrainer.Chips;
+using CncTrainer.Interaction;
 using CncTrainer.Spec;
 using CncTrainer.Workshop;
 using static System.FormattableString;
@@ -35,6 +36,17 @@ public partial class WorkOrder : Resource
     [Export] public string Program = "";
     /// <summary>Extra instructions printed on the drawing card.</summary>
     [Export(PropertyHint.MultilineText)] public string Notes = "";
+    /// <summary>The technical drawing shown on the HUD with the card (an SVG
+    /// or PNG under Machines/WorkOrders/drawings/); empty = the text card only.</summary>
+    [Export] public Texture2D Drawing;
+    /// <summary>The drawing's dimensions and notes, written over it.</summary>
+    [Export] public Godot.Collections.Array<DrawingNote> DrawingNotes = new();
+
+    private JobDrawing _sheet;
+
+    /// <summary>The drawing ready for the HUD, null without one.</summary>
+    public JobDrawing Sheet => Drawing == null ? null
+        : _sheet ??= new JobDrawing(Drawing, DrawingNotes.Where(n => n != null).Select(n => (n.Position, n.Text, n.FontSizePx)).ToArray());
     /// <summary>The drawing's toleranced dimensions.</summary>
     [Export] public Godot.Collections.Array<PartFeature> Features = new();
     /// <summary>On: a crash, a thrown part or a broken tool while the job was

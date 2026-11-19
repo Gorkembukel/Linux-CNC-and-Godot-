@@ -1,0 +1,15 @@
+(Fanuc-style turret call, from LinuxCNC's lathe-fanucy example: T0101 =)
+(station 01 with offset 01. Station 0 changes only the offset, offset 0)
+(cancels it. REMAP = T prolog=get_T_number ngc=fanuc_t in the INI.)
+O<fanuc_t> sub
+#<station> = FIX[#<tool> / 100]
+#<offset> = [#<tool> MOD 100]
+O100 if [#<station> GT 0]
+  M6 T#<station>
+O100 endif
+O110 if [#<offset> GT 0]
+  G43 H#<offset>
+O110 else
+  G49
+O110 endif
+O<fanuc_t> endsub [0]

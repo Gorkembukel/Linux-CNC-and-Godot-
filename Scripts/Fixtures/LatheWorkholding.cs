@@ -69,25 +69,54 @@ public partial class LatheWorkholding : MachineSetup, ISawable, IThreaded
         Chuck.UseWith = UseOnChuck;
         Chuck.TurnWith = TurnByHand;
         Chuck.PromptWith = IndicatorPrompt;
+        Chuck.WhyNotMount = WhyNotMount;
+        Chuck.SpindleTurning = () => !SpindleStopped;
+        Chuck.Refitted = () =>
+        {
+            _body.FitChuck(Chuck.Model);
+            _cutting.ResetStock();
+        };
     }
 
-    /// <summary>A small stand left of the control with the jaw sets that
-    /// are not on the chuck: the hard jaws to turn round for big parts, and
-    /// soft jaws to bore for a part that must run true.</summary>
+    /// <summary>A stand left of the control: on the shelf the jaws that are
+    /// not in the chuck (reversed hard jaws for big parts, soft jaws to bore
+    /// for a part that must run true), each numbered, the collets and the
+    /// cam key; on the floor beside it the spare chucks, each with its own
+    /// jaws in.</summary>
     private void AddJawRack(LatheStructure lathe)
     {
         var rack = new Node3D { Name = "JawRack", Position = new Vector3((lathe.StockZMin - lathe.HeadstockLengthMm - 900f) * M, 0f, (lathe.BedDepthMm / 2f + 300f) * M) };
         AddChild(rack);
-        BodyParts.SolidBox(rack, "Shelf", new Vector3(0.4f, 0.04f, 0.3f), new Vector3(0f, 0.83f, 0f), BodyParts.DarkSteel);
+        BodyParts.SolidBox(rack, "Shelf", new Vector3(0.5f, 0.04f, 0.35f), new Vector3(0f, 0.83f, 0f), BodyParts.DarkSteel);
         BodyParts.SolidBox(rack, "Post", new Vector3(0.05f, 0.81f, 0.05f), new Vector3(0f, 0.405f, 0f), BodyParts.DarkSteel);
-        foreach (var (kind, x) in new[] { (JawKind.HardReversed, -0.1f), (JawKind.Soft, 0.1f) })
+        void Put(Carryable item, Vector3 at)
         {
-            var set = JawSetItem.Create(kind);
-            set.Freeze = true;
-            rack.AddChild(set);
-            set.Position = new Vector3(x, 0.85f, 0f);
+            item.Freeze = true;
+            rack.AddChild(item);
+            item.Position = at;
+        }
+        int jaws = Chuck.Grip.Jaws.SlotCount;
+        foreach (var (kind, z) in new[] { (JawKind.HardReversed, -0.1f), (JawKind.Soft, 0.0f) })
+            for (int n = 1; n <= jaws; n++)
+                Put(JawItem.Create(kind, n, Chuck.Model.Kind), new Vector3(-0.2f + n * 0.05f, 0.85f, z));
+        Put(HandTool.Create(HandToolKind.CamKey), new Vector3(0.12f, 0.87f, -0.1f));
+
+        var spares = lathe.Spares();
+        for (int i = 0; i < spares.Length; i++)
+        {
+            var model = spares[i];
+            var grip = new ChuckGrip(model.Dims(lathe.HeadstockLengthMm));
+            Put(ChuckItem.Create(model, grip), new Vector3(-0.15f + i * 0.3f, 0.02f, 0.35f));
+            for (int c = 0; c < model.ColletSizesMm.Length; c++)
+                Put(ColletItem.Create(model.ColletSizesMm[c]), new Vector3(0.05f + c * 0.035f, 0.85f, 0.1f));
         }
     }
+
+    /// <summary>Why the lathe will not take this chuck, or null.</summary>
+    private string WhyNotMount(ChuckModel model) =>
+        model.DiameterMm > _body.MaxChuckDiameterMm
+            ? System.FormattableString.Invariant($"{model.DisplayName} (Ø{model.DiameterMm:0}) bu tezgaha büyük: yatağa çarpar (en fazla Ø{_body.MaxChuckDiameterMm:0})")
+            : null;
 
     private float LiveLengthMm() => (_workpiece.Profile.LiveRadii().Length - 1) * _workpiece.Profile.StepMm;
 
@@ -252,7 +281,37 @@ public partial class LatheWorkholding : MachineSetup, ISawable, IThreaded
         _workpiece.RotateX(Mathf.DegToRad(spin));
         CheckDoorInterlock();
         CheckKeyLeftIn(Chuck, rpm > 1f, "AYNA ANAHTARI FIRLADI: anahtar aynada unutuldu, iş mili çalıştırıldı");
+        CheckChuckSpeed(rpm);
+        CheckCams(rpm > 1f);
         UpdateIndicator(rpm > 1f);
+    }
+
+    private bool _overSpeedWarned, _camsTripped;
+
+    /// <summary>A chuck not locked to the nose works loose as soon as the
+    /// spindle turns.</summary>
+    private void CheckCams(bool turning)
+    {
+        if (turning && !Chuck.CamsDone && !_camsTripped)
+        {
+            _camsTripped = true;
+            Safety.Trip(IncidentKind.Crash, $"AYNA FENER MİLİNDEN BOŞALDI: kam kilitleri kilitlenmeden iş mili çalıştırıldı ({Chuck.CamsLocked}/{JawChuck.CamCount})");
+        }
+        else if (!turning)
+            _camsTripped = false;
+    }
+
+
+    /// <summary>The control only knows the chuck it was set up with; a
+    /// slower chuck fitted since is the operator's to respect.</summary>
+    private void CheckChuckSpeed(float rpm)
+    {
+        float limit = Chuck.Model.MaxRpm;
+        bool over = rpm > limit + 1f;
+        if (over && !_overSpeedWarned)
+            Safety.Warn(System.FormattableString.Invariant(
+                $"{Chuck.Model.DisplayName} en fazla {limit:0} dev/dk: iş mili {rpm:0} dev/dk dönüyor (S değerini düşür)"));
+        _overSpeedWarned = over;
     }
 
     // A dial indicator on the bar, read while the chuck is turned by hand.

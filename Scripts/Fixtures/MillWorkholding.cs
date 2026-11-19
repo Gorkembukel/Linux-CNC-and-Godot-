@@ -211,7 +211,7 @@ public partial class MillWorkholding : MachineSetup, ISawable, IPathObstacle
         if (Chuck != null)
             CheckKeyLeftIn(Chuck, Mathf.Abs(Bridge.State.Velocity.A) > 0.01f, "ÇARPMA: ayna anahtarı aynada unutuldu, döner eksen çalıştı");
         CheckMeasuringTool();
-        ShowPaperGap();
+        ShowFeelerGap();
     }
 
     /// <summary>What really sits in the spindle now.</summary>
@@ -284,24 +284,18 @@ public partial class MillWorkholding : MachineSetup, ISawable, IPathObstacle
     /// before it snaps (mm).</summary>
     private const float EdgeFinderOvertravelMm = 0.5f;
 
-    /// <summary>Z touch-off by feel: with the paper gauge in hand, the HUD
-    /// says whether the paper still slides under the tool.</summary>
-    private void ShowPaperGap()
+    /// <summary>Z touch-off by feel: with the paper gauge or the setting
+    /// block in hand, the HUD says whether it still slides under the tool.</summary>
+    private void ShowFeelerGap()
     {
         if (GetTree().GetFirstNodeInGroup("player") is not PlayerController player
-            || player.HeldTool?.Kind != HandToolKind.PaperGauge || player.GlobalPosition.DistanceTo(GlobalPosition) > 4f)
+            || player.HeldTool is not { } held || FeelerGauge.For(held.Kind) is not FeelerGauge feeler
+            || player.GlobalPosition.DistanceTo(GlobalPosition) > 4f)
             return;
         var tool = InSpindle.Spec;
-        if (tool == null || tool.Measures)
-            player.ToolStatus = "Kağıt mastar: iş milinde kesici takım yok";
-        else if (_cutting.TipGapMm() is not float gap)
-            player.ToolStatus = "Kağıt mastar: takım yüzeyden uzak";
-        else if (gap < 0.03f)
-            player.ToolStatus = "Kağıt mastar: KAĞIT YIRTILDI, takım yüzeye bastı (yukarı çık)";
-        else if (gap <= 0.08f)
-            player.ToolStatus = "Kağıt mastar: kağıt sıkışıyor  ->  takım ucu yüzeyin 0,05 mm üstünde";
-        else
-            player.ToolStatus = "Kağıt mastar: kağıt serbest kayıyor (daha in)";
+        player.ToolStatus = tool == null || tool.Measures
+            ? $"{feeler.Name}: iş milinde kesici takım yok"
+            : feeler.Feel(_cutting.TipGapMm(feeler.SearchMm));
     }
 
     protected override string SheetBody

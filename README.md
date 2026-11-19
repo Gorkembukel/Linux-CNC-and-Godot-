@@ -183,6 +183,9 @@ A setup sheet on the right of the screen ticks each step off.
    side: `G38.2 Y-30 F50` from outside it, then the edge's coordinate less
    the 2 mm ball radius (`Y-42` for an edge at Y-40), **MEASURE**. Driving the probe in with G0/G1 stops the
    control (or breaks the stylus).
+   For tool lengths without paper, the **Z setting block** (50.000 mm) on the
+   bench: stand it on the part, step down until it is snug, type `Z50`,
+   **MEASURE**.
    Or by hand: MDI `T9 M6` (edge finder, then TOOL CHG END),
    **HANDLE**, creep up to the left edge until the finder kicks; **OFS/SET >
    WORK**, type `X-5`, **MEASURE**. Same for Y. Then the cutter, hold the
@@ -195,22 +198,52 @@ come out wrong: only the report card (or your own measuring) tells you.
 ### Lathe jaws
 
 The chuck starts with hard jaws. The jaw rack left of the lathe control
-holds two more sets: put the chuck key in, empty the chuck and click it with
-a set in hand to swap. **Reversed** hard jaws take big parts but do not close
-on small ones; **soft** jaws only hold a part once bored for it (click the
-chuck with the part in hand), and then it runs nearly true. A bar sticking
-out more than four diameters chatters; the setup sheet warns.
+holds two more sets, every jaw numbered. To change them, empty the chuck,
+put the key in and open the jaws all the way; turning on runs them off the
+scroll one at a time (3, 2, 1), each into your hand: put it down before the
+next. To fit a set, turn the key until the scroll's thread starts at slot 1
+(the prompt says where it is), click with jaw 1, turn on to slot 2, jaw 2,
+and so on. A jaw in the wrong slot, or one caught a turn late, holds the part
+millimetres off: closed right in, such jaws do not meet at the centre.
+**Reversed** hard jaws take big parts but do not close on small ones;
+**soft** jaws only hold a part once bored for it (click the chuck with the
+part in hand), and then it runs nearly true. A bar sticking out more than
+four diameters chatters; the setup sheet warns.
 
 A bored part can be held **from inside** (ID gripping) on the hard jaws:
 close them smaller than the bore, slide the part over them bore first, then
 the key **opens** the jaws out against the bore and tightens. The whole
 outside is free to turn; the bore must be at least 15 mm deep.
 
+### Chucks
+
+Two more chucks stand on the floor by the jaw rack, each with its own size
+(a lathe refuses one that would hit its bed). To change: empty the chuck,
+take the key out, then with the **cam key** (on the rack) wheel back to undo
+the three cam locks; click the chuck with the other one in hand (the old one,
+with its jaws, comes off into your hands); wheel the cam key forward to lock
+the three cams again. Starting the spindle with a cam undone throws the
+chuck. The work now sits as far out as the new chuck is long.
+The **4-jaw independent** chuck seats a bar well off centre, then the mallet
+(with the dial on the bar) adjusts one jaw against the other, also when
+tight, down to microns; its jaws go in any order. The **ER32 collet** chuck
+takes one collet at a time from the box on the rack (each holds its size to
+1 mm under): collet in, bar in, key to tighten; loosened, the bar slides.
+Each chuck has its own speed limit; going faster is warned.
+
+### Fanuc-style tool calls
+
+A lathe with a disc turret can take Fanuc calls: set `ToolCalls` to
+`FanucTurret` in its MachineSpec. `T0101` then indexes station 1 and applies
+offset 1 in one word, and the turret turns by itself (no TOOL CHG END). See
+`nc_files/lathe_kademeli_mil_fanuc.ngc`. Under it a bare `T1` means offset 1
+on station 0, so a machine uses one style or the other.
+
 ### Work orders
 
 The work order board (**İŞ EMİRLERİ**): the wheel leafs through the orders,
-a click takes one. Its drawing stays top left: material, stock, program and
-every toleranced size. Make the part, then put it on the quality control
+a click takes one. Its card stays top left (material, stock, program and
+every toleranced size) and its technical drawing bottom left. Make the part, then put it on the quality control
 table (**KALİTE KONTROL**): the report card lists each size as measured, the
 material, the surface roughness, any incident since the order was taken, a
 score and where to look first when it fails. Orders are `.tres` files under

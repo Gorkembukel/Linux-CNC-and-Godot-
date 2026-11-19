@@ -197,8 +197,11 @@ door on enclosed machines.
    sub-voxel), `WithSurface` (adds Ra). Live-verified with the demo programs
    (`TmpLive` + `CNC_LIVE_ORDER`). Still to do: place `Scenes/Workshop/JobBoard.tscn`
    and `InspectionTable.tscn` in `Main.tscn` (left out on purpose while the
-   user edits that scene); a drawn 2D drawing instead of the text card; more
-   orders.
+   user edits that scene); more orders. Drawings: `WorkOrder.Drawing` (an
+   SVG under `Machines/WorkOrders/drawings/`) + `DrawingNotes` (text, since
+   Godot's SVG import drops `<text>` and markers: arrowheads are paths),
+   drawn bottom-left by `Player.DrawingView` while the order is open. Not
+   checked by eye in the running game (headless cannot render text).
 4. Not modelled: guards on open bench machines, RTCP, persistence of cut
    state across a restart, tool deflection, a
    locking rotary brake (LinuxCNC `LOCKING_INDEXER` needs an unlock handshake
@@ -257,8 +260,39 @@ door on enclosed machines.
    Ø66.4 on its outside, no incident. Not done: a boring bar running into
    the jaws inside the bore is not checked; soft jaws for ID; the lathe's
    workpiece profile assumes a turned part's StepMm is its own 0.1 mm;
-   reversed jaws' larger reach in the turret collision, changing the chuck
-   itself (3/4-jaw / collet), gauge blocks.
+   reversed jaws' larger reach in the turret collision.
+   Chucks are things of their own (`ChuckModel`: diameter, length nose to
+   jaw face, jaws, opening, bore, rated rpm, collet sizes); the lathe's own
+   comes from its LatheStructure fields, spares from `SpareChucks` (default
+   Ø125 4-jaw independent, ER32 collet). A chuck off the lathe is a
+   `ChuckItem` carrying its `ChuckGrip` (its jaws stay in it). Change: key
+   out, cam key undoes 3 cam locks (`JawChuck.CamsLocked`), swap, lock again;
+   spindle with a cam undone = Crash. `ProceduralLatheBody.FitChuck` moves
+   the jaw face (nose + length) and the carriage's chuck zone; bigger than
+   the bed clears is refused. Jaws (`ChuckJaws`): numbered `JawItem`s, one
+   at a time; the scroll's thread start moves a slot per 3 key notches;
+   opening past full runs jaws off (3, 2, 1); a jaw in the wrong slot or a
+   turn late is off by pitch/3 per slot or a pitch per turn, the chuck holds
+   that far off (jaws closed in show it: they do not meet). 4-jaw: any
+   order, ~0.3 mm seat, the mallet adjusts one jaw against the other. Collet:
+   `ColletItem` per size (size to size-1), key only tightens/loosens, loose =
+   the bar slides. Live (TmpLathe `collet` / `camsloose`): jaws out 3-2-1,
+   reversed set in order meets, out of order 4 mm off (TIR ~8 mm), cams
+   3->0, ER32 fitted (jaw face -150 -> -155), Ø20 collet 0.005 mm, loosened
+   bar slid, turned with no incident; cams left undone -> Crash.
+   Gauge block: `HandToolKind.GaugeBlock` (50.000 mm Z setting block) on the
+   tool bench, felt like the paper (`Interaction.FeelerGauge`, fit ±0.01 mm
+   against the paper's ±0.03); `MillCutting.TipGapMm` searches coarse then
+   fine. Live (TmpFix `block`): snug at Z50.000, free at 50.020.
+   Fanuc T0101 (`MachineSpec.ToolCalls = FanucTurret`, disc-turret lathes
+   only): the INI gets `REMAP = T prolog=get_T_number ngc=fanuc_t` + a
+   [PYTHON] section; `linuxcnc-config/fanuc_t.ngc` does M6 + G43 H<offset>
+   (`remap.py` / `toplevel.py` from LinuxCNC's lathe-fanucy sample); the
+   turret confirms its own index (`ProceduralMachine.IndexTurret`). The
+   bridge exports INI_FILE_NAME and runs from the config dir so the GRAPH
+   preview's interpreter sees the remap too. Live: `lathe_kademeli_mil_fanuc`
+   on preset 2 graded KABUL 100/100, preview clear. No preset uses it by
+   default. Wear stays Godot-side (PR #23), not T10001 rows.
    Touch probe (T8 on the bench and VMC mills, `ToolKind.TouchProbe`): the
    bridge nets its own `probe` pin to `motion.probe-input` (basic_sim leaves
    it free) and PROBE_INPUT (24) drives it; `MillCutting` samples 26 points

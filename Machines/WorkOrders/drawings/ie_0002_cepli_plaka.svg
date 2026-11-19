@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="480" viewBox="0 0 720 480" font-family="DejaVu Sans, Arial, sans-serif">
+  <rect width="720" height="480" fill="#ffffff"/>
+  <rect x="8" y="8" width="704" height="464" fill="none" stroke="#000" stroke-width="2"/>
+  <!-- top view, 3 px/mm, centre (X0 Y0) at (230, 200) -->
+  <rect x="50" y="80" width="360" height="240" fill="#f4f4f4" stroke="#000" stroke-width="2.2"/>
+  <line x1="30" y1="200" x2="430" y2="200" stroke="#000" stroke-width="0.7" stroke-dasharray="14 3 3 3"/>
+  <line x1="230" y1="60" x2="230" y2="340" stroke="#000" stroke-width="0.7" stroke-dasharray="14 3 3 3"/>
+  <!-- groove R34, 6 wide (R31..R37) -->
+  <circle cx="230" cy="200" r="111" fill="none" stroke="#000" stroke-width="1.6"/>
+  <circle cx="230" cy="200" r="93" fill="none" stroke="#000" stroke-width="1.6"/>
+  <!-- pocket 50 x 30 -->
+  <rect x="155" y="155" width="150" height="90" fill="#dcdcdc" stroke="#000" stroke-width="2"/>
+  <!-- holes Ø6 at ±50, ±30 -->
+  <g fill="#fff" stroke="#000" stroke-width="1.6">
+    <circle cx="80" cy="110" r="9"/><circle cx="380" cy="110" r="9"/>
+    <circle cx="80" cy="290" r="9"/><circle cx="380" cy="290" r="9"/>
+  </g>
+  <g stroke="#000" stroke-width="1">
+    <line x1="50" y1="345" x2="410" y2="345"/>
+    <line x1="435" y1="80" x2="435" y2="320"/>
+    <line x1="155" y1="150" x2="305" y2="150"/>
+    <line x1="160" y1="155" x2="160" y2="245"/>
+    <line x1="80" y1="370" x2="380" y2="370"/>
+    <line x1="80" y1="300" x2="80" y2="375"/><line x1="380" y1="300" x2="380" y2="375"/>
+    <line x1="308" y1="121" x2="334" y2="80"/>
+    <line x1="74" y1="297" x2="60" y2="390"/>
+    <line x1="580" y1="168" x2="560" y2="255"/>
+  </g>
+  <!-- side view: thickness 29 -->
+  <rect x="490" y="150" width="180" height="87" fill="#f4f4f4" stroke="#000" stroke-width="2.2"/>
+  <rect x="565" y="150" width="30" height="18" fill="#dcdcdc" stroke="#000" stroke-width="1.4"/>
+  <line x1="680" y1="150" x2="680" y2="237" stroke="#000" stroke-width="1"/>
+  <line x1="640" y1="282" x2="680" y2="240" stroke="#000" stroke-width="0.8"/>
+  <g stroke="#000" stroke-width="1.5" fill="none">
+    <rect x="452" y="430" width="252" height="34"/>
+    <line x1="560" y1="430" x2="560" y2="464"/>
+  </g>
+  <path d="M410.0,345.0 L401.0,348.0 L401.0,342.0 Z" fill="#000"/>
+  <path d="M50.0,345.0 L59.0,342.0 L59.0,348.0 Z" fill="#000"/>
+  <path d="M435.0,320.0 L432.0,311.0 L438.0,311.0 Z" fill="#000"/>
+  <path d="M435.0,80.0 L438.0,89.0 L432.0,89.0 Z" fill="#000"/>
+  <path d="M305.0,150.0 L296.0,153.0 L296.0,147.0 Z" fill="#000"/>
+  <path d="M155.0,150.0 L164.0,147.0 L164.0,153.0 Z" fill="#000"/>
+  <path d="M160.0,245.0 L157.0,236.0 L163.0,236.0 Z" fill="#000"/>
+  <path d="M160.0,155.0 L163.0,164.0 L157.0,164.0 Z" fill="#000"/>
+  <path d="M380.0,370.0 L371.0,373.0 L371.0,367.0 Z" fill="#000"/>
+  <path d="M80.0,370.0 L89.0,367.0 L89.0,373.0 Z" fill="#000"/>
+  <path d="M680.0,237.0 L677.0,228.0 L683.0,228.0 Z" fill="#000"/>
+  <path d="M680.0,150.0 L683.0,159.0 L677.0,159.0 Z" fill="#000"/>
+</svg>

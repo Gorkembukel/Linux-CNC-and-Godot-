@@ -1,7 +1,105 @@
-[gd_resource type="Resource" script_class="WorkOrder" load_steps=8 format=3]
+[gd_resource type="Resource" script_class="WorkOrder" load_steps=26 format=3]
 
 [ext_resource type="Script" path="res://Scripts/Inspection/WorkOrder.cs" id="1_order"]
 [ext_resource type="Script" path="res://Scripts/Inspection/PartFeature.cs" id="2_feature"]
+[ext_resource type="Texture2D" path="res://Machines/WorkOrders/drawings/ie_0001_kademeli_mil.svg" id="3_drawing"]
+[ext_resource type="Script" path="res://Scripts/Inspection/DrawingNote.cs" id="4_note"]
+
+[sub_resource type="Resource" id="Note_0"]
+script = ExtResource("4_note")
+Position = Vector2(226, 232)
+Text = "Ø36 ±0,05"
+FontSizePx = 15
+
+[sub_resource type="Resource" id="Note_1"]
+script = ExtResource("4_note")
+Position = Vector2(361, 232)
+Text = "Ø32"
+FontSizePx = 15
+
+[sub_resource type="Resource" id="Note_2"]
+script = ExtResource("4_note")
+Position = Vector2(361, 249)
+Text = "±0,05"
+FontSizePx = 15
+
+[sub_resource type="Resource" id="Note_3"]
+script = ExtResource("4_note")
+Position = Vector2(476, 232)
+Text = "Ø20"
+FontSizePx = 15
+
+[sub_resource type="Resource" id="Note_4"]
+script = ExtResource("4_note")
+Position = Vector2(476, 249)
+Text = "±0,05"
+FontSizePx = 15
+
+[sub_resource type="Resource" id="Note_5"]
+script = ExtResource("4_note")
+Position = Vector2(460, 377)
+Text = "15"
+FontSizePx = 14
+
+[sub_resource type="Resource" id="Note_6"]
+script = ExtResource("4_note")
+Position = Vector2(360, 392)
+Text = "32"
+FontSizePx = 14
+
+[sub_resource type="Resource" id="Note_7"]
+script = ExtResource("4_note")
+Position = Vector2(300, 412)
+Text = "52 ±0,5"
+FontSizePx = 14
+
+[sub_resource type="Resource" id="Note_8"]
+script = ExtResource("4_note")
+Position = Vector2(530, 140)
+Text = "C1 (3x)"
+FontSizePx = 14
+
+[sub_resource type="Resource" id="Note_9"]
+script = ExtResource("4_note")
+Position = Vector2(160, 66)
+Text = "Ra 3,2  (tüm dış yüzeyler)"
+FontSizePx = 14
+
+[sub_resource type="Resource" id="Note_10"]
+script = ExtResource("4_note")
+Position = Vector2(40, 214)
+Text = "ayna"
+FontSizePx = 14
+
+[sub_resource type="Resource" id="Note_11"]
+script = ExtResource("4_note")
+Position = Vector2(40, 230)
+Text = "tarafı"
+FontSizePx = 14
+
+[sub_resource type="Resource" id="Note_12"]
+script = ExtResource("4_note")
+Position = Vector2(458, 444)
+Text = "İE-0001"
+FontSizePx = 12
+
+[sub_resource type="Resource" id="Note_13"]
+script = ExtResource("4_note")
+Position = Vector2(458, 459)
+Text = "Al  Ø50 x 130"
+FontSizePx = 12
+
+[sub_resource type="Resource" id="Note_14"]
+script = ExtResource("4_note")
+Position = Vector2(566, 444)
+Text = "KADEMELİ MİL"
+FontSizePx = 12
+
+[sub_resource type="Resource" id="Note_15"]
+script = ExtResource("4_note")
+Position = Vector2(566, 459)
+Text = "Ölçek 1:1  ölçüler mm"
+FontSizePx = 12
 
 [sub_resource type="Resource" id="Feature_d20"]
 script = ExtResource("2_feature")
@@ -50,4 +148,6 @@ StockSizeMm = Vector3(130, 50, 50)
 Program = "nc_files/lathe_kademeli_mil.ngc"
 Notes = "Kütüğü aynadan en az 95 mm dışarıda bağla (kesmede taret aynaya yaklaşır). Z0 = serbest alın.
 Her kalemi ölç (OFS/SET), ilk parçayı SINGLE BLOCK ve düşük ilerlemeyle çalıştır."
+Drawing = ExtResource("3_drawing")
+DrawingNotes = [SubResource("Note_0"), SubResource("Note_1"), SubResource("Note_2"), SubResource("Note_3"), SubResource("Note_4"), SubResource("Note_5"), SubResource("Note_6"), SubResource("Note_7"), SubResource("Note_8"), SubResource("Note_9"), SubResource("Note_10"), SubResource("Note_11"), SubResource("Note_12"), SubResource("Note_13"), SubResource("Note_14"), SubResource("Note_15")]
 Features = Array[ExtResource("2_feature")]([SubResource("Feature_d20"), SubResource("Feature_d32"), SubResource("Feature_d44"), SubResource("Feature_len"), SubResource("Feature_ra")])
