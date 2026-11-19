@@ -58,7 +58,10 @@ public partial class PlayerController : CharacterBody3D
     /// default, and how near / far the wheel can bring it (m).</summary>
     [Export] public float HoldDistance = 0.6f;
     [Export] public float HoldDistanceMin = 0.25f;
-    [Export] public float HoldDistanceMax = 1.4f;
+    [Export] public float HoldDistanceMax = 2.0f;
+    /// <summary>Brings what is held in place up to the hands. Shift + the
+    /// pickup key takes a thing straight into the hands.</summary>
+    [Export] public Key BringToHandsKey = Key.B;
 
     private const float CapsuleRadius = 0.3f;
     private const float CapsuleHeight = 1.8f;
@@ -139,6 +142,7 @@ public partial class PlayerController : CharacterBody3D
     {
         // Handed over, it starts in the hands: carried by force from
         // wherever it was made, it would be yanked across the room.
+        HoldAtHands();
         body.GlobalTransform = new Transform3D(GlobalBasis.Orthonormalized() * Basis.Identity, _carryPoint.GlobalPosition);
         body.LinearVelocity = Vector3.Zero;
         body.AngularVelocity = Vector3.Zero;
@@ -147,7 +151,7 @@ public partial class PlayerController : CharacterBody3D
 
     // A carried object sits right in front of the player; without the
     // exception it shoves the player around whenever the two touch.
-    private void Hold(RigidBody3D body)
+    private void Hold(RigidBody3D body, bool inPlace = false)
     {
         _heldPart = body;
         _heldTurn = (GlobalBasis.Orthonormalized().Inverse() * body.GlobalBasis.Orthonormalized()).Orthonormalized();
@@ -155,7 +159,12 @@ public partial class PlayerController : CharacterBody3D
         // handling on, is carried by force and feels its weight.
         _carriedByForce = WorkshopSettings.PhysicalHandling && body is not HandTool;
         _toolSpin = 0f;
-        SetHoldDistance(HoldDistance);
+        // Picked up off a bench or the floor it stays where it is (bring it
+        // up with BringToHandsKey); a hand tool always goes to the hand.
+        if (inPlace && body is not HandTool)
+            HoldWhereItIs(body);
+        else
+            HoldAtHands();
         // Carried by force it moves on its own: off a shelf or out of a
         // drawer that would carry it along.
         if (_carriedByForce && body.GetParent() != GetTree().CurrentScene)
@@ -215,8 +224,36 @@ public partial class PlayerController : CharacterBody3D
     /// player; a hand tool stays where the hand is.</summary>
     private void SetHoldDistance(float metres)
     {
+        _carryGoal = null;
         _holdDistance = Mathf.Clamp(metres, HoldDistanceMin, HoldDistanceMax);
-        _carryPoint.Position = new Vector3(0f, -0.1f, -_holdDistance);
+        var line = _carryPoint.Position.LengthSquared() > 1e-6f ? _carryPoint.Position.Normalized() : new Vector3(0f, -0.1f, -1f).Normalized();
+        _carryPoint.Position = line * _holdDistance;
+    }
+
+    /// <summary>The usual place in front of the eyes. Brought up from
+    /// further off, it is lifted there at a hand's pace rather than jumping
+    /// (carried by force, a jump would tear it out of the hands).</summary>
+    private void HoldAtHands(bool lift = false)
+    {
+        var hands = new Vector3(0f, -0.1f, -HoldDistance);
+        _carryGoal = lift ? hands : null;
+        if (!lift)
+            _carryPoint.Position = hands;
+        _holdDistance = hands.Length();
+    }
+
+    /// <summary>Where the hold point is being lifted to, if it is.</summary>
+    private Vector3? _carryGoal;
+    /// <summary>How fast the hands bring a thing up to them (m/s).</summary>
+    private const float LiftSpeed = 2f;
+
+    /// <summary>Holds it right where it is: the hold point goes to it.</summary>
+    private void HoldWhereItIs(Node3D body)
+    {
+        _carryPoint.Position = _head.ToLocal(body.GlobalPosition);
+        _holdDistance = _carryPoint.Position.Length();
+        if (_holdDistance > HoldDistanceMax || _holdDistance < HoldDistanceMin)
+            SetHoldDistance(_holdDistance);
     }
 
     /// <summary>Spring and damping of the hands toward where the carried
@@ -474,6 +511,9 @@ public partial class PlayerController : CharacterBody3D
                 case Key.F when Input.MouseMode == Input.MouseModeEnum.Captured:
                     TogglePickup();
                     break;
+                case var k when k == BringToHandsKey && _heldPart != null && !keyEvent.Echo:
+                    HoldAtHands(lift: true);
+                    break;
                 case Key.Z when _heldPart != null && !keyEvent.Echo:
                     _heldTurn = (new Basis(Vector3.Up, Mathf.Pi / 2f) * _heldTurn).Orthonormalized();
                     break;
@@ -579,7 +619,7 @@ public partial class PlayerController : CharacterBody3D
         if (LookedAtPickup() is RigidBody3D body)
         {
             (body as Carryable)?.OnPickedUp();
-            Hold(body); // frozen while held -- carried by direct transform, not physics forces
+            Hold(body, inPlace: !Input.IsKeyPressed(Key.Shift));
         }
     }
 
@@ -852,6 +892,12 @@ public partial class PlayerController : CharacterBody3D
     {
         if (_heldPart == null)
             return;
+        if (_carryGoal is Vector3 goal)
+        {
+            _carryPoint.Position = _carryPoint.Position.MoveToward(goal, LiftSpeed * (float)GetPhysicsProcessDeltaTime());
+            if (_carryPoint.Position.IsEqualApprox(goal))
+                _carryGoal = null;
+        }
         if (_carriedByForce && _saw.HeldTransform == null && _ring.HeldTransform == null)
             DriveCarried();
         else
@@ -895,7 +941,7 @@ public partial class PlayerController : CharacterBody3D
         _heldLabel.Text = _heldPart == null ? "" : "Elde: " + ((_heldPart as Carryable)?.DisplayName ?? "parça")
             + (_heldPart is HandTool
                 ? "   [Z] yatay çevir  [X] dik çevir  [T + fare] serbest çevir"
-                : "   [Tekerlek] yaklaştır / uzaklaştır  [T + fare] döndür  [Shift] hassas  [Z/X] çeyrek tur");
+                : $"   [Tekerlek] yaklaştır / uzaklaştır  [{BringToHandsKey}] ele al  [T + fare] döndür  [Shift] hassas  [Z/X] çeyrek tur");
 
         _crosshair.Visible = !_focus.Active;
         if (_focus.Active)

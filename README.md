@@ -239,8 +239,9 @@ control waits for it before feeding. M4 turns it the other way.
 
 ### Chuck cabinet and stand
 
-Carrying: the wheel brings what you hold nearer or further without moving
-you (Shift: by the centimetre), T (or the middle button) held turns it with
+Carrying: F takes a thing where it lies and holds it there (Shift + F, or
+B while holding, brings it up to your hands); the wheel brings what you
+hold nearer or further without moving you (Shift: by the centimetre), T (or the middle button) held turns it with
 the mouse (Shift: finely), Z / X turn it a quarter. Keys and handles in the
 hand turn as the wheel turns them. Right mouse zooms the view.
 The chuck stand can be carried (F) to any bench: set it down and click to

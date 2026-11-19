@@ -31,6 +31,10 @@ public partial class ChuckCabinet : StaticBody3D
     /// sides, so a chuck stand and the parts around it have room.</summary>
     private const float TopWidth = 1.7f, TopDepth = 0.95f;
     private const float TopFrontZ = Depth / 2f + 0.3f;
+    /// <summary>The drawer unit runs from the back to just behind the
+    /// worktop's front edge: its drawer fronts line up under it.</summary>
+    private const float UnitBackZ = -Depth / 2f, UnitFrontZ = TopFrontZ - 0.02f;
+    private const float UnitDepth = UnitFrontZ - UnitBackZ, UnitMidZ = (UnitFrontZ + UnitBackZ) / 2f;
     private const float CaseBottom = 1.25f, CaseHeight = 0.8f, CaseDepth = 0.4f;
 
     public override void _Ready()
@@ -55,9 +59,9 @@ public partial class ChuckCabinet : StaticBody3D
         var top = BodyParts.Mat(new Color(0.55f, 0.42f, 0.28f), 0f, 0.7f);
         // Drawer unit sides, back and worktop.
         foreach (float side in new[] { -1f, 1f })
-            BodyParts.SolidBox(this, "Side", new Vector3(0.02f, DrawerHeight, Depth), new Vector3(side * (Width / 2f - 0.01f), DrawerHeight / 2f, 0f), body);
+            BodyParts.SolidBox(this, "Side", new Vector3(0.02f, DrawerHeight, UnitDepth), new Vector3(side * (Width / 2f - 0.01f), DrawerHeight / 2f, UnitMidZ), body);
         BodyParts.SolidBox(this, "Back", new Vector3(Width, DrawerHeight, 0.02f), new Vector3(0f, DrawerHeight / 2f, -Depth / 2f + 0.01f), body);
-        BodyParts.SolidBox(this, "Divider", new Vector3(0.02f, DrawerHeight, Depth), new Vector3(0f, DrawerHeight / 2f, 0f), body);
+        BodyParts.SolidBox(this, "Divider", new Vector3(0.02f, DrawerHeight, UnitDepth), new Vector3(0f, DrawerHeight / 2f, UnitMidZ), body);
         BodyParts.SolidBox(this, "Worktop", new Vector3(TopWidth, Top, TopDepth), new Vector3(0f, DrawerHeight + Top / 2f, TopFrontZ - TopDepth / 2f), top);
         // Legs under the overhanging front corners.
         foreach (float side in new[] { -1f, 1f })
@@ -116,9 +120,9 @@ public partial class ChuckCabinet : StaticBody3D
             var model = models.OrderBy(m => m.Kind).ThenBy(m => m.DiameterMm).ElementAt(i);
             float x = (column == 0 ? -1f : 1f) * Width / 4f;
             float y = DrawerHeight - 0.02f - h * (row + 0.5f);
-            var drawer = CabinetDrawer.Create(Width / 2f - 0.04f, h - 0.012f, Depth - 0.06f, Label(model));
+            var drawer = CabinetDrawer.Create(Width / 2f - 0.04f, h - 0.012f, UnitDepth - 0.04f, Label(model));
             // Placed before it enters the tree: it slides out from here.
-            drawer.Position = new Vector3(x, y, 0.02f);
+            drawer.Position = new Vector3(x, y, UnitMidZ + 0.01f);
             AddChild(drawer);
             Fill(drawer, model);
         }
@@ -262,7 +266,7 @@ public partial class CabinetDrawer : StaticBody3D, IInteractable
         if (player.Held != null)
             return;
         _open = !_open;
-        CreateTween().TweenProperty(this, "position", _shut + (_open ? Vector3.Back * TrayDepth * 0.8f : Vector3.Zero), 0.35)
+        CreateTween().TweenProperty(this, "position", _shut + (_open ? Vector3.Back * Mathf.Min(TrayDepth * 0.8f, 0.5f) : Vector3.Zero), 0.35)
             .SetTrans(Tween.TransitionType.Sine);
     }
 }
