@@ -246,7 +246,9 @@ the mouse (Shift: finely), Z / X turn it a quarter. Keys and handles in the
 hand turn as the wheel turns them. Right mouse zooms the view.
 The chuck stand can be carried (F) to any bench: set it down and click to
 fix it there; click it again, empty, to free it. Its top is a turntable:
-with the key out the wheel turns the chuck to a handy angle.
+the wheel turns the chuck to a handy angle (with the key in, Shift + wheel).
+The chucks are cut like real ones: T-slots through the face, the bore
+open, and down the slots the scroll's spiral thread turning with the key.
 
 `Scenes/Workshop/ChuckCabinet.tscn`: behind its glass doors (click to open)
 stand chucks of every size, Ø80 to Ø250 three-jaw, four-jaw independents and

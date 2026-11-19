@@ -306,9 +306,11 @@ door on enclosed machines.
    turn, complete chuck meets at the centre with the watch off, opened past
    the end the jaws slid out and slept. Not tried by hand in the editor.
    Physical mode is deliberately silent about jaws (stand and on-machine
-   prompts/notices hidden): `ChuckVisual.ShowScroll` moves each groove's
-   ridge pool with the key (a new ridge at the outer end when the start
-   passes), `ChuckStand.Guide` draws a near-square jaw into line (felt in
+   prompts/notices hidden): the chuck body is CSG (cylinder minus T-slots
+   and bore), the scroll a disc with one spiral thread (`SpiralThread`
+   ArrayMesh) at the slot bottoms, turned by `ChuckVisual.ShowScroll` so
+   each slot's ridges follow ChuckJaws' phase (a ridge appears at a slot's
+   outer end as the thread start passes), `ChuckStand.Guide` draws a near-square jaw into line (felt in
    the hand), `SynthSounds` Clink (jaw knocks, `JawItem` contact monitor),
    Clunk (drops in), Clack (caught), Ratchet (key), Scrape (slides out).
    Carrying: gravity always held, swing limited by `weight_feel` x mass.

@@ -338,7 +338,7 @@ public partial class ChuckStand : Carryable, IInteractable
         if (player.Held != null)
             return null;
         if (_keyIn && !Hints)
-            return g.IsCollet ? "Pens aynası: anahtarın burada işi yok" : "[Tekerlek] Anahtarı çevir   [Tık] Anahtarı çıkar";
+            return g.IsCollet ? "Pens aynası: anahtarın burada işi yok" : "[Tekerlek] Anahtarı çevir   [Shift+Tekerlek] Tablayı çevir   [Tık] Anahtarı çıkar";
         if (_keyIn)
             return (g.IsCollet ? "Pens aynası: anahtarın burada işi yok" : g.Jaws.Complete
                 ? $"[Tekerlek] Çeneleri aç / kapat   Ø{g.OpeningMm:0} mm" + (g.FullyOpen ? " (tam açık: geri çevirmek çeneleri söker)" : "")
@@ -425,9 +425,10 @@ public partial class ChuckStand : Carryable, IInteractable
     {
         if (Chuck == null || player.Held != null)
             return;
-        if (!_keyIn)
+        if (!_keyIn || Input.IsKeyPressed(Key.Shift))
         {
-            // Key out: the wheel turns the turntable, chuck and all.
+            // Key out (or Shift held): the wheel turns the turntable, chuck,
+            // key and all.
             _turntable.RotateY(Mathf.DegToRad(TurntableStepDeg) * steps);
             return;
         }
