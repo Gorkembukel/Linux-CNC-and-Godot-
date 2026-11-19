@@ -17,6 +17,16 @@ public static class SpindleNoses
 {
     public static string NameOf(SpindleNose nose) => nose.ToString().Replace('_', '-');
 
+    /// <summary>Diameter of the nose's register (mm, ISO 702-2).</summary>
+    public static float DiameterMm(SpindleNose nose) => nose switch
+    {
+        SpindleNose.D1_3 => 92f,
+        SpindleNose.D1_4 => 117.5f,
+        SpindleNose.D1_5 => 146f,
+        SpindleNose.D1_6 => 171.4f,
+        _ => 225.4f,
+    };
+
     /// <summary>Cam locks on a nose of this size (D1-6 and up have six).</summary>
     public static int CamCount(SpindleNose nose) => nose >= SpindleNose.D1_6 ? 6 : 3;
 }

@@ -71,9 +71,13 @@ public partial class LatheWorkholding : MachineSetup, ISawable, IThreaded
         Chuck.PromptWith = IndicatorPrompt;
         Chuck.WhyNotMount = WhyNotMount;
         Chuck.SpindleTurning = () => !SpindleStopped;
+        Chuck.Nose = spec.Lathe.SpindleNose;
         Chuck.Refitted = () =>
         {
-            _body.FitChuck(Chuck.Model);
+            if (Chuck.Mounted)
+                _body.FitChuck(Chuck.Model);
+            else
+                _body.FitBareNose(SpindleNoses.DiameterMm(spec.Lathe.SpindleNose));
             _cutting.ResetStock();
         };
     }
@@ -295,7 +299,7 @@ public partial class LatheWorkholding : MachineSetup, ISawable, IThreaded
     /// spindle turns.</summary>
     private void CheckCams(bool turning)
     {
-        if (turning && !Chuck.CamsDone && !_camsTripped)
+        if (turning && Chuck.Mounted && !Chuck.CamsDone && !_camsTripped)
         {
             _camsTripped = true;
             Safety.Trip(IncidentKind.Crash, $"AYNA FENER MİLİNDEN BOŞALDI: kam kilitleri kilitlenmeden iş mili çalıştırıldı ({Chuck.CamsLocked}/{Chuck.CamCount})");
@@ -309,7 +313,7 @@ public partial class LatheWorkholding : MachineSetup, ISawable, IThreaded
     /// slower chuck fitted since is the operator's to respect.</summary>
     private void CheckChuckSpeed(float rpm)
     {
-        float limit = Chuck.Model.MaxRpm;
+        float limit = Chuck.Mounted ? Chuck.Model.MaxRpm : float.PositiveInfinity;
         bool over = rpm > limit + 1f;
         if (over && !_overSpeedWarned)
             Safety.Warn(System.FormattableString.Invariant(

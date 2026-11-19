@@ -223,7 +223,9 @@ take the key out, then with the **cam key** (on the rack) wheel back to undo
 the three cam locks; click the chuck with the other one in hand (the old one,
 with its jaws, comes off into your hands); wheel the cam key forward to lock
 the three cams again. Starting the spindle with a cam undone throws the
-chuck. The work now sits as far out as the new chuck is long.
+chuck. To take a chuck off without putting another on, undo the cams and
+click it with an empty hand: it comes off into your hands and the spindle
+nose stays bare until a chuck is put on it. The work now sits as far out as the new chuck is long.
 The **4-jaw independent** chuck seats a bar well off centre, then the mallet
 (with the dial on the bar) adjusts one jaw against the other, also when
 tight, down to microns; its jaws go in any order. The **ER32 collet** chuck

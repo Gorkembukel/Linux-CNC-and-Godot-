@@ -292,6 +292,11 @@ door on enclosed machines.
    waits until the scroll's thread start reaches it (`Advance`); jaws let
    go slide out and stay out until picked up. Its Area3D and physics tick
    run only while a slot is empty; fitted jaws are drawn, not simulated.
+   A chuck can also come off alone (`JawChuck.Lift`: cams undone, empty
+   hand); the nose is drawn bare and the carriage zone shrinks to it
+   (`ProceduralLatheBody.FitBareNose`) until one is mounted. Handed-over
+   things now start at the hands (`PlayerController.Give`): the old chuck
+   used to be made at the scene origin and yanked across by the hands.
    `ChuckCabinet` (glass doors, a drawer per chuck, `ChuckModel.Catalogue`)
    still has to be placed in Main.tscn. Physical handling
    (`WorkshopSettings.PhysicalHandling`, `HandStrengthN`): carried bodies

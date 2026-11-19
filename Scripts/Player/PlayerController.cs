@@ -129,6 +129,11 @@ public partial class PlayerController : CharacterBody3D
     /// <summary>Puts an object straight into the player's hands.</summary>
     public void Give(RigidBody3D body)
     {
+        // Handed over, it starts in the hands: carried by force from
+        // wherever it was made, it would be yanked across the room.
+        body.GlobalTransform = new Transform3D(GlobalBasis.Orthonormalized() * Basis.Identity, _carryPoint.GlobalPosition);
+        body.LinearVelocity = Vector3.Zero;
+        body.AngularVelocity = Vector3.Zero;
         Hold(body);
     }
 
