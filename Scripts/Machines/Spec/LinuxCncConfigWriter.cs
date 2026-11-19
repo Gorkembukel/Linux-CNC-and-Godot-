@@ -109,7 +109,7 @@ MIN_FORWARD_VELOCITY = {extras.SpindleMinRpm:F0}
         for (int joint = 0; joint < joints.Length; joint++)
         {
             var a = joints[joint];
-            float min = a.Wrapped ? -WrappedLimit : a.MinLimit, max = a.Wrapped ? WrappedLimit : a.MaxLimit;
+            float min = a.Wrapped ? -WrappedLimit : a.MinLimit + a.ControlOffset, max = a.Wrapped ? WrappedLimit : a.MaxLimit + a.ControlOffset;
             sb.Append(Invariant($@"
 [AXIS_{a.Letter}]
 MIN_LIMIT = {min:F3}
@@ -123,7 +123,7 @@ MAX_VELOCITY = {a.MaxVelocity:F1}
 MAX_ACCELERATION = {a.MaxAcceleration:F1}
 MIN_LIMIT = {min:F3}
 MAX_LIMIT = {max:F3}
-HOME = {a.Home:F3}
+HOME = {a.Home + a.ControlOffset:F3}
 HOME_SEARCH_VEL = {a.HomeSearchVel:F1}
 HOME_LATCH_VEL = {a.HomeLatchVel:F1}
 HOME_SEQUENCE = {a.HomeSequence}
@@ -137,7 +137,7 @@ HOME_SEQUENCE = {a.HomeSequence}
         var sb = new StringBuilder();
         foreach (var t in tools)
         {
-            sb.Append(Invariant($"T{t.Number} P{t.Number} D{t.TableDiameter:F6} Z+0.000000"));
+            sb.Append(Invariant($"T{t.Number} P{t.Number} D{t.TableDiameter:F6} Z{t.LengthZ:+0.000000;-0.000000}"));
             if (t.LatheTool)
                 sb.Append(Invariant($" I{t.FrontAngle:+0.000000;-0.000000} J{t.BackAngle:+0.000000;-0.000000} Q{t.Orientation}"));
             sb.Append(" ; ").Append(t.Comment.Replace('\n', ' ')).Append('\n');

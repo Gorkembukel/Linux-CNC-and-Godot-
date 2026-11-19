@@ -39,6 +39,7 @@ public sealed class MachineKinematics
 
     public static Transform3D LinkTransform(AxisDef axis, float value)
     {
+        value -= axis.ControlOffset;
         float signed = axis.OnWorkpiece ? -value : value;
         if (!axis.IsRotary)
             return new Transform3D(Basis.Identity, Direction(axis.Letter) * signed * WorldScale.MmToM);

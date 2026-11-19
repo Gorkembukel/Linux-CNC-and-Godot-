@@ -322,8 +322,8 @@ public partial class MillWorkholding : MachineSetup, ISawable
         {
             float radius = mounted.Spec.DiameterMm / 2f * M;
             float length = (mounted.Spec.LengthMm + mounted.ErrorMm.Y) * M;
-            var tool = _body.WorkEnd.GlobalTransform * _cutting.ToolInWork(Bridge.State.Position);
-            Vector3 tip = tool * new Vector3(0f, -mounted.ErrorMm.Y * M, 0f), holder = tool * new Vector3(0f, length, 0f);
+            var tool = _body.WorkEnd.GlobalTransform * _cutting.TipInWork(Bridge.State.Position, mounted);
+            Vector3 tip = tool.Origin, holder = tool * new Vector3(0f, length, 0f);
             Vector3 nose = tool * new Vector3(0f, length + ToolMeshBuilder.HolderLength, 0f);
             float noseRadius = Spec.Mill.SpindleHousingDiameterMm * 0.375f * M;
 

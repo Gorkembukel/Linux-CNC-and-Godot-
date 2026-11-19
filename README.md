@@ -195,7 +195,10 @@ The demo programs cover turning, milling, a multi-tool VMC part, a 4-axis and
 a 5-axis part; `tools/statue_cam.py` generates the statue program.
 
 When writing your own: tool numbers must exist in the machine's tool list;
-put `G43` after every `Tn M6` on a mill (tool lengths are real); moves must
+put `G43` after every `Tn M6` on a mill (tool lengths are real: the control's
+Z is the spindle gauge line, so without G43 the tip goes a whole tool length
+below the programmed Z — set `Tool Length Reference` to `NominalToolTip` in a
+machine's Mill structure for the forgiving older model); moves must
 stay inside the axis limits; on 4/5-axis machines there is no
 tool-centre-point control, so coordinates are plain machine axes.
 

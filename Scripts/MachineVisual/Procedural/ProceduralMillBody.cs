@@ -24,14 +24,15 @@ public partial class ProceduralMillBody : Node3D
     private readonly List<(AxisDef Axis, Node3D Node)> _links = new();
     private Node3D _toolNode, _spindle, _headMount;
     private bool _headFollowsToolLength;
-    private float _longestTool;
+    private ToolLengthModel _lengths;
     private ToolSpec _shownTool;
     private bool _toolShown;
     private float _toolDrop;
 
     /// <summary>Moves with the workpiece: parent for the stock.</summary>
     public Node3D WorkEnd { get; private set; }
-    /// <summary>Moves with the spindle; its origin is the nominal tool tip.</summary>
+    /// <summary>Moves with the spindle; its origin is the reference point
+    /// of the machine's ToolLengthModel.</summary>
     public Node3D ToolEnd { get; private set; }
 
     /// <summary>Table top in WorkEnd's frame, its size, and where its
@@ -195,7 +196,7 @@ public partial class ProceduralMillBody : Node3D
         float baseTop = Mathf.Max(cursor, floorY + 0.05f);
 
         // ---- tool side ----
-        _longestTool = spec.Tools.Where(t => t != null).Select(t => t.LengthMm).DefaultIfEmpty(50f).Max() * M;
+        _lengths = spec.ToolLengths();
         var zAxis = spec.FindAxis(AxisId.Z);
         float zMin = (zAxis?.MinLimit ?? 0f) * M, zMax = (zAxis?.MaxLimit ?? 200f) * M;
         float xHalf = TravelHalf(spec.FindAxis(AxisId.X)), yHalf = TravelHalf(spec.FindAxis(AxisId.Y));
@@ -217,7 +218,7 @@ public partial class ProceduralMillBody : Node3D
         // before each one, around its pivot.
         int firstRotary = toolLinks.FindIndex(l => l.Axis.IsRotary);
         _headFollowsToolLength = firstRotary < 0;
-        float headAttachY = _longestTool + ToolMeshBuilder.HolderLength;
+        float headAttachY = _lengths.NoseAboveReferenceMm(_lengths.LongestToolMm) * M;
         for (int i = 0; i < toolLinks.Count; i++)
         {
             var axis = toolLinks[i].Axis;
@@ -310,7 +311,7 @@ public partial class ProceduralMillBody : Node3D
         else
             DoorOpening = null;
 
-        SetPose(AxisVector.Zero);
+        SetPose(new AxisVector(z: _lengths.ZControlOffsetMm));
         SetTool(spec.Tools.FirstOrDefault(t => t != null)?.Number ?? 0);
     }
 
@@ -393,11 +394,12 @@ public partial class ProceduralMillBody : Node3D
     public void SetTool(int number) => ShowTool(_spec.FindTool(number));
 
     /// <summary>Shows this tool in the spindle (null = empty spindle),
-    /// sticking out lengthErrorMm more than nominal. The nominal tip stays
-    /// at the position LinuxCNC reports, so a longer tool lifts the head.</summary>
+    /// sticking out lengthErrorMm more than nominal, placed by the
+    /// machine's ToolLengthModel (with a nominal tool tip reference a longer
+    /// tool lifts the head; with the gauge line the head stays put).</summary>
     public void ShowTool(ToolSpec tool, float lengthErrorMm = 0f)
     {
-        float drop = -lengthErrorMm * M;
+        float drop = tool == null ? 0f : -_lengths.TipBelowReferenceMm(tool.LengthMm, lengthErrorMm) * M;
         if (_toolShown && tool == _shownTool && Mathf.IsEqualApprox(drop, _toolDrop))
             return;
         _toolShown = true;
@@ -408,7 +410,7 @@ public partial class ProceduralMillBody : Node3D
         if (tool != null)
             _toolNode.AddChild(ToolMeshBuilder.MillTool(tool));
 
-        float noseY = (tool?.LengthMm * M ?? _longestTool) + ToolMeshBuilder.HolderLength;
+        float noseY = _lengths.NoseAboveReferenceMm(tool?.LengthMm ?? _lengths.LongestToolMm) * M;
         _spindle.Position = new Vector3(0f, noseY, 0f);
         if (_headFollowsToolLength)
             _headMount.Position = new Vector3(0f, noseY, 0f);

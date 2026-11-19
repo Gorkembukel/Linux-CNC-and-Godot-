@@ -5,7 +5,7 @@ namespace CncTrainer.Procedural;
 
 public static class ToolMeshBuilder
 {
-    public const float HolderLength = 0.06f;
+    public const float HolderLength = ToolLengthModel.HolderLengthMm * WorldScale.MmToM;
 
     /// <summary>A mill tool in its holder: tip at the node origin, axis
     /// along +Y, the spindle nose at LengthMm + HolderLength.</summary>
