@@ -107,11 +107,15 @@ public sealed class LatheCutting : CuttingProcess, Machining.IPathObstacle
             }
             else if (leavingGroove)
                 pitch = _threadPitch;
+            // The cut pushes the edge off the work: a boring bar in toward the axis, a turning tool out.
+            float spring = (kind == ToolKind.Boring ? -1f : 1f) * DeflectionMm();
+            Vector2 Sprung(Vector2 p) => p + new Vector2(Mathf.Sign(p.X) * spring, 0f);
+            var (from, to) = (Sprung(previous), Sprung(position));
             var result = kind == ToolKind.Drill ? profile.SweepBore(previous, position, s.ToolNoseRadius, drillRadius, mounted.Spec.TipAngleDeg)
-                : shape != null && kind == ToolKind.Boring ? profile.SweepProfileBore(previous, position, shape)
-                : shape != null ? profile.SweepProfile(previous, position, shape, pitch, _threadAnchorZ ?? 0f)
-                : kind == ToolKind.Boring ? profile.SweepBore(previous, position, s.ToolNoseRadius, 0f)
-                : profile.Sweep(previous, position, s.ToolNoseRadius, feedPerRev, rpm);
+                : shape != null && kind == ToolKind.Boring ? profile.SweepProfileBore(from, to, shape)
+                : shape != null ? profile.SweepProfile(from, to, shape, pitch, _threadAnchorZ ?? 0f)
+                : kind == ToolKind.Boring ? profile.SweepBore(from, to, s.ToolNoseRadius, 0f)
+                : profile.Sweep(from, to, s.ToolNoseRadius, feedPerRev, rpm);
             if (result.MaterialRemoved)
             {
                 HasCut = true;

@@ -44,6 +44,18 @@ public partial class ProceduralMillBody : Node3D
     /// <summary>The enclosure's open front (centre and size, this body's
     /// frame), null on an open machine.</summary>
     public (Vector3 Centre, Vector2 Size)? DoorOpening { get; private set; }
+    /// <summary>Open mill: the shield hangs from the front of the spindle
+    /// housing, its hinge this far in front of the axis (m); 0 = no shield.</summary>
+    private float _guardFrontM;
+
+    /// <summary>Where the door or guard hangs: the body, or the spindle (it moves with the head).</summary>
+    public Node3D GuardParent => _guardFrontM > 0f ? _spindle : this;
+
+    /// <summary>The door of the enclosure, or the shield in front of the cutter, or null.</summary>
+    public Fixtures.MachineDoor Door() =>
+        DoorOpening is var (centre, size) ? Fixtures.MachineDoor.Create(centre, size)
+        : _guardFrontM > 0f ? Fixtures.MachineDoor.Guard(new Vector3(0f, 0.03f, _guardFrontM), new Vector3(0.16f, 0.11f, 0.03f), roof: false)
+        : null;
 
     public void Build(MachineSpec spec)
     {
@@ -310,6 +322,7 @@ public partial class ProceduralMillBody : Node3D
         }
         else
             DoorOpening = null;
+        _guardFrontM = !spec.Enclosure && spec.Guard ? m.SpindleHousingDiameterMm / 2f * M + 0.01f : 0f;
 
         SetPose(new AxisVector(z: _lengths.ZControlOffsetMm));
         SetTool(spec.Tools.FirstOrDefault(t => t != null)?.Number ?? 0);

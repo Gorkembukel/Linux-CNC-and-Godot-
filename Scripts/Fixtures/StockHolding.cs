@@ -67,7 +67,7 @@ public sealed class StockSeat
     /// <summary>The held stock for a save; null when empty.</summary>
     public Godot.Collections.Dictionary Save() => Stock == null ? null : new Godot.Collections.Dictionary
     {
-        ["item"] = CncTrainer.Save.SavedItems.Record(Stock), ["turn"] = Turn, ["cut"] = WasCut, ["ra"] = Surface.RaUm, ["chatter"] = Surface.Chatter,
+        ["item"] = CncTrainer.Save.SavedItems.Record(Stock), ["turn"] = Turn, ["cut"] = WasCut, ["ra"] = Surface.RaUm, ["chatter"] = Surface.Chatter, ["spring"] = Surface.SpringMm,
     };
 
     /// <summary>The saved stock made again under the holder it goes into; null when there was none.</summary>
@@ -83,7 +83,7 @@ public sealed class StockSeat
     public void Restored(Godot.Collections.Dictionary data)
     {
         WasCut = data["cut"].AsBool();
-        Surface = new SurfaceFinish(data["chatter"].AsBool(), data["ra"].AsSingle());
+        Surface = new SurfaceFinish(data["chatter"].AsBool(), data["ra"].AsSingle(), data["spring"].AsSingle());
     }
 
     public void ShowRaw(bool visible)

@@ -60,6 +60,6 @@ public partial class InspectionTable : Node3D, IInteractable
             .ToList();
         bool materialOk = part.Blank.Material == order.Material;
         return new InspectionReport(order.Title, results, materialOk,
-            $"{StockBlank.NameOf(part.Blank.Material)}, istenen {StockBlank.NameOf(order.Material)}", incidents, order.IncidentsFailThePart, part.SlipMm);
+            $"{StockBlank.NameOf(part.Blank.Material)}, istenen {StockBlank.NameOf(order.Material)}", incidents, order.IncidentsFailThePart, part.SlipMm, part.Surface.SpringMm);
     }
 }

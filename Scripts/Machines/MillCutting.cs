@@ -114,11 +114,11 @@ public sealed class MillCutting : CuttingProcess
         }
         MeasuringOvertravelMm = -1f;
 
-        // A broken tool cuts nothing; a worn one cuts undersize.
+        // A broken tool cuts nothing; a worn one, or one the cut bends away, leaves the wall short.
         if (_lastPose is Transform3D previous && mounted.Cuts)
         {
             var cutter = tool.Cutter();
-            cutter = cutter with { RadiusMm = cutter.RadiusMm - mounted.State.EdgeLossMm / 3f };
+            cutter = cutter with { RadiusMm = cutter.RadiusMm - mounted.State.EdgeLossMm / 3f - DeflectionMm() };
             var result = _stock.Stock.Cut(previous, pose, cutter);
             if (result.MaterialRemoved)
                 _stock.MarkDirty(result);

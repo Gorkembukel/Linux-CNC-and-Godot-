@@ -8,10 +8,12 @@ namespace CncTrainer.Inspection;
 /// <summary>The report card for one part against its work order. Engine-free.</summary>
 public sealed record InspectionReport(
     string OrderTitle, IReadOnlyList<FeatureResult> Features, bool MaterialOk, string MaterialNote,
-    IReadOnlyList<string> Incidents, bool IncidentsFail, float SlipMm = 0f)
+    IReadOnlyList<string> Incidents, bool IncidentsFail, float SlipMm = 0f, float SpringMm = 0f)
 {
     /// <summary>Creep below this does not explain a size that is off.</summary>
     public const float SignificantSlipMm = 0.02f;
+    /// <summary>A tool that sprang off the work less than this did not make a size miss.</summary>
+    public const float SignificantSpringMm = 0.01f;
 
     public int FeaturesPassed => Features.Count(f => f.Pass);
 
@@ -60,6 +62,8 @@ public sealed record InspectionReport(
         var bad = Features.FirstOrDefault(f => !f.Pass);
         if (bad.MeasuredMm != null && SlipMm >= SignificantSlipMm)
             return Invariant($"Kök neden: parça kesim sırasında bağlamada {SlipMm:0.00} mm kaydı (tam sıkılmamış). Mengeneyi / pabuçları tam sık, yeni parça.");
+        if (bad.MeasuredMm != null && SpringMm >= SignificantSpringMm)
+            return Invariant($"Kök neden: son takım kesimde {SpringMm:0.00} mm esnedi (uzun çıkıntı ya da ağır paso). Takımı kısa bağla, son pasoyu hafif al ya da aynı ölçüye bir boş paso daha ver.");
         if (bad.MeasuredMm is float v)
         {
             float off = v - bad.Spec.NominalMm;

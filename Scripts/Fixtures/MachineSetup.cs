@@ -29,14 +29,14 @@ public abstract partial class MachineSetup : Node3D, ISetupSheet, Save.ISaveable
     private bool Running => System.Math.Abs(Bridge.State.SpindleRpm) > 1.0
                             || (Bridge.State.InCycle && Bridge.State.TaskMode == TaskMode.Auto);
 
-    /// <summary>Hangs the door in the enclosure's open front.</summary>
-    protected void AddDoor(Node3D body, (Vector3 Centre, Vector2 Size)? opening)
+    /// <summary>Fits the machine's door or guard (null: the machine has neither).</summary>
+    protected void AddDoor(Node3D parent, MachineDoor door)
     {
-        if (opening is not var (centre, size))
+        if (door == null)
             return;
-        Door = MachineDoor.Create(centre, size);
+        Door = door;
         Door.Locked = () => Interlocked && Running;
-        body.AddChild(Door);
+        parent.AddChild(Door);
     }
 
     private bool Interlocked => Spec.DoorInterlock && Workshop.WorkshopSettings.DoorInterlocks;
@@ -45,11 +45,22 @@ public abstract partial class MachineSetup : Node3D, ISetupSheet, Save.ISaveable
     /// door open stops the machine.</summary>
     protected void CheckDoorInterlock()
     {
-        bool violation = Interlocked && Door != null && Door.IsOpen && Running;
-        if (violation && !_ranWithDoorOpen)
-            Safety.Trip(IncidentKind.Interlock, "KAPI AÇIK: makine kapı açıkken çalıştırıldı (önce kapıyı kapat)");
-        _ranWithDoorOpen = violation;
+        bool open = Door != null && Door.IsOpen && Running;
+        if (open && Interlocked && !_ranWithDoorOpen)
+            Safety.Trip(IncidentKind.Interlock, $"{Door.Noun.ToUpper(TurkishCulture)} AÇIK: makine {Door.Noun.ToLower(TurkishCulture)} açıkken çalıştırıldı (önce kapat)");
+        _ranWithDoorOpen = open && Interlocked;
+        // Without an interlock nothing stops it: the chips come out at the operator.
+        _openRunSeconds = open && !Interlocked ? _openRunSeconds + GetProcessDeltaTime() : 0.0;
+        if (_openRunSeconds >= OpenRunRecordSeconds)
+        {
+            _openRunSeconds = -60.0;
+            Safety.Record(IncidentKind.Unguarded, $"{Door.Noun.ToUpper(TurkishCulture)} AÇIK ÇALIŞILDI: talaş ve soğutma sıvısı operatöre sıçradı");
+        }
     }
+
+    private static readonly System.Globalization.CultureInfo TurkishCulture = new("tr-TR");
+    private const double OpenRunRecordSeconds = 2.0;
+    private double _openRunSeconds;
 
     public Godot.Collections.Dictionary Save()
     {

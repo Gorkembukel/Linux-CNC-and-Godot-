@@ -5,7 +5,7 @@ using CncTrainer.Player;
 
 namespace CncTrainer;
 
-public enum IncidentKind { PartThrown, Crash, KeyLeftIn, ToolBroken, Overload, Interlock, UnsafeHands, NoGlasses }
+public enum IncidentKind { PartThrown, Crash, KeyLeftIn, ToolBroken, Overload, Interlock, UnsafeHands, NoGlasses, Unguarded }
 
 public readonly record struct Incident(IncidentKind Kind, string Text, double AtSeconds);
 

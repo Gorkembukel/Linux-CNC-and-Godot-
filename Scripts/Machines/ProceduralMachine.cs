@@ -165,6 +165,7 @@ public partial class ProceduralMachine : Node3D, IMachine, Save.ISaveable
         Rig.Monitor = new Machining.CutMonitor(Spec, Cutting, Safety);
         Cutting.Collided += reason => Safety.Trip(IncidentKind.Crash, reason);
         Cutting.Surface = () => Rig.Monitor.Surface;
+        Cutting.DeflectionMm = () => Rig.Monitor.DeflectionMm;
         Cutting.PartFinished = Rig.Monitor.ResetQuality;
         bridge.Connect(BridgeClient.SignalName.StateUpdated, Callable.From(Cutting.OnConfirmedState));
     }
