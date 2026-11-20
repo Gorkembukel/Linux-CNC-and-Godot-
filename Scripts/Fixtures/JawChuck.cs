@@ -19,7 +19,7 @@ namespace CncTrainer.Fixtures;
 /// at the front face of the jaws on the centreline.
 /// </summary>
 [Tool]
-public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMeasurable, ISawable, IThreaded
+public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMeasurable, ISawable, IThreaded, Save.IItemHolder
 {
     private const float M = WorldScale.MmToM;
 
@@ -184,6 +184,58 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
         : SpindleTurning?.Invoke() == true ? "İş mili dönüyor"
         : null;
 
+    public Godot.Collections.Dictionary SaveFixture() => SaveState(Save.SavedItems.Record(Stock));
+
+    /// <summary>The chuck, its cams and its grip, with the bar as given (the
+    /// lathe hands in the shape turned into it).</summary>
+    public Godot.Collections.Dictionary SaveState(Godot.Collections.Dictionary bar)
+    {
+        var data = new Godot.Collections.Dictionary { ["mounted"] = Mounted, ["cams"] = CamsLocked };
+        if (!Mounted)
+            return data;
+        data["model"] = Save.SaveCodec.Resource(Model);
+        data["chuck"] = Save.SaveCodec.Chuck(Grip);
+        if (bar != null)
+            data["bar"] = bar;
+        return data;
+    }
+
+    /// <summary>Back as saved, on a chuck fresh from the workshop's start.</summary>
+    public void LoadState(Godot.Collections.Dictionary data)
+    {
+        if (!data["mounted"].AsBool())
+        {
+            if (WhyNotMount != null)
+                MakeBare();
+            return;
+        }
+        var grip = Save.SaveCodec.Chuck(data["chuck"].AsGodotDictionary());
+        if (data.TryGetValue("bar", out var bar) && Save.SavedItems.Make(Save.SaveCodec.Dict(bar)) is StockItem item)
+        {
+            AddChild(item);
+            Seat.Put(item, this, Transform3D.Identity);
+        }
+        else if (grip.HasBar)
+            grip.Remove();
+        Fit(Save.SaveCodec.Resource<ChuckModel>(data["model"].AsGodotDictionary()), grip);
+        CamsLocked = data["cams"].AsInt32();
+        Refitted?.Invoke();
+        Changed?.Invoke();
+    }
+
+    /// <summary>No chuck on the nose.</summary>
+    private void MakeBare()
+    {
+        Mounted = false;
+        // An empty stand-in so nothing can be put into a chuck that is not there.
+        Grip = new ChuckGrip(new ChuckDims(ChuckKind.Collet, 0, 0f, 0f, 0f, 0f));
+        _visual.Visible = false;
+        _key.Visible = false;
+        ShowBareNose(true);
+        Refitted?.Invoke();
+        Changed?.Invoke();
+    }
+
     /// <summary>Lifts the chuck off the nose into the player's hands; the
     /// nose stays bare until a chuck is put on.</summary>
     private void Lift(PlayerController player)
@@ -196,14 +248,7 @@ public partial class JawChuck : StaticBody3D, IInteractable, IStockFixture, IMea
         var removed = ChuckItem.Create(Model, Grip);
         GetTree().CurrentScene.AddChild(removed);
         player.Give(removed);
-        Mounted = false;
-        // An empty stand-in so nothing can be put into a chuck that is not there.
-        Grip = new ChuckGrip(new ChuckDims(ChuckKind.Collet, 0, 0f, 0f, 0f, 0f));
-        _visual.Visible = false;
-        _key.Visible = false;
-        ShowBareNose(true);
-        Refitted?.Invoke();
-        Changed?.Invoke();
+        MakeBare();
         PlayerController.Notify(this, $"{removed.DisplayName} fener milinden indirildi ({removed.Mass:0.#} kg): yere ya da dolaba bırak");
     }
 

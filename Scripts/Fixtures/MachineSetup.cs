@@ -8,7 +8,7 @@ namespace CncTrainer.Fixtures;
 /// <summary>What every machine's hands-on setup shares: the setup sheet on
 /// the HUD, and the accidents that end in a stopped machine. Child of the
 /// machine root.</summary>
-public abstract partial class MachineSetup : Node3D, ISetupSheet
+public abstract partial class MachineSetup : Node3D, ISetupSheet, Save.ISaveable
 {
     protected MachineSpec Spec { get; private set; }
     protected BridgeClient Bridge { get; private set; }
@@ -35,19 +35,37 @@ public abstract partial class MachineSetup : Node3D, ISetupSheet
         if (opening is not var (centre, size))
             return;
         Door = MachineDoor.Create(centre, size);
-        Door.Locked = () => Spec.DoorInterlock && Running;
+        Door.Locked = () => Interlocked && Running;
         body.AddChild(Door);
     }
+
+    private bool Interlocked => Spec.DoorInterlock && Workshop.WorkshopSettings.DoorInterlocks;
 
     /// <summary>Once per frame: a spindle or a program started with the
     /// door open stops the machine.</summary>
     protected void CheckDoorInterlock()
     {
-        bool violation = Spec.DoorInterlock && Door != null && Door.IsOpen && Running;
+        bool violation = Interlocked && Door != null && Door.IsOpen && Running;
         if (violation && !_ranWithDoorOpen)
             Safety.Trip(IncidentKind.Interlock, "KAPI AÇIK: makine kapı açıkken çalıştırıldı (önce kapıyı kapat)");
         _ranWithDoorOpen = violation;
     }
+
+    public Godot.Collections.Dictionary Save()
+    {
+        var data = SaveSetup();
+        data["door"] = Door?.IsOpen ?? true;
+        return data;
+    }
+
+    public void Load(Godot.Collections.Dictionary data)
+    {
+        Door?.SetOpen(data["door"].AsBool());
+        LoadSetup(data);
+    }
+
+    protected abstract Godot.Collections.Dictionary SaveSetup();
+    protected abstract void LoadSetup(Godot.Collections.Dictionary data);
 
     public virtual Vector3 SheetPosition => GlobalPosition;
     public string SheetText => $"AYAR FÖYÜ - {Spec.MachineName}\n" + SheetBody

@@ -93,6 +93,17 @@ public partial class Fastener : StaticBody3D, IInteractable
         Refresh();
     }
 
+    /// <summary>For a save: turns in, or -1 when no bolt is in.</summary>
+    public int SavedTurns => Present ? Turns : -1;
+
+    public void Restore(int savedTurns)
+    {
+        Present = savedTurns >= 0;
+        Turns = System.Math.Max(0, savedTurns);
+        if (_visual != null)
+            Refresh();
+    }
+
     /// <summary>For tests and scripted setups: fits and tightens the bolt.</summary>
     public void SetTight()
     {

@@ -6,7 +6,7 @@ using CncTrainer.Procedural;
 namespace CncTrainer.Player;
 
 /// <summary>
-/// The player's tool belt: eight holsters in an arc across the front of the
+/// The player's tool belt: holsters in an arc across the front of the
 /// waist, where looking down reaches every one. A hand tool is taken from a
 /// holster and put back into one by looking at it (PlayerController, F).
 /// It turns with the player's body but not with the head. Holsters and the
@@ -15,15 +15,24 @@ namespace CncTrainer.Player;
 /// </summary>
 public partial class ToolBelt : Node3D
 {
-    public const int SlotCount = 8;
+    /// <summary>How many holsters (WorkshopSettings.BeltSlots, read once).</summary>
+    public int SlotCount { get; } = Workshop.WorkshopSettings.BeltSlots;
     /// <summary>Across the front of the waist, so looking down reaches the outer ones.</summary>
     private const float ArcDeg = 120f;
     private const float Radius = 0.34f;
 
-    private readonly HandTool[] _tools = new HandTool[SlotCount];
-    private readonly (uint Layer, uint Mask)[] _layers = new (uint, uint)[SlotCount];
-    private readonly Node3D[] _slots = new Node3D[SlotCount];
-    private readonly StaticBody3D[] _holsters = new StaticBody3D[SlotCount];
+    private readonly HandTool[] _tools;
+    private readonly (uint Layer, uint Mask)[] _layers;
+    private readonly Node3D[] _slots;
+    private readonly StaticBody3D[] _holsters;
+
+    public ToolBelt()
+    {
+        _tools = new HandTool[SlotCount];
+        _layers = new (uint, uint)[SlotCount];
+        _slots = new Node3D[SlotCount];
+        _holsters = new StaticBody3D[SlotCount];
+    }
 
     public override void _Ready()
     {
@@ -54,8 +63,8 @@ public partial class ToolBelt : Node3D
         }
     }
 
-    /// <summary>Slot 1 on the left hip, 8 on the right, facing out.</summary>
-    private static Transform3D SlotTransform(int i)
+    /// <summary>Slot 1 on the left hip, the last on the right, facing out.</summary>
+    private Transform3D SlotTransform(int i)
     {
         float angle = Mathf.DegToRad(ArcDeg / 2f - ArcDeg * i / (SlotCount - 1));
         var basis = new Basis(Vector3.Up, angle);

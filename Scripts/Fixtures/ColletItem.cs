@@ -6,8 +6,12 @@ namespace CncTrainer.Fixtures;
 
 /// <summary>A collet for a collet chuck: holds bars from its size down to
 /// 1 mm under it.</summary>
-public partial class ColletItem : Carryable
+public partial class ColletItem : Carryable, Save.ISavedItem
 {
+    public Godot.Collections.Dictionary SaveState() => new() { ["size"] = SizeMm };
+
+    public static ColletItem Restore(Godot.Collections.Dictionary d) => Create(d["size"].AsSingle());
+
     public float SizeMm { get; private set; }
 
     public static ColletItem Create(float sizeMm)

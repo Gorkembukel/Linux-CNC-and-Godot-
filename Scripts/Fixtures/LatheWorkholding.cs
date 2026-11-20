@@ -175,6 +175,35 @@ public partial class LatheWorkholding : MachineSetup, ISawable, IThreaded
         Chuck.ShowRawStock(false);
     }
 
+    protected override Godot.Collections.Dictionary SaveSetup() => new()
+    {
+        ["turret"] = Turret.SavePockets(), ["chuck"] = Chuck.SaveState(BarRecord()),
+    };
+
+    protected override void LoadSetup(Godot.Collections.Dictionary data)
+    {
+        Turret.LoadPockets(data["turret"].AsGodotArray());
+        Chuck.LoadState(data["chuck"].AsGodotDictionary());
+    }
+
+    /// <summary>The bar in the chuck as an item record: raw as it went in,
+    /// or with the shape turned into it so far.</summary>
+    private Godot.Collections.Dictionary BarRecord()
+    {
+        if (!Chuck.Grip.HasBar || Chuck.Stock == null)
+            return null;
+        var profile = _workpiece.Profile;
+        if (profile == null || (!_cutting.HasCut && Chuck.Stock.Turned == null))
+            return CncTrainer.Save.SavedItems.Record(Chuck.Stock);
+        var part = StockItem.CreateTurned(profile.LiveRadii(), profile.LiveInner(), profile.StepMm, _cutting.Material, profile.SquareHalfMm);
+        if (part == null)
+            return CncTrainer.Save.SavedItems.Record(Chuck.Stock);
+        part.FinishSurface(_cutting.Surface());
+        var record = CncTrainer.Save.SavedItems.Record(part);
+        part.Free();
+        return record;
+    }
+
     /// <summary>What is left in the chuck as a loose object.</summary>
     private Carryable MakePart()
     {

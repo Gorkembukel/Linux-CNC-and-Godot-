@@ -256,9 +256,12 @@ public partial class StockStation : Node3D
     }
 
     /// <summary>Drops the configured stock onto the output tray.</summary>
-    public StockItem Produce()
+    public StockItem Produce() => Produce(Blank);
+
+    /// <summary>Drops this stock onto the output tray.</summary>
+    public StockItem Produce(StockBlank blank)
     {
-        var item = StockItem.Create(Blank);
+        var item = StockItem.Create(blank);
         GetParent().AddChild(item);
         item.GlobalPosition = GlobalTransform * (TrayCenter + new Vector3(0f, item.Blank.BoundsM.Y / 2f + 0.05f, 0f));
         return item;

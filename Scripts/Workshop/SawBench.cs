@@ -44,8 +44,19 @@ public partial class SawBench : Node3D
 /// saw cut drops the right-hand piece. Click with stock in hand to clamp it,
 /// with an empty hand to take it out.
 /// </summary>
-public partial class BenchVise : StaticBody3D, IInteractable, ISawable
+public partial class BenchVise : StaticBody3D, IInteractable, ISawable, Save.ISaveable, Save.IItemHolder
 {
+    public Godot.Collections.Dictionary Save() => new() { ["seat"] = Seat.Save() is { } seat ? seat : default };
+
+    public void Load(Godot.Collections.Dictionary data)
+    {
+        var seat = CncTrainer.Save.SaveCodec.Dict(data["seat"]);
+        if (Fixtures.StockSeat.SavedItem(seat, this) is not StockItem item)
+            return;
+        Seat.Put(item, this, SeatFor(item));
+        Seat.Restored(seat);
+    }
+
     private const float M = WorldScale.MmToM;
     private const float JawWidthM = 0.1f, JawHeightM = 0.06f, FloorM = 0.03f;
     /// <summary>Material the blade takes out (mm).</summary>

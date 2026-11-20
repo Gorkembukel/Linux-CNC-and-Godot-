@@ -32,6 +32,9 @@ public class MachineState
     /// <summary>Position in the active work coordinate system, what a
     /// program's X/Y/Z words refer to.</summary>
     public AxisVector WorkPosition => Position - WorkOffset;
+    /// <summary>The active work system's own offset (G54 = index 1).</summary>
+    public AxisVector G5xOffset;
+    public int G5xIndex = 1;
 
     /// <summary>The move in progress is a rapid traverse (G0).</summary>
     public bool Rapid;
@@ -70,6 +73,8 @@ public class MachineState
         InCycle = s.InCycle;
         ToolChangePending = s.ToolChangePending;
         WorkOffset = s.WorkOffset;
+        G5xOffset = s.G5xOffset;
+        G5xIndex = s.G5xIndex;
         Rapid = s.MotionTypeRaw == 1;
         Coolant = s.Coolant != 0;
 

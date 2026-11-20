@@ -21,6 +21,8 @@ public interface IStockFixture
     string ToolCrash(Vector3 tip, float radius);
     /// <summary>Takes whatever is held out as a loose object.</summary>
     RigidBody3D TakeStock();
+    /// <summary>How it sits and what it holds, for a save.</summary>
+    Godot.Collections.Dictionary SaveFixture();
     /// <summary>How far the part creeps under the cutting force per mm^3
     /// cut: 0 when it is clamped fully tight, a little when it is only snug.</summary>
     float SlipMmPerMm3 => 0f;
@@ -60,6 +62,28 @@ public sealed class StockSeat
         item.Transform = at;
         if (item.Burred && holder is not BenchVise)
             Player.PlayerController.Notify(holder, "Çapaklı parça bağlandı: çapak oturmayı bozar, önce eğeyle al");
+    }
+
+    /// <summary>The held stock for a save; null when empty.</summary>
+    public Godot.Collections.Dictionary Save() => Stock == null ? null : new Godot.Collections.Dictionary
+    {
+        ["item"] = CncTrainer.Save.SavedItems.Record(Stock), ["turn"] = Turn, ["cut"] = WasCut, ["ra"] = Surface.RaUm, ["chatter"] = Surface.Chatter,
+    };
+
+    /// <summary>The saved stock made again under the holder it goes into; null when there was none.</summary>
+    public static StockItem SavedItem(Godot.Collections.Dictionary data, Node holder)
+    {
+        if (data == null || !data.ContainsKey("item") || CncTrainer.Save.SavedItems.Make(data["item"].AsGodotDictionary()) is not StockItem item)
+            return null;
+        holder.AddChild(item);
+        return item;
+    }
+
+    /// <summary>After the saved stock is back in: what had happened to it here.</summary>
+    public void Restored(Godot.Collections.Dictionary data)
+    {
+        WasCut = data["cut"].AsBool();
+        Surface = new SurfaceFinish(data["chatter"].AsBool(), data["ra"].AsSingle());
     }
 
     public void ShowRaw(bool visible)

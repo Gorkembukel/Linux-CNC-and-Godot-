@@ -23,8 +23,32 @@ namespace CncTrainer.Fixtures;
 /// the operator reads the scroll's ridges down the grooves, feels a jaw
 /// being drawn into its groove, and hears it drop and the scroll catch it.
 /// </summary>
-public partial class ChuckStand : Carryable, IInteractable
+public partial class ChuckStand : Carryable, IInteractable, Save.ISavedItem, Save.IItemHolder
 {
+    public Godot.Collections.Dictionary SaveState()
+    {
+        var data = new Godot.Collections.Dictionary { ["fixed"] = Fixed, ["turn"] = _turntable.Rotation.Y, ["key"] = _keyIn };
+        if (Chuck != null)
+            data["chuck"] = Save.SavedItems.Record(Chuck);
+        return data;
+    }
+
+    public static ChuckStand Restore(Godot.Collections.Dictionary d)
+    {
+        var stand = Create();
+        stand._turntable.Rotation = new Vector3(0f, d["turn"].AsSingle(), 0f);
+        if (d.TryGetValue("chuck", out var chuck) && Save.SavedItems.Make(chuck.AsGodotDictionary()) is ChuckItem item)
+        {
+            stand._turntable.AddChild(item);
+            stand.SeatChuck(item);
+            if (d["key"].AsBool())
+                stand.SetKey(true);
+        }
+        if (d["fixed"].AsBool())
+            stand.CallDeferred(MethodName.FixInPlace);
+        return stand;
+    }
+
     private const float M = WorldScale.MmToM;
     /// <summary>A jaw counts as lying in a slot's guides within this many
     /// degrees of square and this far of its body resting on the face.</summary>
@@ -129,6 +153,11 @@ public partial class ChuckStand : Carryable, IInteractable
     {
         player.ReleaseHeld();
         chuck.Reparent(_turntable, false);
+        SeatChuck(chuck);
+    }
+
+    private void SeatChuck(ChuckItem chuck)
+    {
         chuck.Transform = new Transform3D(Basis.Identity, SeatOffset);
         chuck.Freeze = true;
         chuck.Seated = true;

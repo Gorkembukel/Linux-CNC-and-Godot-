@@ -8,8 +8,11 @@ namespace CncTrainer.Fixtures;
 /// <summary>A fixture the player carries to the mill table and bolts down:
 /// loose until mounted, then held by its bolts, and free to carry away again
 /// once it is empty and every bolt is out.</summary>
-public abstract partial class BoltedFixture : Carryable
+public abstract partial class BoltedFixture : Carryable, Save.ISavedItem
 {
+    /// <summary>Loose, a fixture is just itself; on a table the table saves how it sits.</summary>
+    public Godot.Collections.Dictionary SaveState() => new();
+
     public MillTable Table { get; private set; }
     public readonly List<Fastener> Bolts = new();
 
@@ -44,6 +47,14 @@ public abstract partial class BoltedFixture : Carryable
             AddChild(bolt);
             Bolts.Add(bolt);
         }
+    }
+
+    protected int[] SaveBolts() => Bolts.Select(b => b.SavedTurns).ToArray();
+
+    protected void RestoreBolts(int[] turns)
+    {
+        for (int i = 0; i < Bolts.Count && i < turns.Length; i++)
+            Bolts[i].Restore(turns[i]);
     }
 
     protected string BoltsSheetLine(string label) =>

@@ -17,7 +17,7 @@ namespace CncTrainer;
 /// on the spot. The node's origin is on the floor.
 /// </summary>
 [Tool]
-public partial class ProceduralMachine : Node3D, IMachine
+public partial class ProceduralMachine : Node3D, IMachine, Save.ISaveable
 {
     /// <summary>Everything that defines this machine; its body, setup and LinuxCNC configuration are built from it.</summary>
     [Export] public MachineSpec Spec { get; set; }
@@ -114,7 +114,7 @@ public partial class ProceduralMachine : Node3D, IMachine
 
     private void StartMachine()
     {
-        Spec.WriteConfigFiles();
+        Spec.WriteConfigFiles(CncTrainer.Save.SaveGame.TakeControl(Spec.MachineName));
 
         // BridgeClient binds its sockets in its own _Ready.
         var bridge = new BridgeClient { Name = "BridgeClient", StatePort = Spec.StatePort, CommandPort = Spec.CommandPort };
@@ -169,6 +169,29 @@ public partial class ProceduralMachine : Node3D, IMachine
         bridge.Connect(BridgeClient.SignalName.StateUpdated, Callable.From(Cutting.OnConfirmedState));
     }
 
+    /// <summary>The control's memory: offsets LinuxCNC holds and the wear
+    /// kept here. Only once the control has reported its tool table.</summary>
+    public Godot.Collections.Dictionary Save()
+    {
+        var data = new Godot.Collections.Dictionary { ["machine"] = Spec?.MachineName ?? "" };
+        if (Rig?.Bridge is not { IsBridgeConnected: true, Offsets.Received: true } bridge)
+            return data;
+        var s = bridge.State;
+        data["control"] = CncTrainer.Save.SaveCodec.Control(new ControlMemory(s.G5xIndex,
+            new[] { s.G5xOffset.X, s.G5xOffset.Y, s.G5xOffset.Z, s.G5xOffset.A, s.G5xOffset.B, s.G5xOffset.C },
+            bridge.Offsets.Entries.ToDictionary(e => e.Number, e => ((float)e.X, (float)e.Z))));
+        data["wear"] = new Godot.Collections.Array(bridge.Offsets.Wears.Select(w => (Variant)new Vector3(w.Tool, (int)w.Axis, w.Wear)));
+        return data;
+    }
+
+    public void Load(Godot.Collections.Dictionary data)
+    {
+        if (Rig?.Bridge == null || !data.TryGetValue("wear", out var wear))
+            return;
+        foreach (var w in wear.AsGodotArray().Select(v => v.AsVector3()))
+            Rig.Bridge.Offsets.RestoreWear((int)w.X, (AxisId)(int)w.Y, w.Z);
+    }
+
     private double _eyesWarned;
 
     /// <summary>Chips fly while it cuts: anyone standing at the machine
@@ -176,7 +199,7 @@ public partial class ProceduralMachine : Node3D, IMachine
     private void CheckEyes(bool cutting, double delta)
     {
         _eyesWarned -= delta;
-        if (!cutting || _eyesWarned > 0 || GetTree().GetFirstNodeInGroup("player") is not Player.PlayerController player)
+        if (!cutting || _eyesWarned > 0 || !Workshop.WorkshopSettings.GlassesRule || GetTree().GetFirstNodeInGroup("player") is not Player.PlayerController player)
             return;
         if (!player.WearingGlasses && player.GlobalPosition.DistanceTo(GlobalPosition) < 3.5f)
         {
@@ -225,6 +248,7 @@ public partial class ProceduralMachine : Node3D, IMachine
         if (Rig?.Monitor is { } monitor)
         {
             monitor.WearFactor = Rig.Bridge.State.Coolant ? Machining.CutMonitor.CoolantWearFactor : 1f;
+            monitor.WearScale = Workshop.WorkshopSettings.ToolWearScale;
             monitor.Tick(delta);
             CheckEyes(monitor.Load.PowerW > 0f, delta);
         }

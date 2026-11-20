@@ -19,6 +19,9 @@ public readonly record struct ChuckDims(ChuckKind Kind, int JawCount, float MaxO
 /// the jaw has come in with the scroll since.</param>
 public readonly record struct SeatedJaw(JawKind Kind, int Number, int Turn, int CaughtNotch = 0);
 
+/// <summary>Everything a chuck's jaws (or collet) are doing, for a save file.</summary>
+public sealed record JawsState(int Notch, SeatedJaw?[] Slots, SeatedJaw?[] Loose, float? ColletMm, int LastReleasedSlot);
+
 /// <summary>What one notch of the scroll did: the slot whose jaw it
 /// caught, or let go of (null: neither).</summary>
 public readonly record struct ScrollEvent(int? Caught, int? Released);
@@ -300,6 +303,20 @@ public sealed class ChuckJaws
         {
             var (x, y) = CentreErrorMm();
             return Math.Sqrt(x * x + y * y) < CentredMm;
+        }
+    }
+
+    public JawsState Snapshot() => new(Notch, (SeatedJaw?[])_slots.Clone(), (SeatedJaw?[])_loose.Clone(), ColletMm, LastReleasedSlot);
+
+    public void Restore(JawsState state)
+    {
+        Notch = state.Notch;
+        ColletMm = state.ColletMm;
+        LastReleasedSlot = state.LastReleasedSlot;
+        for (int i = 0; i < _slots.Length; i++)
+        {
+            _slots[i] = i < state.Slots.Length ? state.Slots[i] : null;
+            _loose[i] = i < state.Loose.Length ? state.Loose[i] : null;
         }
     }
 

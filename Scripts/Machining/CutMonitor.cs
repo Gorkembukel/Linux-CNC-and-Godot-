@@ -41,6 +41,8 @@ public sealed class CutMonitor
     public ChipEvacuation Chips { get; } = new();
     /// <summary>1 = dry cutting; set lower while coolant runs.</summary>
     public float WearFactor = 1f;
+    /// <summary>Speeds wear up beyond the real tool life (1 = real).</summary>
+    public float WearScale = 1f;
     /// <summary>Worst tool load and the roughest surface since the last
     /// ResetQuality: what the finished part shows.</summary>
     public float PeakToolLoad { get; private set; }
@@ -139,7 +141,7 @@ public sealed class CutMonitor
         float speed = Mathf.Max(_surfaceSpeed, _last.SurfaceSpeedMmPerSec);
 
         var load = CuttingLoad.Evaluate(_removalRate, _last.SpindleRpm, speed, _last.FeedPerRevMm,
-            mounted.Limits(), MaterialPreset.Get(_cutting.Material), _spec.SpindlePowerKw * 1000f, WearFactor, _cutting.WorkSlenderness());
+            mounted.Limits(), MaterialPreset.Get(_cutting.Material), _spec.SpindlePowerKw * 1000f, WearFactor * WearScale, _cutting.WorkSlenderness());
         Load = load;
         PeakToolLoad = Mathf.Max(PeakToolLoad, load.ToolLoad);
         _chatter |= load.Chatter;

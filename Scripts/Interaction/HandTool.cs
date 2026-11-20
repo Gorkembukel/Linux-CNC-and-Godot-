@@ -7,8 +7,12 @@ public enum HandToolKind { HexKey, ViseHandle, ChuckKey, Mallet, Brush, Parallel
 
 /// <summary>A hand tool from the bench. What it does is decided by the thing
 /// it is used on (a fastener asks for a HexKey, a chuck for a ChuckKey...).</summary>
-public partial class HandTool : Carryable
+public partial class HandTool : Carryable, Save.ISavedItem
 {
+    public Godot.Collections.Dictionary SaveState() => new() { ["kind"] = (int)Kind };
+
+    public static HandTool Restore(Godot.Collections.Dictionary d) => Create((HandToolKind)d["kind"].AsInt32());
+
     public HandToolKind Kind { get; private set; }
 
     /// <summary>In a holster of the player's belt (taken from there, not picked up).</summary>

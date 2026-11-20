@@ -42,6 +42,17 @@ public partial class WorkOrder : Resource
     /// <summary>The drawing's dimensions and notes, written over it.</summary>
     [Export] public Godot.Collections.Array<DrawingNote> DrawingNotes = new();
 
+    public const string Folder = "res://Machines/WorkOrders/";
+
+    /// <summary>Every work order saved under <see cref="Folder"/>, by file name.</summary>
+    public static System.Collections.Generic.IEnumerable<WorkOrder> LoadAll() =>
+        (DirAccess.GetFilesAt(Folder) ?? System.Array.Empty<string>())
+            .Where(f => f.EndsWith(".tres") || f.EndsWith(".tres.remap"))
+            .Select(f => f.Replace(".remap", ""))
+            .OrderBy(f => f)
+            .Select(f => GD.Load<WorkOrder>(Folder + f))
+            .Where(o => o != null);
+
     private JobDrawing _sheet;
 
     /// <summary>The drawing ready for the HUD, null without one.</summary>

@@ -6,8 +6,10 @@ namespace CncTrainer.Fixtures;
 
 /// <summary>One step clamp with its stud, T-nut, step block and flange
 /// nut, carried to the stock as a set.</summary>
-public partial class ClampItem : Carryable
+public partial class ClampItem : Carryable, Save.ISavedItem
 {
+    public Godot.Collections.Dictionary SaveState() => new();
+
     public static ClampItem Create()
     {
         var clamp = new ClampItem { Name = "Clamp", DisplayName = "Pabuç takımı (pabuç, saplama, basamak bloğu)", Mass = 0.6f };

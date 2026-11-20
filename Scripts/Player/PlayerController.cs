@@ -21,7 +21,7 @@ namespace CncTrainer.Player;
 /// it's a proximity-gated shortcut to the existing, proven 2D panel, not a
 /// simulation of physically pressing the 3D buttons.
 /// </summary>
-public partial class PlayerController : CharacterBody3D
+public partial class PlayerController : CharacterBody3D, Save.ISaveable, Save.IItemHolder
 {
     /// <summary>Walking speed (m/s): an unhurried pace.</summary>
     [Export] public float WalkSpeed = 2.0f;
@@ -31,8 +31,6 @@ public partial class PlayerController : CharacterBody3D
     [Export] public float JumpVelocity = 4.0f;
     /// <summary>Downward acceleration on the player (m/s²).</summary>
     [Export] public float Gravity = 9.8f;
-    /// <summary>Radians the view turns per pixel of mouse movement.</summary>
-    [Export] public float MouseSensitivity = 0.0025f;
     /// <summary>How close the player must be to a console to press its keys by looking at them (m).</summary>
     [Export] public float InteractRange = 1.2f;
     /// <summary>Within this distance of a console its keyboard shortcuts work and its corner picture shows (m).</summary>
@@ -66,6 +64,8 @@ public partial class PlayerController : CharacterBody3D
     /// <summary>Brings what is held in place up to the hands. Shift + the
     /// pickup key takes a thing straight into the hands.</summary>
     [Export] public Key BringToHandsKey = Key.B;
+    /// <summary>Frees the cursor (to click the console's corner picture) and takes it back. Esc is the menu.</summary>
+    [Export] public Key CursorKey = Key.M;
 
     private const float CapsuleRadius = 0.3f;
     private const float CapsuleHeight = 1.8f;
@@ -143,6 +143,64 @@ public partial class PlayerController : CharacterBody3D
             player._noticeTime = 8.0;
         }
     }
+
+    public System.Collections.Generic.IEnumerable<Node> HeldItems
+    {
+        get
+        {
+            if (_heldPart != null)
+                yield return _heldPart;
+            if (_glasses != null)
+                yield return _glasses;
+            for (int i = 0; i < _belt.SlotCount; i++)
+                if (_belt.At(i) is HandTool tool)
+                    yield return tool;
+        }
+    }
+
+    public Godot.Collections.Dictionary Save()
+    {
+        var belt = new int[_belt.SlotCount];
+        for (int i = 0; i < belt.Length; i++)
+            belt[i] = _belt.At(i) is HandTool tool ? (int)tool.Kind : -1;
+        return new Godot.Collections.Dictionary
+        {
+            ["at"] = GlobalTransform, ["pitch"] = _pitch, ["glasses"] = WearingGlasses, ["belt"] = belt,
+            ["held"] = CncTrainer.Save.SavedItems.Record(_heldPart) is { } held ? held : default,
+        };
+    }
+
+    public void Load(Godot.Collections.Dictionary data)
+    {
+        GlobalTransform = data["at"].AsTransform3D();
+        _pitch = data["pitch"].AsSingle();
+        _tpArm.Rotation = new Vector3(_pitch, Mathf.Pi, 0f);
+        var scene = GetTree().CurrentScene;
+        if (data["glasses"].AsBool())
+        {
+            var glasses = HandTool.Create(HandToolKind.SafetyGlasses);
+            scene.AddChild(glasses);
+            Give(glasses);
+            PutOnGlasses();
+        }
+        var belt = data["belt"].AsInt32Array();
+        for (int i = 0; i < belt.Length && i < _belt.SlotCount; i++)
+        {
+            if (belt[i] < 0)
+                continue;
+            var tool = HandTool.Create((HandToolKind)belt[i]);
+            scene.AddChild(tool);
+            _belt.Stow(i, tool);
+        }
+        if (CncTrainer.Save.SavedItems.Make(CncTrainer.Save.SaveCodec.Dict(data["held"])) is { } held)
+        {
+            scene.AddChild(held);
+            Give(held);
+        }
+    }
+
+    /// <summary>A menu is over the game: the player neither looks nor walks.</summary>
+    public bool Suspended;
 
     /// <summary>Puts an object straight into the player's hands.</summary>
     public void Give(RigidBody3D body)
@@ -435,7 +493,7 @@ public partial class PlayerController : CharacterBody3D
     // look did nothing, WASD worked fine, which is exactly that symptom).
     public override void _Input(InputEvent @event)
     {
-        if (_focus.Active)
+        if (_focus.Active || Suspended)
             return;
         if (Input.MouseMode == Input.MouseModeEnum.Captured && (_saw.HandleInput(@event) || _file.HandleInput(@event) || _ring.HandleInput(@event)))
         {
@@ -462,7 +520,7 @@ public partial class PlayerController : CharacterBody3D
         }
         else if (@event is InputEventMouseMotion mm && Input.MouseMode == Input.MouseModeEnum.Captured)
         {
-            float sensitivity = MouseSensitivity * _fpCamera.Fov / BaseFov;
+            float sensitivity = Settings.GameSettings.MouseSensitivity * _fpCamera.Fov / BaseFov;
             _pitch = Mathf.Clamp(_pitch - mm.Relative.Y * sensitivity, -1.3f, 1.3f);
             // Looking down at the belt the head turns on the body (the belt
             // turns with the body); looking up again the body follows the head.
@@ -506,10 +564,8 @@ public partial class PlayerController : CharacterBody3D
                     EnterConsole();
                     GetViewport().SetInputAsHandled();
                     break;
-                case Key.Escape:
-                    Input.MouseMode = Input.MouseMode == Input.MouseModeEnum.Captured
-                        ? Input.MouseModeEnum.Visible
-                        : Input.MouseModeEnum.Captured;
+                case var k when k == CursorKey && !keyEvent.Echo:
+                    Input.MouseMode = Input.MouseMode == Input.MouseModeEnum.Captured ? Input.MouseModeEnum.Visible : Input.MouseModeEnum.Captured;
                     break;
                 case Key.E when _atStation:
                     _station.SetPanelOpen(!_station.PanelOpen);
@@ -844,7 +900,7 @@ public partial class PlayerController : CharacterBody3D
             (Input.IsKeyPressed(Key.S) ? 1 : 0) - (Input.IsKeyPressed(Key.W) ? 1 : 0)
         );
         inputDir = inputDir.Normalized();
-        if (_focus.Active || _saw.Locked)
+        if (_focus.Active || _saw.Locked || Suspended)
             inputDir = Vector2.Zero;
         if (inputDir != Vector2.Zero)
             _headOffset = Vector3.Zero;
@@ -1018,5 +1074,5 @@ public partial class PlayerController : CharacterBody3D
     }
 
     private const string ConsoleKeysHint =
-        "[Oklar/PgUp/PgDn] jog   [Enter] CYCLE START   [Boşluk] FEED HOLD   [-/=] feed override   [Esc] imleç: köşedeki panele tıkla   [K] CNC klavyesini kapat";
+        "[Oklar/PgUp/PgDn] jog   [Enter] CYCLE START   [Boşluk] FEED HOLD   [-/=] feed override   [M] imleç: köşedeki panele tıkla   [K] CNC klavyesini kapat";
 }

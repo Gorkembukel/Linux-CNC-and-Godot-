@@ -138,6 +138,26 @@ public partial class TableClamping : Node3D, IInteractable, IStockFixture
         }
     }
 
+    public Godot.Collections.Dictionary SaveFixture() => new()
+    {
+        ["kind"] = nameof(TableClamping), ["at"] = _at, ["yaw"] = Tram.YawDeg, ["chips"] = _onChips, ["seat"] = Seat.Save() is { } seat ? seat : default,
+        ["clamps"] = new Godot.Collections.Array(_clamps.Select(c => (Variant)new Vector3(c.Side, c.SlotZ, c.Nut.SavedTurns))),
+    };
+
+    public static void RestoreOn(MillTable table, Godot.Collections.Dictionary d)
+    {
+        var seat = CncTrainer.Save.SaveCodec.Dict(d["seat"]);
+        if (StockSeat.SavedItem(seat, table) is not StockItem item)
+            return;
+        var fixture = Place(table, item, d["at"].AsVector3(), d["yaw"].AsSingle(), seat["turn"].AsBasis());
+        fixture.Seat.Restored(seat);
+        fixture._onChips = d["chips"].AsBool();
+        fixture.ApplyPlacement();
+        foreach (var clamp in d["clamps"].AsGodotArray().Select(v => v.AsVector3()))
+            if (fixture.AddClamp(new Vector3(clamp.X * fixture.Bounds.X / 2f, 0f, clamp.Y - fixture._at.Z)))
+                fixture._clamps[^1].Nut.Restore((int)clamp.Z);
+    }
+
     public RigidBody3D TakeStock()
     {
         var body = Seat.Take();

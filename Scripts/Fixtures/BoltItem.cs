@@ -6,8 +6,10 @@ namespace CncTrainer.Fixtures;
 
 /// <summary>A hold-down bolt with its T-nut, carried to a bolt hole one at
 /// a time.</summary>
-public partial class BoltItem : Carryable
+public partial class BoltItem : Carryable, Save.ISavedItem
 {
+    public Godot.Collections.Dictionary SaveState() => new();
+
     public static BoltItem Create()
     {
         var bolt = new BoltItem { Name = "Bolt", DisplayName = "T-somun + cıvata", Mass = 0.15f };

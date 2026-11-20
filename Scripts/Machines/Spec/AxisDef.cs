@@ -27,4 +27,4 @@ public readonly record struct AxisDef(
 }
 
 public readonly record struct ToolDef(
-    int Number, float TableDiameter, bool LatheTool, float FrontAngle, float BackAngle, int Orientation, string Comment, float LengthZ = 0f);
+    int Number, float TableDiameter, bool LatheTool, float FrontAngle, float BackAngle, int Orientation, string Comment, float LengthZ = 0f, float OffsetX = 0f);
