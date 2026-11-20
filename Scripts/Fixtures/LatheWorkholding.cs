@@ -208,8 +208,12 @@ public partial class LatheWorkholding : MachineSetup, ISawable, IThreaded
             return "İş mili dönerken ölçülmez";
         var profile = _workpiece.Profile;
         var local = _workpiece.ToLocal(globalPoint) / M;
-        float z = _body.ToLocal(globalPoint).X / M;
-        float fromTip = profile.ZMin + LiveLengthMm() - z;
+        // The bar's collision keeps its length as it was put in: a point on
+        // its end face, past a faced tip, reads the last bucket still there
+        // (its bore, when the gauge is put in the hole).
+        float tip = profile.ZMin + LiveLengthMm();
+        float z = Mathf.Min(_body.ToLocal(globalPoint).X / M, tip - profile.StepMm * 0.5f);
+        float fromTip = tip - z;
         int index = profile.IndexAt(z);
         return StockItem.SectionReading(gauge, new Vector2(local.Y, local.Z).Length(), profile.RadiusAt(index), profile.InnerAt(index), profile.SquareHalfMm)
             + System.FormattableString.Invariant($"   (uçtan {Mathf.Max(0f, fromTip):0} mm içeride)");

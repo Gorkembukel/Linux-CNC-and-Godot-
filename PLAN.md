@@ -69,7 +69,10 @@ Done, each verified through scripted operators on real LinuxCNC:
 - Measuring: touch probe T8 (`ToolKind.TouchProbe`; the bridge's `probe` pin
   is netted to `motion.probe-input`, command PROBE_INPUT 24; G38.2 read the
   top face at -0.012 and a side at -41.987 / -41.994 for -42.000);
-  Z setting block (`FeelerGauge`, fit ±0.01 mm).
+  Z setting block (`FeelerGauge`, fit ±0.01 mm). Calipers read bores: on
+  the lathe from the end face (clamped to the faced tip, the bar collider
+  keeps its old length), on milled parts through `VoxelGauge` (blind holes
+  and pockets over their floor, through holes just under the surrounding top).
 - Spindle: sim_spindle's `limit_speed` slews at
   `MachineSpec.SpindleAccelRpmPerSec` (0 = lathe 400, mill 2500 rpm/s; INI
   `[SPINDLE_0]GODOT_ACCEL_RPM_PER_SEC`); the bridge reports the speed
