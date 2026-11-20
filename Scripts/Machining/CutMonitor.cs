@@ -49,7 +49,10 @@ public sealed class CutMonitor
     /// <summary>Ra is the feed marks of the last tool that cut (a finishing
     /// pass wipes out the roughing marks; a parting blade only makes the
     /// end face); chatter marks stay.</summary>
-    public SurfaceFinish Surface => _chatter ? new SurfaceFinish(false, _raUm).WithChatter() : new SurfaceFinish(false, _raUm);
+    public SurfaceFinish Surface => _chatter ? new SurfaceFinish(false, _raUm, _springMm).WithChatter() : new SurfaceFinish(false, _raUm, _springMm);
+    /// <summary>How far the cutting edge is pushed off the work right now (mm).</summary>
+    public float DeflectionMm { get; private set; }
+    private float _springMm;
     public bool ChatterMarks => _chatter;
     private bool _chatter;
     private float _raUm;
@@ -68,6 +71,7 @@ public sealed class CutMonitor
         PeakToolLoad = 0f;
         _chatter = false;
         _raUm = 0f;
+        _springMm = 0f;
         _raTool = -1;
     }
 
@@ -130,6 +134,7 @@ public sealed class CutMonitor
             _surfaceSpeed = 0f;
             _overloadSeconds = 0f;
             Load = default;
+            DeflectionMm = 0f;
             Chips.Clear(dt, WearFactor < 1f);
             return;
         }
@@ -143,6 +148,7 @@ public sealed class CutMonitor
         var load = CuttingLoad.Evaluate(_removalRate, _last.SpindleRpm, speed, _last.FeedPerRevMm,
             mounted.Limits(), MaterialPreset.Get(_cutting.Material), _spec.SpindlePowerKw * 1000f, WearFactor * WearScale, _cutting.WorkSlenderness());
         Load = load;
+        DeflectionMm = mounted.Limits().DeflectionMm(load.ForceN);
         PeakToolLoad = Mathf.Max(PeakToolLoad, load.ToolLoad);
         _chatter |= load.Chatter;
         if (tool.Kind != ToolKind.Parting)
@@ -151,7 +157,9 @@ public sealed class CutMonitor
             {
                 _raTool = tool.Number;
                 _raUm = 0f;
+                _springMm = 0f;
             }
+            _springMm = Mathf.Max(_springMm, DeflectionMm);
             _raUm = Mathf.Max(_raUm, SurfaceFinish.RaUmFor(_last.FeedPerRevMm,
                 tool.IsLatheTool ? tool.TipRadiusMm : tool.DiameterMm / 2f, tool.Flutes, tool.IsLatheTool));
         }

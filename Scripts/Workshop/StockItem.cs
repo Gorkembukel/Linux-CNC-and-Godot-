@@ -275,7 +275,7 @@ public partial class StockItem : Carryable, IMeasurable, IThreaded, Save.ISavedI
         var data = new Godot.Collections.Dictionary
         {
             ["shape"] = (int)Blank.Shape, ["size"] = Blank.SizeMm, ["material"] = (int)Blank.Material,
-            ["burred"] = _burred, ["slip"] = SlipMm, ["ra"] = Surface.RaUm, ["chatter"] = Surface.Chatter,
+            ["burred"] = _burred, ["slip"] = SlipMm, ["ra"] = Surface.RaUm, ["chatter"] = Surface.Chatter, ["spring"] = Surface.SpringMm,
         };
         if (Turned is { } t)
             data["turned"] = new Godot.Collections.Dictionary { ["radii"] = t.RadiiMm, ["inner"] = t.InnerMm, ["step"] = t.StepMm, ["square"] = t.SquareHalfMm };
@@ -296,7 +296,7 @@ public partial class StockItem : Carryable, IMeasurable, IThreaded, Save.ISavedI
         item ??= Create(new StockBlank((StockShape)d["shape"].AsInt32(), d["size"].AsVector3(), material));
         item._burred = d["burred"].AsBool();
         item.SlipMm = d["slip"].AsSingle();
-        item.Surface = new Machining.SurfaceFinish(d["chatter"].AsBool(), d["ra"].AsSingle());
+        item.Surface = new Machining.SurfaceFinish(d["chatter"].AsBool(), d["ra"].AsSingle(), d["spring"].AsSingle());
         if (d.TryGetValue("voxels", out var voxels) && Save.SaveCodec.Voxels(voxels.AsGodotDictionary()) is VoxelStock stock)
         {
             foreach (var mesh in item.GetChildren().OfType<MeshInstance3D>())

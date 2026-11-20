@@ -331,6 +331,22 @@ when the scroll catches it, the key ratcheting, a scrape as one slides out.
 Off: things follow the view, jaws are clicked into the groove you look at,
 and the stand says what happened.
 
+### Guards and tool deflection
+
+Open machines (no enclosure) have a clear guard: over the chuck on a lathe,
+in front of the cutter on a mill (it moves with the head). Click it to swing
+it up or down. With the machine's interlock (`DoorInterlock`, and the
+instructor's *Kapı kilitleri*) it must be shut to run, and it locks while
+the spindle turns; without one the machine runs, and the chips and coolant
+it throws at the operator go on the record.
+
+A cutter that sticks far out of its holder, or a long boring bar, bends
+away from a heavy cut (as a cantilever: three times the stick-out, 27 times
+the bend): the wall or the bore comes out short by that much. Nothing says
+so while it cuts; the part measures off, and the report card names the
+spring as the root cause. Hold the tool shorter, take a light finishing cut
+or run a spring pass at the same size.
+
 ### Fanuc-style tool calls
 
 A lathe with a disc turret can take Fanuc calls: set `ToolCalls` to

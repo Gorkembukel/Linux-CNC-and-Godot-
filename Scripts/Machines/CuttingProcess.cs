@@ -46,6 +46,8 @@ public abstract class CuttingProcess
     /// <summary>What the cutting so far has left on the surface (for the
     /// finished part); and the call that starts a new part.</summary>
     public System.Func<SurfaceFinish> Surface = () => SurfaceFinish.Clean;
+    /// <summary>How far the edge is pushed off the work by the cut going on (mm).</summary>
+    public System.Func<float> DeflectionMm = () => 0f;
     public System.Action PartFinished;
     /// <summary>What is really cutting when the control says tool N.</summary>
     public IToolSource Tools;

@@ -90,7 +90,7 @@ public partial class ToolSpec : Resource
         : new(DiameterMm / 2f,
         HasPoint ? 0f : Mathf.Min(TipRadiusMm, DiameterMm / 2f), LengthMm, HasPoint ? TipAngleDeg : 0f);
 
-    public ToolLimits Limits() => new(IsLatheTool, Kind == ToolKind.Parting, DiameterMm, LengthMm, Flutes);
+    public ToolLimits Limits() => new(IsLatheTool, Kind == ToolKind.Parting, DiameterMm, LengthMm, Flutes, Kind);
 
     /// <summary>The bridge reports the table's D column as the active
     /// tool's size: cutter diameter on a mill, nose radius on a lathe.</summary>

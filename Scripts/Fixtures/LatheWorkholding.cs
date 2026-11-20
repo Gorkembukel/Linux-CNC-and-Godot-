@@ -51,7 +51,7 @@ public partial class LatheWorkholding : MachineSetup, ISawable, IThreaded
         Turret.Changed += pocket => body.SetStationTool(pocket, Turret.Pocket(pocket)?.Spec);
         body.CrossSlide.AddChild(Turret);
         cutting.Tools = Turret;
-        AddDoor(body, body.DoorOpening);
+        AddDoor(body, body.Door());
         AddJawRack(spec.Lathe);
         cutting.IsSecure = () => Chuck.HoldsFirmly;
         cutting.WorkSlenderness = () => Chuck.Grip.Slenderness;

@@ -48,6 +48,15 @@ public partial class ProceduralLatheBody : Node3D
     /// <summary>The enclosure's open front (centre and size, this body's
     /// frame), null on an open machine.</summary>
     public (Vector3 Centre, Vector2 Size)? DoorOpening { get; private set; }
+    /// <summary>Open lathe: the chuck guard's hinge (back top edge, over the
+    /// spindle) and size; null when it has none.</summary>
+    public (Vector3 Hinge, Vector3 Size)? GuardFit { get; private set; }
+
+    /// <summary>The door of the enclosure, or the guard over the chuck, or null.</summary>
+    public Fixtures.MachineDoor Door() =>
+        DoorOpening is var (centre, size) ? Fixtures.MachineDoor.Create(centre, size)
+        : GuardFit is var (hinge, extent) ? Fixtures.MachineDoor.Guard(hinge, extent, roof: true)
+        : null;
 
     /// <summary>A stretch of machine Z (mm) and how far from the centreline,
     /// toward the tool side, something fills it: fixed parts fill up to
@@ -230,6 +239,11 @@ public partial class ProceduralLatheBody : Node3D
         }
         else
             DoorOpening = null;
+        // Over the chuck from the headstock's face, wide enough for the largest chuck this lathe takes.
+        float guardR = MaxChuckDiameterMm / 2f * M + 0.02f, guardLength = 0.16f;
+        GuardFit = !spec.Enclosure && spec.Guard
+            ? (new Vector3(headstockRight + guardLength / 2f, guardR, -guardR), new Vector3(guardLength, guardR, 2f * guardR))
+            : null;
 
         SetPose(0f, (xAxis?.MaxLimit ?? 100f) * 0.5f, tools.FirstOrDefault()?.Number ?? 0, 0.0);
     }

@@ -78,6 +78,11 @@ public partial class MachineSpec : Resource
     [Export] public float WorkHeightMm = 1100f;
     /// <summary>The machine has a closed guard with a door (and a door interlock).</summary>
     [Export] public bool Enclosure;
+    /// <summary>An open machine (no enclosure): a hinged clear guard over the
+    /// chuck (lathe) or in front of the cutter (mill). With DoorInterlock it
+    /// must be shut to run; without, running with it up throws chips at the
+    /// operator.</summary>
+    [Export] public bool Guard = true;
     /// <summary>Paint colour of the machine's main castings.</summary>
     [Export] public Color BodyColor = new(0.16f, 0.27f, 0.42f);
     /// <summary>Colour of the moving parts and trim.</summary>

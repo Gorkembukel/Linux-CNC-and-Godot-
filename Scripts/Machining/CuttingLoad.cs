@@ -5,10 +5,43 @@ namespace CncTrainer.Machining;
 
 /// <summary>What a cutting tool can take. Engine-free copy of the parts of
 /// a ToolSpec the load model needs.</summary>
-public readonly record struct ToolLimits(bool Lathe, bool Parting, float DiameterMm, float StickOutMm, int Flutes)
+public readonly record struct ToolLimits(bool Lathe, bool Parting, float DiameterMm, float StickOutMm, int Flutes,
+    Spec.ToolKind Kind = Spec.ToolKind.EndMill)
 {
     // Transverse rupture strength of carbide with a working margin, N/mm^2.
     private const float BendingStressNPerMm2 = 2000f;
+    // Young's modulus, N/mm^2: solid carbide cutters, steel boring bars.
+    private const float CarbideModulus = 600_000f, SteelModulus = 210_000f;
+    /// <summary>A turning or parting tool's shank is clamped right behind
+    /// the insert: it gives this little (N/mm).</summary>
+    private const float ShankStiffnessNPerMm = 200_000f;
+    /// <summary>Share of the cutting force that pushes the edge away from
+    /// the work (milling: radial; turning: the thrust force).</summary>
+    public const float AwayForceShare = 0.4f;
+    /// <summary>A fluted cutter bends like a solid rod of this share of its diameter.</summary>
+    private const float FlutedCoreShare = 0.8f;
+
+    /// <summary>How hard the edge resists being pushed off the work (N/mm):
+    /// an end mill or a boring bar is a cantilever, 3 E I / L^3, stiff when
+    /// short and soft when it sticks far out; a drill's force is axial.</summary>
+    public float StiffnessNPerMm
+    {
+        get
+        {
+            if (Kind == Spec.ToolKind.Drill)
+                return float.PositiveInfinity;
+            if (Lathe && Kind != Spec.ToolKind.Boring)
+                return ShankStiffnessNPerMm;
+            float d = Kind == Spec.ToolKind.Boring ? DiameterMm : DiameterMm * FlutedCoreShare;
+            float inertia = Mathf.Pi * d * d * d * d / 64f;
+            float length = Mathf.Max(1f, StickOutMm);
+            return 3f * (Kind == Spec.ToolKind.Boring ? SteelModulus : CarbideModulus) * inertia / (length * length * length);
+        }
+    }
+
+    /// <summary>How far the cutting edge springs away from the work under
+    /// this cutting force (mm): the cut comes out that much short.</summary>
+    public float DeflectionMm(float cuttingForceN) => cuttingForceN <= 0f ? 0f : AwayForceShare * cuttingForceN / StiffnessNPerMm;
 
     /// <summary>Cutting force that snaps the tool: a round cutter bends
     /// like a cantilever (sigma = 32 F L / (pi d^3)); a lathe insert takes

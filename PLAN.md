@@ -7,7 +7,9 @@ history of how it got here is in git (`git log`, and `PLAN.md` before
 ## Current state (2026-11-20)
 
 `main` holds everything through PR #33; the branch `menu-settings-save` adds
-the menus, saves and in-game settings. 178 C# tests, bridge pytest 17. The
+the menus, saves and in-game settings; `deflection-guards` (on top of it)
+adds tool deflection and guards on open machines. 185 C# tests, bridge
+pytest 17. The
 job board, the inspection table and the chuck cabinet are placed in
 `Main.tscn`.
 
@@ -145,6 +147,23 @@ Done, each verified through scripted operators on real LinuxCNC:
   `gen_<Name>.tbl` / `.var` before LinuxCNC starts (`MachineSpec.WriteConfigFiles(ControlMemory)`;
   without a save the `.var` is deleted). Autosave every N minutes and on
   leaving the workshop.
+- Tool deflection (`ToolLimits.StiffnessNPerMm` / `DeflectionMm`): an end
+  mill or a boring bar is a cantilever (3 E I / L^3; fluted core 0.8 d,
+  carbide; boring bars steel), turning / parting shanks barely give, drills
+  not sideways. 0.4 of the cutting force pushes the edge off the work.
+  `CutMonitor.DeflectionMm` (from the last sample) feeds the cut: the mill
+  cutter's radius is that much smaller, the lathe tip sits that much out
+  (turning) or in (boring). The last tool's peak rides on the part in
+  `SurfaceFinish.SpringMm`; the report card names it as root cause over
+  0.01 mm. Live: the same 10 mm slot at 50 mm stick-out 9.949, at 75 mm
+  9.837 wide (`TmpFix deflect`).
+- Guards (`MachineSpec.Guard`, open machines only): `MachineDoor.Guard` is a
+  hinged clear cover, the same door with the same interlock (`DoorInterlock`
+  and the instructor's switch): over the chuck from the headstock face
+  (`ProceduralLatheBody.GuardFit`), on the mill a shield on the spindle in
+  front of the cutter (moves with the head). Without an interlock, running
+  with it up records `Unguarded` ("talaş operatöre sıçradı") once a minute,
+  for an enclosure door too. `TmpLathe guard` / `guardnolock`.
 - Machine settings in `MachineSpec` (spindle rpm and acceleration, jog,
   coolant, door interlock, thermal growth, homing, backlash, wrapped rotary,
   lathe swing / G7-G8 / tailstock / spindle nose / spare chucks / chuck
@@ -170,7 +189,8 @@ enclosed machines.
    soft jaws for ID; reversed jaws' larger reach in the turret collision;
    the lathe workpiece assumes a turned part's 0.1 mm profile step; a
    tailstock does not count as support against slender-bar chatter.
-4. Not modelled: guards on open bench machines, RTCP, tool deflection, a locking rotary brake, the
+4. Not modelled: RTCP, machine (spindle / bed) compliance under the cut,
+   deflection along the axis (facing, drilling), a locking rotary brake, the
    random changer's own pocket moves; the requested tool is not in the STATE
    packet. The probe senses only the stock (not vise / table). GRAPH's check
    uses today's offsets for the whole program and does not check the stock.
@@ -301,7 +321,8 @@ enclosed machines.
   `TmpHold` (headless: holding in place / bringing to the hands), `TmpLook`
   (windowed screenshots, scenarios main / lathe), `TmpSave` (CNC_SETUP_SCENARIO
   write then read in a second process: save round trip incl. G54 / tool
-  offsets; ports 9210 + 9220), `TmpMenu` (windowed menu pages),
+  offsets; ports 9210 + 9220), `TmpMenu` (windowed menu pages), `TmpGuard`
+  (windowed: lathe and mill guards open / shut; 9210 + 9220),
   `TmpShopMenu` (windowed: Main.tscn from a work order, Esc menu; REAL ports).
 - Editing from the shell: bash heredocs here mangle `\n` escapes inside C#
   strings (and sometimes Turkish text). Write a Python script file with the

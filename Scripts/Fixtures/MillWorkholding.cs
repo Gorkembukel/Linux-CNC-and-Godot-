@@ -82,7 +82,7 @@ public partial class MillWorkholding : MachineSetup, ISawable, IPathObstacle
             : null;
         cutting.Tools = Spindle;
 
-        AddDoor(body, body.DoorOpening);
+        AddDoor(body.GuardParent, body.Door());
 
         cutting.IsSecure = () => Fixture?.HoldsFirmly ?? true;
         cutting.CutWhileLoose = ThrowPart;
