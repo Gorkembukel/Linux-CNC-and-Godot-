@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="Linux CNC godot implement"
-run/main_scene="res://Scenes/Main.tscn"
+run/main_scene="res://Scenes/UI/MainMenu.tscn"
 config/features=PackedStringArray("4.7", "C#", "Forward Plus")
 config/icon="res://icon.svg"
 
@@ -21,6 +21,11 @@ workshop/saw_requires_clamping=false
 workshop/physical_handling=true
 workshop/hand_strength_n=260.0
 workshop/weight_feel=0.35
+workshop/door_interlocks=true
+workshop/glasses_rule=true
+workshop/tool_wear_scale=1.0
+workshop/chip_visual_scale=6.0
+workshop/belt_slots=8.0
 
 [display]
 

@@ -158,21 +158,32 @@ public partial class MachineSpec : Resource
             Kind == MachineKind.Lathe && Lathe != null ? (Lathe.DiameterMode ? "G7 G18" : "G8 G18") : "",
             FanucToolCalls, EffectiveSpindleAccel));
 
-    public string ToolTable()
+    /// <param name="memory">Offsets the control held when the workshop was
+    /// saved; tools it does not know start from their catalogue values.</param>
+    public string ToolTable(ControlMemory memory = null)
     {
         var lengths = ToolLengths();
-        return LinuxCncConfigWriter.ToolTable(Tools.Where(t => t != null).Select(t => Kind == MachineKind.Lathe
-            ? t.ToDef(true)
-            : t.ToDef(false) with { LengthZ = lengths.InitialTableLengthMm(t.LengthMm) }));
+        return LinuxCncConfigWriter.ToolTable(Tools.Where(t => t != null).Select(t =>
+        {
+            var def = Kind == MachineKind.Lathe ? t.ToDef(true) : t.ToDef(false) with { LengthZ = lengths.InitialTableLengthMm(t.LengthMm) };
+            return memory?.Tools.TryGetValue(t.Number, out var saved) == true ? def with { OffsetX = saved.X, LengthZ = saved.Z } : def;
+        }));
     }
 
-    /// <summary>Writes this machine's INI and tool table next to the
-    /// hand-written ones; the bridge deploys the whole folder into WSL.</summary>
-    public void WriteConfigFiles()
+    /// <summary>Writes this machine's INI, tool table and (from a save)
+    /// parameter file next to the hand-written ones; the bridge deploys the
+    /// whole folder into WSL. Without a save the control starts with no
+    /// remembered work offset.</summary>
+    public void WriteConfigFiles(ControlMemory memory = null)
     {
         string dir = ProjectSettings.GlobalizePath("res://linuxcnc-config/");
         System.IO.File.WriteAllText(dir + ConfigStem + ".ini", Ini());
-        System.IO.File.WriteAllText(dir + ConfigStem + ".tbl", ToolTable());
+        System.IO.File.WriteAllText(dir + ConfigStem + ".tbl", ToolTable(memory));
+        string parameters = dir + ConfigStem + ".var";
+        if (memory != null)
+            System.IO.File.WriteAllText(parameters, LinuxCncConfigWriter.ParameterFile(memory.G5xIndex, memory.G5x));
+        else if (System.IO.File.Exists(parameters))
+            System.IO.File.Delete(parameters);
     }
 
     /// <summary>Problems that would stop the machine from being built or

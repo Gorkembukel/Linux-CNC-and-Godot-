@@ -25,6 +25,13 @@ public sealed class ToolState
     }
 
     public void Break() => Broken = true;
+
+    /// <summary>Back to a saved wear and breakage.</summary>
+    public void Restore(float wear, bool broken)
+    {
+        Wear = System.Math.Clamp(wear, 0f, 1f);
+        Broken = broken;
+    }
 }
 
 /// <summary>Every tool of one machine and the state it is in. Engine-free.</summary>

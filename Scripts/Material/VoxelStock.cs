@@ -148,6 +148,23 @@ public class VoxelStock
 
     public VoxelStock Copy() => new(this);
 
+    private VoxelStock(float stepMm, int countX, int countY, int countZ, Vector3 origin, float[] distance)
+    {
+        StepMm = stepMm;
+        Origin = origin;
+        CountX = countX;
+        CountY = countY;
+        CountZ = countZ;
+        _distance = distance;
+    }
+
+    /// <summary>The distance field, node by node (X fastest), for a save file.</summary>
+    public float[] Distances() => (float[])_distance.Clone();
+
+    /// <summary>A stock read back from a save file; null when the sizes do not match the data.</summary>
+    public static VoxelStock FromDistances(float stepMm, int countX, int countY, int countZ, Vector3 origin, float[] distance) =>
+        distance != null && distance.Length == countX * countY * countZ ? new VoxelStock(stepMm, countX, countY, countZ, origin, (float[])distance.Clone()) : null;
+
     /// <summary>Material volume (mm³).</summary>
     public float VolumeMm3()
     {

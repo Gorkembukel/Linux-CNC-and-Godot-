@@ -91,10 +91,37 @@ No firewall rule or fixed IP is needed; see "Networking" below.
 .\start.ps1
 ```
 
-or open the project in the Godot editor and press Play. Godot starts each
-machine's LinuxCNC and bridge in WSL itself and stops them when the window
-closes. The first start can take up to 90 seconds before a machine's screen
-shows live data.
+or open the project in the Godot editor and press Play. The main menu opens
+first (see "Menu, saves and settings"); once the workshop opens, Godot starts
+each machine's LinuxCNC and bridge in WSL itself and stops them when the
+workshop closes. The first start can take up to 90 seconds before a
+machine's screen shows live data.
+
+### Menu, saves and settings
+
+- **Devam et** opens the newest save, **Yeni oyun** the free workshop or a
+  training scenario: every work order is one, opened with the order on the
+  board, its drawing on the HUD and its stock on the stock station's tray.
+  **Kayıt yükle** lists the saves, **Ayarlar** the settings.
+- **Esc** in the workshop: back to work, save / load, settings, main menu,
+  quit. The machines keep running behind it, as they would in a shop.
+- A save holds the whole workshop: where the player stands, the belt, the
+  glasses, what is in the hands, the open job; every machine's chuck (model,
+  jaws, scroll, torque, key, runout), the bar in it with the shape turned so
+  far, the turret / magazine with each tool's setting error and wear, the
+  vise / clamps / centring plate with their bolts and the milled shape of the
+  stock, the door; the tool table, the wear offsets and the active work
+  offset (G54..), which LinuxCNC starts from when the save is opened; and
+  every item lying anywhere. Machines come back unhomed, as after a power
+  cycle. Saves are in `user://saves/`; the workshop is autosaved every few
+  minutes and on leaving it.
+- **Ayarlar** has two tabs: *Oyun* (mouse sensitivity, volume, full screen,
+  autosave interval) and *Eğitmen*, the workshop rules an instructor sets:
+  physical handling, hand strength, weight feel, sawing only clamped stock,
+  door interlocks on / off, the glasses rule, tool wear speed (to show wear
+  in a short lesson), chip size on screen, belt holsters. Choices are kept in
+  `user://settings.cfg`; the defaults are the Project Settings
+  `cnc_trainer/workshop/*`.
 
 ### Controls
 
@@ -114,7 +141,8 @@ shows live data.
 | Left click | use, place, press a console key |
 | K | near a console: turn the keyboard's CNC control and the corner window off / on |
 | E or Tab | at a console: close-up on the panel; at the stock station: its panel |
-| Esc | free / capture the mouse |
+| Esc | menu (save, load, settings, main menu) |
+| M | free / capture the mouse (click the console's corner window) |
 | F2 | debug: 2D operator panel and status text |
 | F3 | debug overlay |
 
@@ -416,7 +444,8 @@ table, a tailstock counting as support for a slender bar.
   X/Z only.
 - PRG RESTART uses LinuxCNC's run-from-line: the tool change and spindle
   start before that line are not replayed.
-- The cut state lives in Godot's memory and is lost when the game closes.
+- A save keeps one work offset (the active G5x); the other work systems
+  start from zero.
 - Chips are simple pooled boxes, sized up to be visible.
 
 `PLAN.md` holds the current status and open work.

@@ -86,4 +86,23 @@ public class LinuxCncConfigWriterTests
         Assert.Equal("T1 P1 D10.000000 Z+0.000000 ; 10mm end mill\n" +
                      "T2 P2 D0.800000 Z+0.000000 I+95.000000 J+155.000000 Q1 ; roughing\n", table);
     }
+
+    [Fact]
+    public void ToolTable_WritesASavedXOffsetOnlyWhenThereIsOne()
+    {
+        string table = LinuxCncConfigWriter.ToolTable(new[]
+        {
+            new ToolDef(1, 0.8f, true, 95f, 155f, 1, "rough", LengthZ: -2.5f, OffsetX: 1.5f),
+            new ToolDef(2, 0.4f, true, 95f, 155f, 1, "finish"),
+        });
+        Assert.StartsWith("T1 P1 D0.800000 X+1.500000 Z-2.500000 ", table);
+        Assert.Contains("T2 P2 D0.400000 Z+0.000000 ", table);
+    }
+
+    [Fact]
+    public void ParameterFile_HoldsTheActiveWorkSystemAndItsOffset()
+    {
+        string vars = LinuxCncConfigWriter.ParameterFile(2, new[] { 10f, 0f, -12.345f });
+        Assert.Equal("5220\t2.000000\n5241\t10.000000\n5242\t0.000000\n5243\t-12.345000\n", vars);
+    }
 }

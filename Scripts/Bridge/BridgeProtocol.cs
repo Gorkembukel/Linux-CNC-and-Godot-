@@ -110,6 +110,9 @@ public struct StateSample
     public bool ToolChangePending;
     public AxisVector WorkOffset;
     public byte MotionTypeRaw, Coolant;
+    /// <summary>The active work system's own offset; G5xIndex 1 = G54 .. 9 = G59.3.</summary>
+    public AxisVector G5xOffset;
+    public byte G5xIndex;
 
     public bool IsHomed(AxisId axis) => (HomedMask & (1 << (int)axis)) != 0;
     public bool HasAxis(AxisId axis) => (ActiveAxisMask & (1 << (int)axis)) != 0;
@@ -142,6 +145,8 @@ public struct StateSample
             WorkOffset = ReadAxes(r),
             MotionTypeRaw = r.ReadByte(),
             Coolant = r.ReadByte(),
+            G5xOffset = ReadAxes(r),
+            G5xIndex = r.ReadByte(),
         };
     }
 

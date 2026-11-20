@@ -29,6 +29,11 @@ public enum ChuckKind
     Collet,
 }
 
+/// <summary>Everything a chuck and the bar in it are doing, for a save file.</summary>
+public sealed record GripState(JawsState Jaws, float OpeningMm, int Torque, bool KeyIn, bool HasBar, float BarDiameterMm,
+    float BarLengthMm, float StickOutMm, float? SoftBoredForMm, bool Inside, float BoreMm, float BoreDepthMm,
+    float OffsetX, float OffsetY, float TiltX, float TiltY);
+
 /// <summary>
 /// State of a chuck and the round bar in it: what grips (jaws or a collet,
 /// <see cref="ChuckJaws"/>), jaw opening, how hard it is tightened, whether
@@ -316,6 +321,28 @@ public sealed class ChuckGrip
         OffsetMm = (OffsetMm.X - cos * push, OffsetMm.Y - sin * push);
         return high > 0f ? "Bu taraftaki çene gevşetildi, karşısı sıkıldı: parça merkeze yaklaştı"
             : "Alçak taraftaki çene ayarlandı: salgı arttı";
+    }
+
+    public GripState Snapshot() => new(Jaws.Snapshot(), _openingMm, Torque, KeyIn, HasBar, BarDiameterMm, BarLengthMm, StickOutMm,
+        SoftBoredForMm, Inside, _boreMm, _boreDepthMm, OffsetMm.X, OffsetMm.Y, TiltPer100Mm.X, TiltPer100Mm.Y);
+
+    /// <summary>Puts the chuck back exactly as it was (the bar in it too, as numbers).</summary>
+    public void Restore(GripState s)
+    {
+        Jaws.Restore(s.Jaws);
+        _openingMm = s.OpeningMm;
+        Torque = s.Torque;
+        KeyIn = s.KeyIn;
+        HasBar = s.HasBar;
+        BarDiameterMm = s.BarDiameterMm;
+        BarLengthMm = s.BarLengthMm;
+        StickOutMm = s.StickOutMm;
+        SoftBoredForMm = s.SoftBoredForMm;
+        Inside = s.Inside;
+        _boreMm = s.BoreMm;
+        _boreDepthMm = s.BoreDepthMm;
+        OffsetMm = (s.OffsetX, s.OffsetY);
+        TiltPer100Mm = (s.TiltX, s.TiltY);
     }
 
     public void Remove()

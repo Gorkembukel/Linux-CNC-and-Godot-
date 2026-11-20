@@ -14,10 +14,9 @@ namespace CncTrainer.Inspection;
 /// report card here. The node's origin is on the floor.
 /// </summary>
 [Tool]
-public partial class JobBoard : Node3D, IInteractable, IJobCard
+public partial class JobBoard : Node3D, IInteractable, IJobCard, Save.ISaveable
 {
     public const string Group = "job_boards";
-    private const string OrdersFolder = "res://Machines/WorkOrders/";
 
     /// <summary>Orders on the board. Empty: every work order saved under
     /// res://Machines/WorkOrders/ is pinned up.</summary>
@@ -52,17 +51,9 @@ public partial class JobBoard : Node3D, IInteractable, IJobCard
         AddToGroup(IJobCard.Group);
         _orders.AddRange(Orders.Where(o => o != null));
         if (_orders.Count == 0)
-            _orders.AddRange(LoadFolder());
+            _orders.AddRange(WorkOrder.LoadAll());
         UpdateSign();
     }
-
-    private static IEnumerable<WorkOrder> LoadFolder() =>
-        (DirAccess.GetFilesAt(OrdersFolder) ?? System.Array.Empty<string>())
-            .Where(f => f.EndsWith(".tres") || f.EndsWith(".tres.remap"))
-            .Select(f => f.Replace(".remap", ""))
-            .OrderBy(f => f)
-            .Select(f => GD.Load<WorkOrder>(OrdersFolder + f))
-            .Where(o => o != null);
 
     private WorkOrder Browsed => _orders.Count == 0 ? null : _orders[_browse];
 
@@ -104,9 +95,28 @@ public partial class JobBoard : Node3D, IInteractable, IJobCard
     public void Take(WorkOrder order)
     {
         Active = order;
-        StartedAt = Time.GetTicksMsec() / 1000.0;
+        StartedAt = Now;
         LastReport = null;
         PlayerController.Notify(this, $"İş alındı: {order.Title}. Teknik resim sol üstte.");
+    }
+
+    private static double Now => Time.GetTicksMsec() / 1000.0;
+
+    public Godot.Collections.Dictionary Save() => new()
+    {
+        ["active"] = Active?.ResourcePath ?? "", ["elapsed"] = Active != null ? Now - StartedAt : 0.0, ["browse"] = _browse,
+    };
+
+    public void Load(Godot.Collections.Dictionary data)
+    {
+        _browse = _orders.Count == 0 ? 0 : Mathf.Clamp(data["browse"].AsInt32(), 0, _orders.Count - 1);
+        string path = data["active"].AsString();
+        if (_orders.FirstOrDefault(o => o.ResourcePath == path) is WorkOrder order)
+        {
+            Take(order);
+            StartedAt = Now - data["elapsed"].AsDouble();
+        }
+        UpdateSign();
     }
 
     public void Post(InspectionReport report)

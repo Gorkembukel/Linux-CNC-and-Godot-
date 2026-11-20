@@ -101,6 +101,26 @@ public partial class CentringPlate : BoltedFixture, IInteractable, IStockFixture
         return body;
     }
 
+    public Godot.Collections.Dictionary SaveFixture() => new()
+    {
+        ["kind"] = nameof(CentringPlate), ["bolts"] = SaveBolts(), ["torque"] = Torque, ["seat"] = Seat.Save() is { } seat ? seat : default,
+    };
+
+    public static void RestoreOn(MillTable table, Godot.Collections.Dictionary d)
+    {
+        var plate = Create();
+        table.AddChild(plate);
+        plate.MountOn(table);
+        plate.RestoreBolts(d["bolts"].AsInt32Array());
+        var seat = CncTrainer.Save.SaveCodec.Dict(d["seat"]);
+        if (StockSeat.SavedItem(seat, plate) is StockItem item)
+        {
+            plate.PlaceStock(item, seat["turn"].AsBasis());
+            plate.Seat.Restored(seat);
+        }
+        plate.Torque = d["torque"].AsInt32();
+    }
+
     public string Prompt(PlayerController player)
     {
         if (!IsMounted)

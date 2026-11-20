@@ -94,7 +94,9 @@ class CommandKind(IntEnum):
 # | spindle_enabled task_mode interp_state exec_state (u8 x4) | motion_line (i32)
 # | estop machine_on in_cycle active_axis_mask homed_mask tool_change_pending (u8 x6)
 # | work_offset (f64 x AXIS_CAPACITY) | motion_type coolant (u8 x2)
-_STATE_BODY = struct.Struct("<" + "d" * (AXIS_CAPACITY * 2) + "ddffifBBBBiBBBBBB" + "d" * AXIS_CAPACITY + "BB")
+# | g5x_offset (f64 x AXIS_CAPACITY) | g5x_index (u8)
+_STATE_BODY = struct.Struct("<" + "d" * (AXIS_CAPACITY * 2) + "ddffifBBBBiBBBBBB" + "d" * AXIS_CAPACITY + "BB"
+                            + "d" * AXIS_CAPACITY + "B")
 
 
 @dataclass
@@ -123,6 +125,10 @@ class StateSample:
     work_offset: tuple[float, ...] = (0.0,) * AXIS_CAPACITY
     motion_type: int = 0  # LinuxCNC's own: 0 none, 1 traverse (G0), 2 feed, 3 arc, 4 tool change, 5 probing, 6 rotary index
     coolant: int = 0      # bit 0 = flood (M8), bit 1 = mist (M7)
+    # the active work system's own offset (G54 = index 1 .. G59.3 = 9), so a
+    # save can put it back into the parameter file
+    g5x_offset: tuple[float, ...] = (0.0,) * AXIS_CAPACITY
+    g5x_index: int = 1
 
     def pack(self, seq: int, t_mono_ns: int | None = None) -> bytes:
         header = _HEADER.pack(MAGIC, PacketType.STATE, seq, t_mono_ns or mono_ns())
@@ -134,6 +140,7 @@ class StateSample:
             int(self.estop), int(self.machine_on), int(self.in_cycle),
             self.active_axis_mask, self.homed_mask, int(self.tool_change_pending),
             *_fixed(self.work_offset), self.motion_type, self.coolant,
+            *_fixed(self.g5x_offset), self.g5x_index,
         )
         return header + body
 
@@ -143,7 +150,8 @@ class StateSample:
         position, velocity = fields[0:AXIS_CAPACITY], fields[AXIS_CAPACITY:AXIS_CAPACITY * 2]
         (feed_rate, spindle_rpm, feed_ovr, spindle_ovr, tool_nr, tool_radius, spindle_en,
          task_mode, interp_state, exec_state, motion_line, estop, machine_on, in_cycle,
-         active_axis_mask, homed_mask, tool_change_pending) = fields[AXIS_CAPACITY * 2:-AXIS_CAPACITY - 2]
+         active_axis_mask, homed_mask, tool_change_pending) = fields[AXIS_CAPACITY * 2:AXIS_CAPACITY * 2 + 17]
+        rest = fields[AXIS_CAPACITY * 2 + 17:]
         return StateSample(
             position=position, velocity=velocity, feed_rate=feed_rate,
             spindle_rpm=spindle_rpm, feed_override=feed_ovr, spindle_override=spindle_ovr,
@@ -152,7 +160,8 @@ class StateSample:
             motion_line=motion_line, estop=bool(estop), machine_on=bool(machine_on),
             in_cycle=bool(in_cycle), active_axis_mask=active_axis_mask, homed_mask=homed_mask,
             tool_change_pending=bool(tool_change_pending),
-            work_offset=fields[-AXIS_CAPACITY - 2:-2], motion_type=fields[-2], coolant=fields[-1],
+            work_offset=rest[:AXIS_CAPACITY], motion_type=rest[AXIS_CAPACITY], coolant=rest[AXIS_CAPACITY + 1],
+            g5x_offset=rest[AXIS_CAPACITY + 2:AXIS_CAPACITY * 2 + 2], g5x_index=rest[-1],
         )
 
 

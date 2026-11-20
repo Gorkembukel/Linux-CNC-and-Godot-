@@ -278,4 +278,33 @@ public partial class Vise : BoltedFixture, IInteractable, IStockFixture
         Seated = false;
         return Seat.Take();
     }
+
+    public Godot.Collections.Dictionary SaveFixture() => new()
+    {
+        ["kind"] = nameof(Vise), ["x"] = _mountX, ["yaw"] = Tram.YawDeg, ["chips"] = _onChips, ["bolts"] = SaveBolts(),
+        ["opening"] = OpeningMm, ["torque"] = Torque, ["parallels"] = HasParallels, ["seated"] = Seated, ["stock_x"] = _stockX,
+        ["seat"] = Seat.Save() is { } seat ? seat : default,
+    };
+
+    public static void RestoreOn(MillTable table, Godot.Collections.Dictionary d)
+    {
+        var vise = Create();
+        table.AddChild(vise);
+        vise.MountOn(table, d["x"].AsSingle(), d["yaw"].AsSingle());
+        vise._onChips = d["chips"].AsBool();
+        vise.ApplyMount();
+        vise.RestoreBolts(d["bolts"].AsInt32Array());
+        vise.OpeningMm = d["opening"].AsSingle();
+        if (d["parallels"].AsBool())
+            vise.PlaceParallels();
+        var seat = CncTrainer.Save.SaveCodec.Dict(d["seat"]);
+        if (StockSeat.SavedItem(seat, vise) is StockItem item)
+        {
+            vise.PlaceStock(item, d["stock_x"].AsSingle(), seat["turn"].AsBasis());
+            vise.Seat.Restored(seat);
+        }
+        vise.Torque = d["torque"].AsInt32();
+        vise.Seated = d["seated"].AsBool();
+        vise.Refresh();
+    }
 }

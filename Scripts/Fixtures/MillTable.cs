@@ -12,8 +12,29 @@ namespace CncTrainer.Fixtures;
 /// a vise, a centring plate (rotary tables), or the stock itself, to be held
 /// with step clamps. Origin at the centre of the table's top face (the
 /// rotary centre on a rotary table); T-slots run along X.</summary>
-public partial class MillTable : StaticBody3D, IInteractable
+public partial class MillTable : StaticBody3D, IInteractable, Save.IItemHolder
 {
+    public Godot.Collections.Dictionary SaveState() => new()
+    {
+        ["dirty"] = Dirty,
+        ["fixtures"] = new Godot.Collections.Array(GetChildren().OfType<IStockFixture>().Select(f => (Variant)f.SaveFixture())),
+    };
+
+    /// <summary>Puts the saved fixtures back on this (empty) table.</summary>
+    public void LoadState(Godot.Collections.Dictionary data)
+    {
+        foreach (var fixture in data["fixtures"].AsGodotArray().Select(v => v.AsGodotDictionary()))
+        {
+            switch (fixture["kind"].AsString())
+            {
+                case nameof(Fixtures.Vise): Fixtures.Vise.RestoreOn(this, fixture); break;
+                case nameof(CentringPlate): CentringPlate.RestoreOn(this, fixture); break;
+                case nameof(TableClamping): TableClamping.RestoreOn(this, fixture); break;
+            }
+        }
+        Dirty = data["dirty"].AsBool();
+    }
+
     /// <summary>Chips on the table: anything set down on them sits crooked.</summary>
     public bool Dirty;
 

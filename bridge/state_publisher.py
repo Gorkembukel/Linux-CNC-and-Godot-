@@ -128,6 +128,8 @@ class StatePublisher:
                               for i in range(AXIS_CAPACITY)),
             motion_type=int(self.stat.motion_type),
             coolant=(1 if self.stat.flood else 0) | (2 if self.stat.mist else 0),
+            g5x_offset=tuple(self.stat.g5x_offset[i] for i in range(AXIS_CAPACITY)),
+            g5x_index=int(self.stat.g5x_index),
         )
 
     def publish_once(self) -> None:

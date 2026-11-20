@@ -30,8 +30,6 @@ public partial class ChipSpawner : Node3D
     [Export] public float Gravity = 9.8f;
     /// <summary>A chip disappears after this long (s).</summary>
     [Export] public float MaxLifetimeSeconds = 6f;
-    /// <summary>Chips are drawn this many times their real size so they can be seen.</summary>
-    [Export] public float VisualSizeMultiplier = 6f;
 
     private struct ChipInstance
     {
@@ -167,13 +165,8 @@ public partial class ChipSpawner : Node3D
             ChipType.Segmented => 2.0f,
             _ => 1.0f,
         };
-        // VisualSizeMultiplier: real chip sizes (sub-mm to a few mm) are only a
-        // handful of pixels at a camera distance that can see the whole scene
-        // -- found live, the user correctly couldn't see any. This is a
-        // deliberate visibility exaggeration for a training tool, not a claim
-        // of physical accuracy (same spirit as the brief's "visual plausibility
-        // is enough").
-        float s = f.SizeMm * WorldScale.MmToM * VisualSizeMultiplier;
+        // Real chips (sub-mm to a few mm) are a few pixels from a working distance.
+        float s = f.SizeMm * WorldScale.MmToM * Workshop.WorkshopSettings.ChipVisualScale;
         c.Node.Scale = new Vector3(s * 0.4f, s * 0.2f, s * 0.4f * elongation);
         c.AngularSpeed = f.Type == ChipType.Continuous
             ? Mathf.DegToRad(180f + (float)_rng.NextDouble() * 360f)

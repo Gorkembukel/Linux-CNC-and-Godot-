@@ -89,6 +89,25 @@ public partial class MillWorkholding : MachineSetup, ISawable, IPathObstacle
         cutting.CutObserved += SlipUnderCut;
     }
 
+    protected override Godot.Collections.Dictionary SaveSetup()
+    {
+        var data = new Godot.Collections.Dictionary { ["spindle"] = Spindle.SavePockets() };
+        if (Chuck != null)
+            data["chuck"] = Chuck.SaveFixture();
+        else
+            data["table"] = Table.SaveState();
+        return data;
+    }
+
+    protected override void LoadSetup(Godot.Collections.Dictionary data)
+    {
+        Spindle.LoadPockets(data["spindle"].AsGodotArray());
+        if (Chuck != null && data.TryGetValue("chuck", out var chuck))
+            Chuck.LoadState(chuck.AsGodotDictionary());
+        else if (Table != null && data.TryGetValue("table", out var table))
+            Table.LoadState(table.AsGodotDictionary());
+    }
+
     /// <summary>A part clamped snug but not fully tight creeps along the
     /// feed under the cutting force. Nothing says so: the cut lands off by
     /// that much, and only measuring the part shows it.</summary>

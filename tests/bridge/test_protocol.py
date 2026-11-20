@@ -27,7 +27,7 @@ def _sample():
         estop=False, machine_on=True, in_cycle=True,
         active_axis_mask=(1 << AXIS_X) | (1 << AXIS_Z), homed_mask=(1 << AXIS_X) | (1 << AXIS_Z),
         tool_change_pending=True, work_offset=(40.0, 45.0, 30.0, 0.0, 0.0, 0.0),
-        motion_type=1, coolant=1,
+        motion_type=1, coolant=1, g5x_offset=(40.0, 45.0, 20.0, 0.0, 0.0, 0.0), g5x_index=2,
     )
 
 
@@ -46,13 +46,13 @@ def test_state_sample_roundtrip():
     assert d1 == d2
 
 
-def test_state_sample_packet_is_210_bytes():
+def test_state_sample_packet_is_259_bytes():
     # Locks the wire size so an accidental field reorder/width change in
     # protocol.py is caught immediately instead of silently desyncing from
-    # Scripts/Bridge/BridgeProtocol.cs on the Godot side. 210 = 18-byte
-    # header + 192-byte body (6-axis position+velocity fixed capacity, see
-    # protocol.py's AXIS_CAPACITY).
-    assert len(_sample().pack(seq=0)) == 210
+    # Scripts/Bridge/BridgeProtocol.cs on the Godot side. 259 = 18-byte
+    # header + 241-byte body (6-axis fixed capacity, see protocol.py's
+    # AXIS_CAPACITY).
+    assert len(_sample().pack(seq=0)) == 259
 
 
 def test_event_roundtrip():

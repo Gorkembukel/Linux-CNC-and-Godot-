@@ -69,6 +69,17 @@ public partial class ToolSocket : StaticBody3D, IInteractable, IToolSource
         return true;
     }
 
+    /// <summary>Every pocket's tool for a save (empty pockets null).</summary>
+    public Godot.Collections.Array SavePockets() =>
+        new(_pockets.Select(p => p == null ? default : (Variant)Save.SavedItems.Record(p)));
+
+    public void LoadPockets(Godot.Collections.Array pockets)
+    {
+        for (int i = 0; i < pockets.Count; i++)
+            if (Save.SavedItems.Make(Save.SaveCodec.Dict(pockets[i])) is ToolItem tool)
+                Load(tool, i);
+    }
+
     /// <summary>Takes the tool out of a pocket and back into the world.</summary>
     public ToolItem Unload(int pocket)
     {

@@ -12,7 +12,7 @@ namespace CncTrainer.Machining;
 /// insert sits a few tenths off, and the control knows none of it until the
 /// tool is measured and its offset entered. Local frame: tip at the origin.
 /// </summary>
-public partial class ToolItem : Carryable
+public partial class ToolItem : Carryable, Save.ISavedItem
 {
     public ToolSpec Spec { get; private set; }
     /// <summary>Goes on a lathe turret: every lathe tool, and a drill that
@@ -37,6 +37,19 @@ public partial class ToolItem : Carryable
     public MountedTool Mounted => new(Spec, State, ErrorMm);
 
     public string Label => $"T{Spec.Number} {Spec.Description}" + (State.Broken ? " (KIRIK)" : "");
+
+    public Godot.Collections.Dictionary SaveState() => new()
+    {
+        ["spec"] = Save.SaveCodec.Resource(Spec), ["lathe"] = ForLathe, ["error"] = ErrorMm, ["wear"] = State.Wear, ["broken"] = State.Broken,
+    };
+
+    public static ToolItem Restore(Godot.Collections.Dictionary d)
+    {
+        var item = Create(Save.SaveCodec.Resource<ToolSpec>(d["spec"].AsGodotDictionary()), exact: true, lathe: d["lathe"].AsBool());
+        item.ErrorMm = d["error"].AsVector3();
+        item.State.Restore(d["wear"].AsSingle(), d["broken"].AsBool());
+        return item;
+    }
 
     /// <summary>exact = a tool with no setting error, for tests.</summary>
     public static ToolItem Create(ToolSpec spec, bool exact = false, bool lathe = false)

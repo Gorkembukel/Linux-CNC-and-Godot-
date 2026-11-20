@@ -40,6 +40,14 @@ public sealed class ToolOffsetTable
 
     public bool Has(int tool) => _control.ContainsKey(tool);
 
+    /// <summary>The table as LinuxCNC holds it (wear included).</summary>
+    public IEnumerable<ToolTableEntry> Entries => _control.Values;
+
+    public IEnumerable<(int Tool, AxisId Axis, float Wear)> Wears => _wear.Select(w => (w.Key.Tool, w.Key.Axis, w.Value));
+
+    /// <summary>A wear value from a save (LinuxCNC already holds the sum).</summary>
+    public void RestoreWear(int tool, AxisId axis, float wear) => _wear[(tool, axis)] = wear;
+
     public float Wear(int tool, AxisId axis) => _wear.TryGetValue((tool, axis), out float w) ? w : 0f;
 
     /// <summary>The offset LinuxCNC must hold so the geometry reads `geometry`.</summary>

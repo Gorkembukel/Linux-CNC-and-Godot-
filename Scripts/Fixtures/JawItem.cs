@@ -6,8 +6,20 @@ namespace CncTrainer.Fixtures;
 /// <summary>One chuck jaw, stamped with its number, made for one kind and
 /// size of chuck: on a scroll chuck jaw 1 goes in slot 1, and so on, each
 /// as the scroll's thread start reaches its slot.</summary>
-public partial class JawItem : Carryable
+public partial class JawItem : Carryable, Save.ISavedItem
 {
+    private float _chuckDiameterMm, _jawDepthMm;
+    private string _chuckName = "";
+
+    public Godot.Collections.Dictionary SaveState() => new()
+    {
+        ["kind"] = (int)Kind, ["number"] = Number, ["made_for"] = (int)MadeFor, ["family"] = Family,
+        ["chuck_d"] = _chuckDiameterMm, ["depth"] = _jawDepthMm, ["chuck"] = _chuckName,
+    };
+
+    public static JawItem Restore(Godot.Collections.Dictionary d) => Create((JawKind)d["kind"].AsInt32(), d["number"].AsInt32(),
+        (ChuckKind)d["made_for"].AsInt32(), d["family"].AsString(), d["chuck_d"].AsSingle(), d["depth"].AsSingle(), d["chuck"].AsString());
+
     public JawKind Kind { get; private set; }
     public int Number { get; private set; }
     public ChuckKind MadeFor { get; private set; }
@@ -60,6 +72,7 @@ public partial class JawItem : Carryable
         var item = new JawItem
         {
             Kind = kind, Number = number, MadeFor = madeFor, Family = family, LengthM = length, Name = $"Jaw{number}",
+            _chuckDiameterMm = chuckDiameterMm, _jawDepthMm = jawDepthMm, _chuckName = chuckName,
             DisplayName = $"{NameOf(kind)} {number}" + (chuckName != "" ? $" ({chuckName})" : ""),
             // Steel, a little under the solid block it fills.
             Mass = Mathf.Max(0.1f, length * height * width * (kind == JawKind.Soft ? 2700f : 7850f) * 0.8f),

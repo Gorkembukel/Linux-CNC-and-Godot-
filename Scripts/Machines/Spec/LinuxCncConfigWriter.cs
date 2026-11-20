@@ -139,12 +139,26 @@ HOME_SEQUENCE = {a.HomeSequence}
         return sb.ToString().Replace("\r\n", "\n");
     }
 
+    /// <summary>A LinuxCNC parameter file holding one work system's offset
+    /// (index 1 = G54 .. 9 = G59.3) and making it the active one.</summary>
+    public static string ParameterFile(int g5xIndex, IReadOnlyList<float> offsets)
+    {
+        int index = System.Math.Clamp(g5xIndex, 1, 9);
+        var sb = new StringBuilder(Invariant($"5220\t{index}.000000\n"));
+        for (int axis = 0; axis < offsets.Count; axis++)
+            sb.Append(Invariant($"{5221 + 20 * (index - 1) + axis}\t{offsets[axis]:0.000000}\n"));
+        return sb.ToString();
+    }
+
     public static string ToolTable(IEnumerable<ToolDef> tools)
     {
         var sb = new StringBuilder();
         foreach (var t in tools)
         {
-            sb.Append(Invariant($"T{t.Number} P{t.Number} D{t.TableDiameter:F6} Z{t.LengthZ:+0.000000;-0.000000}"));
+            sb.Append(Invariant($"T{t.Number} P{t.Number} D{t.TableDiameter:F6}"));
+            if (t.OffsetX != 0f)
+                sb.Append(Invariant($" X{t.OffsetX:+0.000000;-0.000000}"));
+            sb.Append(Invariant($" Z{t.LengthZ:+0.000000;-0.000000}"));
             if (t.LatheTool)
                 sb.Append(Invariant($" I{t.FrontAngle:+0.000000;-0.000000} J{t.BackAngle:+0.000000;-0.000000} Q{t.Orientation}"));
             sb.Append(" ; ").Append(t.Comment.Replace('\n', ' ')).Append('\n');

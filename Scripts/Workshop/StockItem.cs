@@ -11,7 +11,7 @@ namespace CncTrainer.Workshop;
 /// part already turned (Turned) or milled (a VoxelStockVisual child), ready
 /// to go into any fixture again. Local frame: X along the length, Y up,
 /// origin at the centre.</summary>
-public partial class StockItem : Carryable, IMeasurable, IThreaded
+public partial class StockItem : Carryable, IMeasurable, IThreaded, Save.ISavedItem
 {
     public StockBlank Blank { get; private set; }
 
@@ -268,6 +268,44 @@ public partial class StockItem : Carryable, IMeasurable, IThreaded
         if (Turned is not { } t)
             return;
         Turned = (t.RadiiMm.Reverse().ToArray(), t.InnerMm.Reverse().ToArray(), t.StepMm, t.SquareHalfMm);
+    }
+
+    public Godot.Collections.Dictionary SaveState()
+    {
+        var data = new Godot.Collections.Dictionary
+        {
+            ["shape"] = (int)Blank.Shape, ["size"] = Blank.SizeMm, ["material"] = (int)Blank.Material,
+            ["burred"] = _burred, ["slip"] = SlipMm, ["ra"] = Surface.RaUm, ["chatter"] = Surface.Chatter,
+        };
+        if (Turned is { } t)
+            data["turned"] = new Godot.Collections.Dictionary { ["radii"] = t.RadiiMm, ["inner"] = t.InnerMm, ["step"] = t.StepMm, ["square"] = t.SquareHalfMm };
+        if (Machined is VoxelStockVisual machined)
+        {
+            data["voxels"] = Save.SaveCodec.Voxels(machined.Stock);
+            data["voxels_at"] = machined.Transform;
+        }
+        return data;
+    }
+
+    public static StockItem Restore(Godot.Collections.Dictionary d)
+    {
+        var material = (MaterialKind)d["material"].AsInt32();
+        var item = d.TryGetValue("turned", out var turned) && turned.AsGodotDictionary() is var t
+            ? CreateTurned(t["radii"].AsFloat32Array(), t["inner"].AsFloat32Array(), t["step"].AsSingle(), material, t["square"].AsVector2())
+            : null;
+        item ??= Create(new StockBlank((StockShape)d["shape"].AsInt32(), d["size"].AsVector3(), material));
+        item._burred = d["burred"].AsBool();
+        item.SlipMm = d["slip"].AsSingle();
+        item.Surface = new Machining.SurfaceFinish(d["chatter"].AsBool(), d["ra"].AsSingle());
+        if (d.TryGetValue("voxels", out var voxels) && Save.SaveCodec.Voxels(voxels.AsGodotDictionary()) is VoxelStock stock)
+        {
+            foreach (var mesh in item.GetChildren().OfType<MeshInstance3D>())
+                mesh.Visible = false;
+            var visual = new VoxelStockVisual { Name = "Machined", Transform = d["voxels_at"].AsTransform3D() };
+            item.AddChild(visual);
+            visual.Build(stock);
+        }
+        return item;
     }
 
     /// <summary>Mesh in the stock's own frame (see the class comment).</summary>

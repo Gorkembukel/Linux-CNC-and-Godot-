@@ -8,8 +8,13 @@ namespace CncTrainer.Fixtures;
 /// with it), heavy as it is. Clicked onto a lathe's chuck once that one's
 /// cam locks are undone, it takes its place; set face up on a chuck stand,
 /// its jaws can be changed off the machine.</summary>
-public partial class ChuckItem : Carryable
+public partial class ChuckItem : Carryable, Save.ISavedItem
 {
+    public Godot.Collections.Dictionary SaveState() => new() { ["model"] = Save.SaveCodec.Resource(Model), ["chuck"] = Save.SaveCodec.Chuck(Grip) };
+
+    public static ChuckItem Restore(Godot.Collections.Dictionary d) =>
+        Create(Save.SaveCodec.Resource<ChuckModel>(d["model"].AsGodotDictionary()), Save.SaveCodec.Chuck(d["chuck"].AsGodotDictionary()));
+
     public ChuckModel Model { get; private set; }
     public ChuckGrip Grip { get; private set; }
     public ChuckVisual Visual { get; private set; }

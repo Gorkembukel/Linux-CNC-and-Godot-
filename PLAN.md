@@ -6,11 +6,10 @@ history of how it got here is in git (`git log`, and `PLAN.md` before
 
 ## Current state (2026-11-20)
 
-`main` holds everything through the coverage-analysis roadmap and its
-follow-ups (PRs #22-#30). 168 C# tests, bridge pytest 17. The scenes
-`Scenes/Workshop/JobBoard.tscn`, `InspectionTable.tscn` and
-`ChuckCabinet.tscn` exist; the cabinet is placed in `Main.tscn`, the board
-and the table are not yet.
+`main` holds everything through PR #33; the branch `menu-settings-save` adds
+the menus, saves and in-game settings. 178 C# tests, bridge pytest 17. The
+job board, the inspection table and the chuck cabinet are placed in
+`Main.tscn`.
 
 Done, each verified through scripted operators on real LinuxCNC:
 - Bridge (Python in WSL) <-> Godot C# client, prediction, N-axis protocol,
@@ -115,6 +114,37 @@ Done, each verified through scripted operators on real LinuxCNC:
   (`ChuckEnclosure`, curved doors sliding round the curve, 21 chucks from
   `ChuckModel.Showcase`, mostly D1-4), a drawer per `Catalogue` chuck with
   its numbered spare jaws or collets, a worktop with a stand.
+- Menus (`Scripts/UI`): `MainMenu.tscn` is the main scene (continue the
+  newest save, new game = free workshop or a work order as a training
+  scenario, load, settings, quit); `Session` carries the choice into
+  `Main.tscn`, which opens the order on the board and drops its stock on
+  the station's tray. Esc in the workshop is `PauseMenu` (the machines keep
+  running; the player is `Suspended`); M frees the cursor for the console's
+  corner window.
+- Settings (`Scripts/Settings`): one `Setting` list per side, the screen is
+  drawn from it (`SettingsPanel`, tabs Oyun / Eğitmen). `SettingsStore`
+  reads `user://settings.cfg`, then Project Settings, then the default.
+  `GameSettings`: mouse, volume, full screen, autosave minutes.
+  `WorkshopSettings` (instructor): physical handling, hand strength, weight
+  feel, saw clamping, door interlocks, glasses rule, tool wear scale
+  (`CutMonitor.WearScale`), chip size (`ChipSpawner`), belt slots (read when
+  the belt is made).
+- Saves (`Scripts/Save`, `user://saves/*.sav`, zstd `StoreVar`: a meta
+  dictionary, then the data). `ISaveable` nodes by path: `ProceduralMachine`
+  (the control's memory: tool table, wear, active G5x), `MachineSetup`
+  (door; lathe: turret, chuck via `JawChuck.SaveState` with the bar as a
+  turned part from the live profile; mill: magazine, `MillTable` fixtures
+  via `IStockFixture.SaveFixture`, or the indexer chuck), `PlayerController`,
+  `JobBoard`, `BenchVise`. Items: `ISavedItem.SaveState` + a factory per
+  kind in `SavedItems` (stock with turned profile / voxel field, tools with
+  spec, error and wear, hand tools, jaws, collets, chucks with `GripState`,
+  stands, bolts, clamps, fixtures). `IItemHolder` keeps its subtree (and
+  `HeldItems`) out of the loose items. Engine-free snapshots: `ChuckJaws` /
+  `ChuckGrip` (`JawsState`, `GripState`), `ToolState.Restore`,
+  `VoxelStock.Distances` / `FromDistances`. The control's memory goes into
+  `gen_<Name>.tbl` / `.var` before LinuxCNC starts (`MachineSpec.WriteConfigFiles(ControlMemory)`;
+  without a save the `.var` is deleted). Autosave every N minutes and on
+  leaving the workshop.
 - Machine settings in `MachineSpec` (spindle rpm and acceleration, jog,
   coolant, door interlock, thermal growth, homing, backlash, wrapped rotary,
   lathe swing / G7-G8 / tailstock / spindle nose / spare chucks / chuck
@@ -131,15 +161,16 @@ enclosed machines.
    carrying controls, physical jaw setting on the stand (tongue clearance,
    12 deg tolerance) and the sound cues. The agent drives the methods behind
    them in harness scenes only.
-2. Place `JobBoard.tscn` and `InspectionTable.tscn` in `Main.tscn` (the
-   user keeps uncommitted editor work in that file: stage only new lines).
+2. Saves: only the active work offset is kept (the STATE packet carries
+   G5x of the active system only); MachineSafety's incident record and the
+   last inspection report are not saved; a running program is not resumed
+   (machines come back unhomed).
 3. Chucks, not done: jaws on the lathe itself are still set by click (the
    physical way is on the stand); a boring bar running into ID-gripping jaws;
    soft jaws for ID; reversed jaws' larger reach in the turret collision;
    the lathe workpiece assumes a turned part's 0.1 mm profile step; a
    tailstock does not count as support against slender-bar chatter.
-4. Not modelled: guards on open bench machines, RTCP, persistence of cut
-   state across a restart, tool deflection, a locking rotary brake, the
+4. Not modelled: guards on open bench machines, RTCP, tool deflection, a locking rotary brake, the
    random changer's own pocket moves; the requested tool is not in the STATE
    packet. The probe senses only the stock (not vise / table). GRAPH's check
    uses today's offsets for the whole program and does not check the stock.
@@ -149,11 +180,8 @@ enclosed machines.
 6. Lathe X wear is entered in the tool table's own X units; radius vs
    diameter under G7 not checked live. `BridgeClient.LastCommandRttMs` stays
    NaN. DRY RUN key blank (LinuxCNC has no dry-run feed).
-7. **Config mechanism**: `WorkshopSettings` (Project Settings,
-   `cnc_trainer/workshop/*`) holds saw clamping, physical handling, hand
-   strength and weight feel. Candidates: door interlock default, safety
-   records, shortened tool life, chip size, belt slots, wear factors; an
-   in-game instructor panel.
+7. Instructor panel: a password or a separate instructor login is not
+   there; anyone can open the Eğitmen tab.
 
 ## Design decisions that are easy to undo by accident
 
@@ -185,14 +213,21 @@ enclosed machines.
   `BridgeClient.Offsets` (`ToolOffsetTable`) keeps the wear and shows
   geometry = LinuxCNC offset - wear. INPUT / +INPUT write geometry or wear
   (`OffsetCommands.SetToolGeometry` / `SetToolWear`), MEASURE only on the
-  tool in the spindle and keeps its wear. Wear lives for the session, like
-  LinuxCNC's table. Harness: `TmpConsole` scenarios `ofs`, `ofslathe`
+  tool in the spindle and keeps its wear. Wear and the table are kept by a
+  save, like a real control keeps them through a power cycle. Harness: `TmpConsole` scenarios `ofs`, `ofslathe`
   (`CNC_CONSOLE_PRESET=lathe`).
-- STATE packet is 210 bytes, hand-mirrored in `bridge/protocol.py` and
+- STATE packet is 259 bytes (g5x offset + index at the end), hand-mirrored in `bridge/protocol.py` and
   `Scripts/Bridge/BridgeProtocol.cs`; change both + the cross-language
   fixture + the size test together.
-- Shortened on purpose: tool life 20 min at the recommended speed; chips
-  drawn 6x real size (`ChipSpawner.VisualSizeMultiplier`).
+- Shortened on purpose: tool life 20 min at the recommended speed (the
+  instructor's `tool_wear_scale` shortens it further); chips drawn 6x real
+  size (`chip_visual_scale`).
+- A save is loaded only into a freshly opened workshop (`Session.Start`
+  reloads `Main.tscn`); holders restore onto their start state, loose items
+  of the fresh scene are freed first. Loose items come back under the scene
+  root at their global transform.
+- Esc is the menu everywhere in the workshop; anything that needs the
+  cursor uses its own key (M) or takes Esc first (console close-up).
 
 ## Non-obvious environment facts (already handled in code — don't undo)
 
@@ -228,8 +263,8 @@ enclosed machines.
   pattern also kills the sweeping bash); always run the straggler sweep
   after SIGTERM.
 - The Godot editor's Stop button kills the game without
-  `NotificationWMCloseRequest`; only closing the window stops machines
-  cleanly.
+  `NotificationWMCloseRequest` or `_ExitTree`; closing the window, the
+  menu's Ana menü / Çık and loading a save stop machines cleanly.
 - C# namespace traps: `CncTrainer.Panel` / `CncTrainer.Material` shadow
   `Godot.Panel` / `Godot.Material` (qualify them); fixtures namespace cannot
   be `Workholding` (an enum in `CncTrainer.Spec`).
@@ -264,7 +299,10 @@ enclosed machines.
   block), `TmpLive` (CNC_LIVE_PRESET / PROGRAM / ORDER, CNC_TOOL_CALLS=fanuc),
   `TmpCabinet` (windowed: cabinet, stand, physical jaws; CNC_OUT for PNGs),
   `TmpHold` (headless: holding in place / bringing to the hands), `TmpLook`
-  (windowed screenshots, scenarios main / lathe).
+  (windowed screenshots, scenarios main / lathe), `TmpSave` (CNC_SETUP_SCENARIO
+  write then read in a second process: save round trip incl. G54 / tool
+  offsets; ports 9210 + 9220), `TmpMenu` (windowed menu pages),
+  `TmpShopMenu` (windowed: Main.tscn from a work order, Esc menu; REAL ports).
 - Editing from the shell: bash heredocs here mangle `\n` escapes inside C#
   strings (and sometimes Turkish text). Write a Python script file with the
   Write tool and run it, or use Edit. `look.ps1 -Scenario main` uses the REAL ports and takes over
