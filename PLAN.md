@@ -9,8 +9,8 @@ history of how it got here is in git (`git log`, and `PLAN.md` before
 `main` holds everything through the coverage-analysis roadmap and its
 follow-ups (PRs #22-#30). 168 C# tests, bridge pytest 17. The scenes
 `Scenes/Workshop/JobBoard.tscn`, `InspectionTable.tscn` and
-`ChuckCabinet.tscn` exist; only the cabinet is in the user's working copy
-of `Main.tscn` (uncommitted, together with the user's own edits there).
+`ChuckCabinet.tscn` exist; the cabinet is placed in `Main.tscn`, the board
+and the table are not yet.
 
 Done, each verified through scripted operators on real LinuxCNC:
 - Bridge (Python in WSL) <-> Godot C# client, prediction, N-axis protocol,
@@ -119,8 +119,7 @@ Done, each verified through scripted operators on real LinuxCNC:
 
 `Main.tscn`: BenchLathe (9200/9201), BenchMill (9206/9207), Trunnion5Axis,
 FlatBedLathe (9208/9209), tool carts, fixture carts, stock station, tool
-bench, saw bench (and, uncommitted, the chuck cabinet at (-5.6, -1.1, -1)
-facing +X). A session starts with EMPTY spindles/turrets and an OPEN door on
+bench, saw bench, the chuck cabinet at (-5.6, -1.1, -1) facing +X. A session starts with EMPTY spindles/turrets and an OPEN door on
 enclosed machines.
 
 ## Open
@@ -129,8 +128,8 @@ enclosed machines.
    carrying controls, physical jaw setting on the stand (tongue clearance,
    12 deg tolerance) and the sound cues. The agent drives the methods behind
    them in harness scenes only.
-2. Place `JobBoard.tscn` and `InspectionTable.tscn` in `Main.tscn`, and
-   commit the cabinet there (the user's own uncommitted edits share that file).
+2. Place `JobBoard.tscn` and `InspectionTable.tscn` in `Main.tscn` (the
+   user keeps uncommitted editor work in that file: stage only new lines).
 3. Chucks, not done: jaws on the lathe itself are still set by click (the
    physical way is on the stand); a boring bar running into ID-gripping jaws;
    soft jaws for ID; reversed jaws' larger reach in the turret collision;
